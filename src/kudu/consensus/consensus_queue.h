@@ -128,6 +128,36 @@ class PeerMessageQueue {
     int64_t last_seen_term_;
   };
 
+  // A copy of TrackedPeer with a mutable UUID. This enables the existence of a
+  // default constructor, which can be used to safely get a peer and keep it
+  // alive outside of a critical section.
+  struct TrackedPeerSnapshot : TrackedPeer {
+  public:
+    explicit TrackedPeerSnapshot(std::string uuid) :TrackedPeer(uuid) {
+      this->uuid = uuid;
+    }
+
+    // Default constructor will not have a UUID, but it can be set later.
+    TrackedPeerSnapshot() : TrackedPeer("") {}
+
+    // Copy a given TrackedPeer.
+    TrackedPeerSnapshot& operator=(const TrackedPeer& tracked_peer) {
+      uuid = tracked_peer.uuid;
+      is_new = tracked_peer.is_new;
+      next_index = tracked_peer.next_index;
+      last_received = tracked_peer.last_received;
+      last_known_committed_index = tracked_peer.last_known_committed_index;
+      is_last_exchange_successful = tracked_peer.is_last_exchange_successful;
+      last_successful_communication_time = tracked_peer.last_successful_communication_time;
+      needs_tablet_copy = tracked_peer.needs_tablet_copy;
+      status_log_throttler = tracked_peer.status_log_throttler;
+      return *this;
+    }
+
+    // UUID of the snapshot.
+    std::string uuid;
+  };
+
   PeerMessageQueue(const scoped_refptr<MetricEntity>& metric_entity,
                    const scoped_refptr<log::Log>& log,
                    scoped_refptr<TimeManager> time_manager,

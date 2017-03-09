@@ -1,0 +1,93 @@
+RACE TYPE 1 DESCRIPTION
+Here we have PeerMessageQueue::NotifyPeerIsResponsiveDespiteError being called from a heartbeater callback after getting a TabletCopy response (first text block, #1 ProcessTabletCopyResponse). This updates the peer's last_successful_communication_time. This callback is being called as the heartbeater is sending out its heartbeat request to the peers (second text block, #3 RequestForPeer), which reads the peer's last_successful_communication_time. RequestForPeer locks the message queue and not the peer itself, making the assumption that the peers are only being accessed through the queue. To remediate this, sections of code that read from peer are locked as critical sections.
+
+RaftConsensusITest.TestAutoCreateReplica: WARNING: ThreadSanitizer: data race (pid=22905)  Write of size 8 at 0x7d2400112500 by thread T8 (mutexes: write M1932):
+    #0 kudu::consensus::PeerMessageQueue::NotifyPeerIsResponsiveDespiteError(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&) /data/jenkins-workspace/kudu-workspace/src/kudu/consensus/consensus_queue.cc:589:44 (libconsensus.so+0x000000071355)
+    #1 kudu::consensus::Peer::ProcessTabletCopyResponse() /data/jenkins-workspace/kudu-workspace/src/kudu/consensus/consensus_peers.cc:341:15 (libconsensus.so+0x00000006540b)
+    #2 kudu::consensus::Peer::SendNextRequest(bool)::$_1::operator()() const /data/jenkins-workspace/kudu-workspace/src/kudu/consensus/consensus_peers.cc:203:39 (libconsensus.so+0x000000067211)
+    #3 boost::detail::function::void_function_obj_invoker0<kudu::consensus::Peer::SendNextRequest(bool)::$_1, void>::invoke(boost::detail::function::function_buffer&) /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/function/function_template.hpp:159:11 (libconsensus.so+0x000000067029)
+    #4 boost::function0<void>::operator()() const /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/function/function_template.hpp:770:14 (libkrpc.so+0x0000000a6931)
+    #5 kudu::rpc::OutboundCall::CallCallback() /data/jenkins-workspace/kudu-workspace/src/kudu/rpc/outbound_call.cc:193:5 (libkrpc.so+0x0000000a49f6)
+    #6 kudu::rpc::OutboundCall::SetResponse(gscoped_ptr<kudu::rpc::CallResponse, kudu::DefaultDeleter<kudu::rpc::CallResponse> >) /data/jenkins-workspace/kudu-workspace/src/kudu/rpc/outbound_call.cc:225:5 (libkrpc.so+0x0000000a4bff)
+    #7 kudu::rpc::Connection::HandleCallResponse(gscoped_ptr<kudu::rpc::InboundTransfer, kudu::DefaultDeleter<kudu::rpc::InboundTransfer> >) /data/jenkins-workspace/kudu-workspace/src/kudu/rpc/connection.cc:538:14 (libkrpc.so+0x000000088a37)
+    #8 kudu::rpc::Connection::ReadHandler(ev::io&, int) /data/jenkins-workspace/kudu-workspace/src/kudu/rpc/connection.cc:474:7 (libkrpc.so+0x000000088319)
+    #9 void ev::base<ev_io, ev::io>::method_thunk<kudu::rpc::Connection, &(kudu::rpc::Connection::ReadHandler(ev::io&, int))>(ev_loop*, ev_io*, int) /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/ev++.h:479:7 (libkrpc.so+0x00000008e98a)
+    #10 ev_invoke_pending /data/jenkins-workspace/kudu-workspace/thirdparty/src/libev-4.20/ev.c:3155:11 (libev.so.4+0x00000000976c)
+    #11 ev_run /data/jenkins-workspace/kudu-workspace/thirdparty/src/libev-4.20/ev.c:3555:7 (libev.so.4+0x00000000a87d)
+    #12 ev::loop_ref::run(int) /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/ev++.h:211:7 (libkrpc.so+0x0000000af1d8)
+    #13 kudu::rpc::ReactorThread::RunThread() /data/jenkins-workspace/kudu-workspace/src/kudu/rpc/reactor.cc:316:9 (libkrpc.so+0x0000000aa71c)
+    #14 boost::_mfi::mf0<void, kudu::rpc::ReactorThread>::operator()(kudu::rpc::ReactorThread*) const /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/bind/mem_fn_template.hpp:49:29 (libkrpc.so+0x0000000b1e36)
+    #15 void boost::_bi::list1<boost::_bi::value<kudu::rpc::ReactorThread*> >::operator()<boost::_mfi::mf0<void, kudu::rpc::ReactorThread>, boost::_bi::list0>(boost::_bi::type<void>, boost::_mfi::mf0<void, kudu::rpc::ReactorThread>&, boost::_bi::list0&, int) /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/bind/bind.hpp:259:9 (libkrpc.so+0x0000000b1d9a)
+    #16 boost::_bi::bind_t<void, boost::_mfi::mf0<void, kudu::rpc::ReactorThread>, boost::_bi::list1<boost::_bi::value<kudu::rpc::ReactorThread*> > >::operator()() /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/bind/bind.hpp:1222:16 (libkrpc.so+0x0000000b1d33)
+    #17 boost::detail::function::void_function_obj_invoker0<boost::_bi::bind_t<void, boost::_mfi::mf0<void, kudu::rpc::ReactorThread>, boost::_bi::list1<boost::_bi::value<kudu::rpc::ReactorThread*> > >, void>::invoke(boost::detail::function::function_buffer&) /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/function/function_template.hpp:159:11 (libkrpc.so+0x0000000b1b59)
+    #18 boost::function0<void>::operator()() const /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/function/function_template.hpp:770:14 (libkrpc.so+0x0000000a6931)
+    #19 kudu::Thread::SuperviseThread(void*) /data/jenkins-workspace/kudu-workspace/src/kudu/util/thread.cc:590:3 (libkudu_util.so+0x0000001a1f14)
+
+  Previous read of size 8 at 0x7d2400112500 by thread T140 (mutexes: write M178805):
+    #0 kudu::MonoTime::Initialized() const /data/jenkins-workspace/kudu-workspace/src/kudu/util/monotime.cc:196:10 (libkudu_util.so+0x000000171639)
+    #1 kudu::MonoTime::GetDeltaSince(kudu::MonoTime const&) const /data/jenkins-workspace/kudu-workspace/src/kudu/util/monotime.cc:201:3 (libkudu_util.so+0x00000017167d)
+    #2 kudu::operator-(kudu::MonoTime const&, kudu::MonoTime const&) /data/jenkins-workspace/kudu-workspace/src/kudu/util/monotime.cc:322:16 (libkudu_util.so+0x000000171fb0)
+    #3 kudu::consensus::PeerMessageQueue::RequestForPeer(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, kudu::consensus::ConsensusRequestPB*, std::__1::vector<scoped_refptr<kudu::consensus::RefCountedReplicate>, std::__1::allocator<scoped_refptr<kudu::consensus::RefCountedReplicate> > >*, bool*) /data/jenkins-workspace/kudu-workspace/src/kudu/consensus/consensus_queue.cc:366:23 (libconsensus.so+0x00000006f13e)
+    #4 kudu::consensus::Peer::SendNextRequest(bool) /data/jenkins-workspace/kudu-workspace/src/kudu/consensus/consensus_peers.cc:178:22 (libconsensus.so+0x000000063f25)
+    #5 kudu::consensus::Peer::SignalRequest(bool)::$_0::operator()() const /data/jenkins-workspace/kudu-workspace/src/kudu/consensus/consensus_peers.cc:135:3 (libconsensus.so+0x000000066da2)
+    #6 boost::detail::function::void_function_obj_invoker0<kudu::consensus::Peer::SignalRequest(bool)::$_0, void>::invoke(boost::detail::function::function_buffer&) /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/function/function_template.hpp:159:11 (libconsensus.so+0x000000066ba9)
+    #7 boost::function0<void>::operator()() const /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/function/function_template.hpp:770:14 (libkrpc.so+0x0000000a6931)
+    #8 kudu::FunctionRunnable::Run() /data/jenkins-workspace/kudu-workspace/src/kudu/util/threadpool.cc:48:5 (libkudu_util.so+0x0000001a979d)
+    #9 kudu::ThreadPool::DispatchThread(bool) /data/jenkins-workspace/kudu-workspace/src/kudu/util/threadpool.cc:347:23 (libkudu_util.so+0x0000001a85e3)
+    #10 boost::_mfi::mf1<void, kudu::ThreadPool, bool>::operator()(kudu::ThreadPool*, bool) const /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/bind/mem_fn_template.hpp:165:29 (libkudu_util.so+0x0000001aaf8e)
+    #11 void boost::_bi::list2<boost::_bi::value<kudu::ThreadPool*>, boost::_bi::value<bool> >::operator()<boost::_mfi::mf1<void, kudu::ThreadPool, bool>, boost::_bi::list0>(boost::_bi::type<void>, boost::_mfi::mf1<void, kudu::ThreadPool, bool>&, boost::_bi::list0&, int) /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/bind/bind.hpp:319:9 (libkudu_util.so+0x0000001aaeeb)
+    #12 boost::_bi::bind_t<void, boost::_mfi::mf1<void, kudu::ThreadPool, bool>, boost::_bi::list2<boost::_bi::value<kudu::ThreadPool*>, boost::_bi::value<bool> > >::operator()() /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/bind/bind.hpp:1222:16 (libkudu_util.so+0x0000001aae63)
+    #13 boost::detail::function::void_function_obj_invoker0<boost::_bi::bind_t<void, boost::_mfi::mf1<void, kudu::ThreadPool, bool>, boost::_bi::list2<boost::_bi::value<kudu::ThreadPool*>, boost::_bi::value<bool> > >, void>::invoke(boost::detail::function::function_buffer&) /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/function/function_template.hpp:159:11 (libkudu_util.so+0x0000001aac61)
+    #14 boost::function0<void>::operator()() const /data/jenkins-workspace/kudu-workspace/thirdparty/installed/tsan/include/boost/function/function_template.hpp:770:14 (libkrpc.so+0x0000000a6931)
+    #15 kudu::Thread::SuperviseThread(void*) /data/jenkins-workspace/kudu-workspace/src/kudu/util/thread.cc:590:3 (libkudu_util.so+0x0000001a1f14)
+
+    SUMMARY: ThreadSanitizer: data race /data/jenkins-workspace/kudu-workspace/src/kudu/consensus/consensus_queue.cc:589:44 in kudu::consensus::PeerMessageQueue::NotifyPeerIsResponsiveDespiteError(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)
+
+
+RACE TYPE 2 DESCRIPTION
+Right after having getting a response from TabletCopy, we have RpcController::status() being called (first text block, #2 status()), which reads its OutboundCall's status under its own internal lock. In a separate thread, the heartbeater resets the controller as it sends each request under a lock on peer (second text block, #2 Reset()), in turn, calling OutboundCall::Reset. In order to remediate this, the peer should be locked for the full duration of ProcessTabletCopyResponse.
+
+WARNING: ThreadSanitizer: data race (pid=11812)
+  Read of size 8 at 0x7d540009edf0 by thread T11:
+    #0 std::__1::shared_ptr<kudu::rpc::OutboundCall>::get() const /home/awong/8/kudu/thirdparty/installed/tsan/include/c++/v1/memory:4057:49 (libkrpc.so+0x000000162305)
+    #1 std::__1::shared_ptr<kudu::rpc::OutboundCall>::operator bool() const /home/awong/8/kudu/thirdparty/installed/tsan/include/c++/v1/memory:4068 (libkrpc.so+0x000000162305)
+    #2 kudu::rpc::RpcController::status() const /home/awong/8/kudu/src/kudu/rpc/rpc_controller.cc:67 (libkrpc.so+0x000000162305)
+    #3 kudu::consensus::Peer::ProcessTabletCopyResponse() /home/awong/8/kudu/src/kudu/consensus/consensus_peers.cc:337:19 (libconsensus.so+0x00000006f7ca)
+    #4 kudu::consensus::Peer::SendNextRequest(bool)::$_1::operator()() const /home/awong/8/kudu/src/kudu/consensus/consensus_peers.cc:203:39 (libconsensus.so+0x000000073a46)
+    #5 boost::detail::function::void_function_obj_invoker0<kudu::consensus::Peer::SendNextRequest(bool)::$_1, void>::invoke(boost::detail::function::function_buffer&) /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/function/function_template.hpp:159:11 (libconsensus.so+0x000000073690)
+    #6 boost::function0<void>::operator()() const /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/function/function_template.hpp:770:14 (libkrpc.so+0x00000010701a)
+    #7 kudu::rpc::OutboundCall::CallCallback() /home/awong/8/kudu/src/kudu/rpc/outbound_call.cc:193:5 (libkrpc.so+0x000000103896)
+    #8 kudu::rpc::OutboundCall::SetResponse(gscoped_ptr<kudu::rpc::CallResponse, kudu::DefaultDeleter<kudu::rpc::CallResponse> >) /home/awong/8/kudu/src/kudu/rpc/outbound_call.cc:225:5 (libkrpc.so+0x000000103d2b)
+    #9 kudu::rpc::Connection::HandleCallResponse(gscoped_ptr<kudu::rpc::InboundTransfer, kudu::DefaultDeleter<kudu::rpc::InboundTransfer> >) /home/awong/8/kudu/src/kudu/rpc/connection.cc:538:14 (libkrpc.so+0x0000000b05bc)
+    #10 kudu::rpc::Connection::ReadHandler(ev::io&, int) /home/awong/8/kudu/src/kudu/rpc/connection.cc:474:7 (libkrpc.so+0x0000000af824)
+    #11 void ev::base<ev_io, ev::io>::method_thunk<kudu::rpc::Connection, &kudu::rpc::Connection::ReadHandler>(ev_loop*, ev_io*, int) /home/awong/8/kudu/thirdparty/installed/tsan/include/ev++.h:479:7 (libkrpc.so+0x0000000be5db)
+    #12 ev_invoke_pending /data/8/awong/kudu/thirdparty/src/libev-4.20/ev.c:3155:11 (libev.so.4+0x00000000976c)
+    #13 ev_run /data/8/awong/kudu/thirdparty/src/libev-4.20/ev.c:3555:7 (libev.so.4+0x00000000a87d)
+    #14 ev::loop_ref::run(int) /home/awong/8/kudu/thirdparty/installed/tsan/include/ev++.h:211:7 (libkrpc.so+0x00000011dd9a)
+    #15 kudu::rpc::ReactorThread::RunThread() /home/awong/8/kudu/src/kudu/rpc/reactor.cc:316:9 (libkrpc.so+0x00000010f6d0)
+    #16 boost::_mfi::mf0<void, kudu::rpc::ReactorThread>::operator()(kudu::rpc::ReactorThread*) const /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/bind/mem_fn_template.hpp:49:29 (libkrpc.so+0x0000001230fb)
+    #17 void boost::_bi::list1<boost::_bi::value<kudu::rpc::ReactorThread*> >::operator()<boost::_mfi::mf0<void, kudu::rpc::ReactorThread>, boost::_bi::list0>(boost::_bi::type<void>, boost::_mfi::mf0<void, kudu::rpc::ReactorThread>&, boost::_bi::list0&, int) /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/bind/bind.hpp:259:9 (libkrpc.so+0x000000122fd8)
+    #18 boost::_bi::bind_t<void, boost::_mfi::mf0<void, kudu::rpc::ReactorThread>, boost::_bi::list1<boost::_bi::value<kudu::rpc::ReactorThread*> > >::operator()() /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/bind/bind.hpp:1222:16 (libkrpc.so+0x000000122f3a)
+    #19 boost::detail::function::void_function_obj_invoker0<boost::_bi::bind_t<void, boost::_mfi::mf0<void, kudu::rpc::ReactorThread>, boost::_bi::list1<boost::_bi::value<kudu::rpc::ReactorThread*> > >, void>::invoke(boost::detail::function::function_buffer&) /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/function/function_template.hpp:159:11 (libkrpc.so+0x000000122b80)
+    #20 boost::function0<void>::operator()() const /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/function/function_template.hpp:770:14 (libkrpc.so+0x00000010701a)
+    #21 kudu::Thread::SuperviseThread(void*) /home/awong/8/kudu/src/kudu/util/thread.cc:590:3 (libkudu_util.so+0x00000036b897)
+
+  Previous write of size 8 at 0x7d540009edf0 by thread T134 (mutexes: write M4211, write M4226):
+    #0 _ZNSt3__14swapIPN4kudu3rpc12OutboundCallEEENS_9enable_ifIXaasr21is_move_constructibleIT_EE5valuesr18is_move_assignableIS6_EE5valueEvE4typeERS6_S9_ /home/awong/8/kudu/thirdparty/installed/tsan/include/c++/v1/type_traits:4423:9 (libkrpc.so+0x0000001620f7)
+    #1 std::__1::shared_ptr<kudu::rpc::OutboundCall>::swap(std::__1::shared_ptr<kudu::rpc::OutboundCall>&) /home/awong/8/kudu/thirdparty/installed/tsan/include/c++/v1/memory:4737 (libkrpc.so+0x0000001620f7)
+    #2 std::__1::shared_ptr<kudu::rpc::OutboundCall>::reset() /home/awong/8/kudu/thirdparty/installed/tsan/include/c++/v1/memory:4746 (libkrpc.so+0x0000001620f7)
+    #3 kudu::rpc::RpcController::Reset() /home/awong/8/kudu/src/kudu/rpc/rpc_controller.cc:55 (libkrpc.so+0x0000001620f7)
+    #4 kudu::consensus::Peer::SendNextRequest(bool) /home/awong/8/kudu/src/kudu/consensus/consensus_peers.cc:230:15 (libconsensus.so+0x00000006d09f)
+    #5 kudu::consensus::Peer::SignalRequest(bool)::$_0::operator()() const /home/awong/8/kudu/src/kudu/consensus/consensus_peers.cc:135:3 (libconsensus.so+0x000000073132)
+    #6 boost::detail::function::void_function_obj_invoker0<kudu::consensus::Peer::SignalRequest(bool)::$_0, void>::invoke(boost::detail::function::function_buffer&) /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/function/function_template.hpp:159:11 (libconsensus.so+0x000000072d50)
+    #7 boost::function0<void>::operator()() const /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/function/function_template.hpp:770:14 (libkrpc.so+0x00000010701a)
+    #8 kudu::FunctionRunnable::Run() /home/awong/8/kudu/src/kudu/util/threadpool.cc:48:5 (libkudu_util.so+0x00000038616c)
+    #9 kudu::ThreadPool::DispatchThread(bool) /home/awong/8/kudu/src/kudu/util/threadpool.cc:347:23 (libkudu_util.so+0x000000382af3)
+    #10 boost::_mfi::mf1<void, kudu::ThreadPool, bool>::operator()(kudu::ThreadPool*, bool) const /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/bind/mem_fn_template.hpp:165:29 (libkudu_util.so+0x00000038a051)
+    #11 void boost::_bi::list2<boost::_bi::value<kudu::ThreadPool*>, boost::_bi::value<bool> >::operator()<boost::_mfi::mf1<void, kudu::ThreadPool, bool>, boost::_bi::list0>(boost::_bi::type<void>, boost::_mfi::mf1<void, kudu::ThreadPool, bool>&, boost::_bi::list0&, int) /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/bind/bind.hpp:319:9 (libkudu_util.so+0x000000389f1f)
+    #12 boost::_bi::bind_t<void, boost::_mfi::mf1<void, kudu::ThreadPool, bool>, boost::_bi::list2<boost::_bi::value<kudu::ThreadPool*>, boost::_bi::value<bool> > >::operator()() /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/bind/bind.hpp:1222:16 (libkudu_util.so+0x000000389e4a)
+    #13 boost::detail::function::void_function_obj_invoker0<boost::_bi::bind_t<void, boost::_mfi::mf1<void, kudu::ThreadPool, bool>, boost::_bi::list2<boost::_bi::value<kudu::ThreadPool*>, boost::_bi::value<bool> > >, void>::invoke(boost::detail::function::function_buffer&) /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/function/function_template.hpp:159:11 (libkudu_util.so+0x000000389976)
+    #14 boost::function0<void>::operator()() const /home/awong/8/kudu/thirdparty/installed/tsan/include/boost/function/function_template.hpp:770:14 (libkrpc.so+0x00000010701a)
+    #15 kudu::Thread::SuperviseThread(void*) /home/awong/8/kudu/src/kudu/util/thread.cc:590:3 (libkudu_util.so+0x00000036b897)
+
+    SUMMARY: ThreadSanitizer: data race /home/awong/8/kudu/thirdparty/installed/tsan/include/c++/v1/memory:4057:49 in std::__1::shared_ptr<kudu::rpc::OutboundCall>::get() const
