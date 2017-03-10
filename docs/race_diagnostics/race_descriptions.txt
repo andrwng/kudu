@@ -1,5 +1,14 @@
 RACE TYPE 1 DESCRIPTION
-Here we have PeerMessageQueue::NotifyPeerIsResponsiveDespiteError being called from a heartbeater callback after getting a TabletCopy response (first text block, #1 ProcessTabletCopyResponse). This updates the peer's last_successful_communication_time. This callback is being called as the heartbeater is sending out its heartbeat request to the peers (second text block, #3 RequestForPeer), which reads the peer's last_successful_communication_time. RequestForPeer locks the message queue and not the peer itself, making the assumption that the peers are only being accessed through the queue. To remediate this, sections of code that read from peer are locked as critical sections.
+Here we have PeerMessageQueue::NotifyPeerIsResponsiveDespiteError being called
+from a heartbeater callback after getting a TabletCopy response (first text
+block, #1 ProcessTabletCopyResponse). This updates the peer's
+last_successful_communication_time. This callback is being called as the
+heartbeater is sending out its heartbeat request to the peers (second text
+block, #3 RequestForPeer), which reads the peer's
+last_successful_communication_time. RequestForPeer locks the message queue and
+not the peer itself, making the assumption that the peers are only being
+accessed through the queue. To remediate this, sections of code that read from
+peer are locked as critical sections.
 
 RaftConsensusITest.TestAutoCreateReplica: WARNING: ThreadSanitizer: data race (pid=22905)  Write of size 8 at 0x7d2400112500 by thread T8 (mutexes: write M1932):
     #0 kudu::consensus::PeerMessageQueue::NotifyPeerIsResponsiveDespiteError(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&) /data/jenkins-workspace/kudu-workspace/src/kudu/consensus/consensus_queue.cc:589:44 (libconsensus.so+0x000000071355)
@@ -45,7 +54,13 @@ RaftConsensusITest.TestAutoCreateReplica: WARNING: ThreadSanitizer: data race (p
 
 
 RACE TYPE 2 DESCRIPTION
-Right after having getting a response from TabletCopy, we have RpcController::status() being called (first text block, #2 status()), which reads its OutboundCall's status under its own internal lock. In a separate thread, the heartbeater resets the controller as it sends each request under a lock on peer (second text block, #2 Reset()), in turn, calling OutboundCall::Reset. In order to remediate this, the peer should be locked for the full duration of ProcessTabletCopyResponse.
+Right after having getting a response from TabletCopy, we have
+RpcController::status() being called (first text block, #2 status()), which
+reads its OutboundCall's status under its own internal lock. In a separate
+thread, the heartbeater resets the controller as it sends each request under a
+lock on peer (second text block, #2 Reset()), in turn, calling
+OutboundCall::Reset. In order to remediate this, the peer should be locked for
+the full duration of ProcessTabletCopyResponse.
 
 WARNING: ThreadSanitizer: data race (pid=11812)
   Read of size 8 at 0x7d540009edf0 by thread T11:
