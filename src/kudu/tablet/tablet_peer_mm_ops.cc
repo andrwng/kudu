@@ -23,6 +23,7 @@
 #include <mutex>
 #include <string>
 
+#include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/tablet_metrics.h"
 #include "kudu/util/flag_tags.h"
@@ -177,10 +178,13 @@ void FlushDeltaMemStoresOp::Perform() {
     LOG(WARNING) << "Won't flush deltas since tablet shutting down: " << tablet_peer_->tablet_id();
     return;
   }
-  KUDU_CHECK_OK_PREPEND(tablet_peer_->tablet()->FlushDMSWithHighestRetention(
-                            max_idx_to_replay_size),
-                        Substitute("Failed to flush DMS on $0",
-                                   tablet_peer_->tablet()->tablet_id()));
+
+  Status s = tablet_peer_->tablet()->FlushDMSWithHighestRetention(max_idx_to_replay_size);
+
+  KUDU_CHECK_OR_HANDLE(tablet_peer_->tablet()->FlushDMSWithHighestRetention(max_idx_to_replay_size),
+                       EIO, manager_->fs_manager()->HandleError(FsErrorOpts()),
+                       Substitute("Failed to flush DMS on $0", tablet_peer_->tablet()->tablet_id()));
+
   {
     std::lock_guard<simple_spinlock> l(lock_);
     time_since_flush_.start();

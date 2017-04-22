@@ -29,6 +29,7 @@
 
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/util/env.h"
+#include "kudu/util/locks.h"
 #include "kudu/util/path_util.h"
 
 DECLARE_bool(enable_data_block_fsync);
@@ -46,8 +47,11 @@ class MetricEntity;
 
 namespace fs {
 class BlockManager;
+class DataDirManager;
 class ReadableBlock;
 class WritableBlock;
+
+struct CreateBlockOptions;
 } // namespace fs
 
 namespace itest {
@@ -56,6 +60,12 @@ class ExternalMiniClusterFsInspector;
 
 class BlockId;
 class InstanceMetadataPB;
+
+// This struct is used throughout the codebase to pass knowledge of an IO error
+// to the FsManager. For now it only contains the UUID of a failed disk.
+struct FsErrorOpts {
+  uint16_t uuid;
+};
 
 struct FsManagerOpts {
   FsManagerOpts();
@@ -125,9 +135,14 @@ class FsManager {
   //  Data read/write interfaces
   // ==========================================================================
 
-  // Creates a new anonymous block.
+  // Creates a new block based on the options specified in 'opts'.
   //
   // Block will be synced on close.
+  Status CreateNewBlock(const fs::CreateBlockOptions& opts, std::unique_ptr<fs::WritableBlock>* block);
+
+  // Creates a new block in a randomly selected data directory.
+  //
+  // This should only be used in tests.
   Status CreateNewBlock(std::unique_ptr<fs::WritableBlock>* block);
 
   Status OpenBlock(const BlockId& block_id,
@@ -179,7 +194,7 @@ class FsManager {
     return JoinPathSegments(GetConsensusMetadataDir(), tablet_id);
   }
 
-  Env *env() { return env_; }
+  Env* env() { return env_; }
 
   bool read_only() const {
     return read_only_;
@@ -198,9 +213,16 @@ class FsManager {
 
   Status CreateDirIfMissing(const std::string& path, bool* created = NULL);
 
+  void HandleError(const FsErrorOpts& opts);
+
+  fs::DataDirManager* dd_manager() const;
+
   fs::BlockManager* block_manager() {
     return block_manager_.get();
   }
+
+  // Adds the data dirs specified by 'uuids' to 'unhealthy_data_dirs_'.
+  void MarkDataDirsUnhealthy(const std::vector<uint16_t>& uuids);
 
  private:
   FRIEND_TEST(FsManagerTestBase, TestDuplicatePaths);
@@ -283,6 +305,10 @@ class FsManager {
   std::unique_ptr<fs::BlockManager> block_manager_;
 
   bool initted_;
+
+  // Lock protecting the known unhealthy data directories.
+  mutable simple_spinlock data_dir_lock_;
+  std::set<uint16_t> unhealthy_data_dirs_;
 
   DISALLOW_COPY_AND_ASSIGN(FsManager);
 };

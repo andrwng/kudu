@@ -40,9 +40,7 @@ using std::shared_ptr;
 
 namespace kudu {
 
-using cfile::CFileIterator;
-using cfile::CFileReader;
-using cfile::IndexTreeIterator;
+using fs::CreateBlockOptions;
 using fs::WritableBlock;
 using std::unique_ptr;
 using std::vector;
@@ -93,7 +91,7 @@ string MajorDeltaCompaction::ColumnNamesToString() const {
   return result;
 }
 
-Status MajorDeltaCompaction::FlushRowSetAndDeltas() {
+Status MajorDeltaCompaction::FlushRowSetAndDeltas(const string& tablet_id) {
   CHECK_EQ(state_, kInitialized);
 
   shared_ptr<ColumnwiseIterator> old_base_data_cwise(base_data_->NewIterator(&partial_schema_));
@@ -174,7 +172,7 @@ Status MajorDeltaCompaction::FlushRowSetAndDeltas() {
 
       // We only create a new undo delta file if we need to.
       if (new_undos_head != nullptr && !new_undo_delta_writer_) {
-        RETURN_NOT_OK(OpenUndoDeltaFileWriter());
+        RETURN_NOT_OK(OpenUndoDeltaFileWriter(tablet_id));
       }
       for (const Mutation *mut = new_undos_head; mut != nullptr; mut = mut->next()) {
         DeltaKey undo_key(nrows + dst_row.row_index(), mut->timestamp());
@@ -196,7 +194,7 @@ Status MajorDeltaCompaction::FlushRowSetAndDeltas() {
 
     // We only create a new redo delta file if we need to.
     if (!out.empty() && !new_redo_delta_writer_) {
-      RETURN_NOT_OK(OpenRedoDeltaFileWriter());
+      RETURN_NOT_OK(OpenRedoDeltaFileWriter(tablet_id));
     }
 
     // 6) Write the remaining REDO deltas that we haven't compacted away back
@@ -238,34 +236,36 @@ Status MajorDeltaCompaction::FlushRowSetAndDeltas() {
   return Status::OK();
 }
 
-Status MajorDeltaCompaction::OpenBaseDataWriter() {
+Status MajorDeltaCompaction::OpenBaseDataWriter(const string& tablet_id) {
   CHECK(!base_data_writer_);
 
   gscoped_ptr<MultiColumnWriter> w(new MultiColumnWriter(fs_manager_, &partial_schema_));
-  RETURN_NOT_OK(w->Open());
+  RETURN_NOT_OK(w->Open(tablet_id));
   base_data_writer_.swap(w);
   return Status::OK();
 }
 
-Status MajorDeltaCompaction::OpenRedoDeltaFileWriter() {
+Status MajorDeltaCompaction::OpenRedoDeltaFileWriter(const string& tablet_id) {
   unique_ptr<WritableBlock> block;
-  RETURN_NOT_OK_PREPEND(fs_manager_->CreateNewBlock(&block),
+  CreateBlockOptions opts({tablet_id});
+  RETURN_NOT_OK_PREPEND(fs_manager_->CreateNewBlock(opts, &block),
                         "Unable to create REDO delta output block");
   new_redo_delta_block_ = block->id();
   new_redo_delta_writer_.reset(new DeltaFileWriter(std::move(block)));
   return new_redo_delta_writer_->Start();
 }
 
-Status MajorDeltaCompaction::OpenUndoDeltaFileWriter() {
+Status MajorDeltaCompaction::OpenUndoDeltaFileWriter(const string& tablet_id) {
   unique_ptr<WritableBlock> block;
-  RETURN_NOT_OK_PREPEND(fs_manager_->CreateNewBlock(&block),
+  CreateBlockOptions opts({tablet_id});
+  RETURN_NOT_OK_PREPEND(fs_manager_->CreateNewBlock(opts, &block),
                         "Unable to create UNDO delta output block");
   new_undo_delta_block_ = block->id();
   new_undo_delta_writer_.reset(new DeltaFileWriter(std::move(block)));
   return new_undo_delta_writer_->Start();
 }
 
-Status MajorDeltaCompaction::Compact() {
+Status MajorDeltaCompaction::Compact(const string& tablet_id) {
   CHECK_EQ(state_, kInitialized);
 
   LOG(INFO) << "Starting major delta compaction for columns " << ColumnNamesToString();
@@ -276,8 +276,8 @@ Status MajorDeltaCompaction::Compact() {
   }
 
   // We defer calling OpenRedoDeltaFileWriter() since we might not need to flush.
-  RETURN_NOT_OK(OpenBaseDataWriter());
-  RETURN_NOT_OK(FlushRowSetAndDeltas());
+  RETURN_NOT_OK(OpenBaseDataWriter(tablet_id));
+  RETURN_NOT_OK(FlushRowSetAndDeltas(tablet_id));
   LOG(INFO) << "Finished major delta compaction of columns " <<
       ColumnNamesToString();
   return Status::OK();

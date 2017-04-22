@@ -103,7 +103,8 @@ TAG_FLAG(env_use_fsync, advanced);
 TAG_FLAG(env_use_fsync, evolving);
 
 DEFINE_bool(suicide_on_eio, true,
-            "Kill the process if an I/O operation results in EIO");
+            "Kill the process if an I/O operation results in EIO. If false, "
+            "the operation should attempt to fail without crashing.");
 TAG_FLAG(suicide_on_eio, advanced);
 
 DEFINE_bool(never_fsync, false,
@@ -115,6 +116,10 @@ TAG_FLAG(never_fsync, unsafe);
 DEFINE_double(env_inject_io_error_on_write_or_preallocate, 0.0,
               "Fraction of the time that write or preallocate operations will fail");
 TAG_FLAG(env_inject_io_error_on_write_or_preallocate, hidden);
+
+DEFINE_double(env_inject_io_error, 0.0,
+              "Fraction of the time that any operation will fail");
+TAG_FLAG(env_inject_io_error, hidden);
 
 using base::subtle::Atomic64;
 using base::subtle::Barrier_AtomicIncrement;
@@ -201,6 +206,8 @@ static Status IOError(const std::string& context, int err_number) {
         // TODO: This is very, very coarse-grained. A more comprehensive
         // approach is described in KUDU-616.
         LOG(FATAL) << "Fatal I/O error, context: " << context;
+      } else {
+        LOG(WARNING) << "I/O error, context: " << context;
       }
   }
   return Status::IOError(context, ErrnoToString(err_number), err_number);
@@ -469,8 +476,9 @@ class PosixWritableFile : public WritableFile {
 
   Status DoWritev(const vector<Slice>& data_vector,
                   size_t offset, size_t n) {
-    MAYBE_RETURN_FAILURE(FLAGS_env_inject_io_error_on_write_or_preallocate,
-                         Status::IOError(Env::kInjectedFailureStatusMsg));
+    double error_rate = std::max({FLAGS_env_inject_io_error,
+                                 FLAGS_env_inject_io_error_on_write_or_preallocate});
+    MAYBE_RETURN_FAILURE(error_rate, IOError(Env::kInjectedFailureStatusMsg, EIO));
 
     ThreadRestrictions::AssertIOAllowed();
 #if defined(__linux__)

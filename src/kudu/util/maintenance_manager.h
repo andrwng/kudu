@@ -38,6 +38,10 @@
 
 namespace kudu {
 
+namespace fs {
+class FsManager;
+}  // namespace fs
+
 template<class T>
 class AtomicGauge;
 class Histogram;
@@ -207,6 +211,10 @@ class MaintenanceOp {
   void CancelAndDisable() {
     cancel_.Store(true);
   }
+ protected:
+  // The MaintenanceManager with which this op is registered, or null
+  // if it is not registered.
+  std::shared_ptr<MaintenanceManager> manager_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(MaintenanceOp);
@@ -227,10 +235,6 @@ class MaintenanceOp {
   // Note: 'cond_' is used with the MaintenanceManager's mutex. As such,
   // it only exists when the op is registered.
   gscoped_ptr<ConditionVariable> cond_;
-
-  // The MaintenanceManager with which this op is registered, or null
-  // if it is not registered.
-  std::shared_ptr<MaintenanceManager> manager_;
 
   IOUsage io_usage_;
 };
@@ -260,6 +264,7 @@ class MaintenanceManager : public std::enable_shared_from_this<MaintenanceManage
     int32_t polling_interval_ms;
     uint32_t history_size;
     std::shared_ptr<MemTracker> parent_mem_tracker;
+    fs::FsManager* fs_manager;
   };
 
   explicit MaintenanceManager(const Options& options);
@@ -278,6 +283,8 @@ class MaintenanceManager : public std::enable_shared_from_this<MaintenanceManage
 
   void GetMaintenanceManagerStatusDump(MaintenanceManagerStatusPB* out_pb);
 
+  fs::FsManager* fs_manager() const { return fs_manager_; }
+
   static const Options DEFAULT_OPTIONS;
 
  private:
@@ -295,6 +302,10 @@ class MaintenanceManager : public std::enable_shared_from_this<MaintenanceManage
   std::string LogPrefix() const;
 
   const int32_t num_threads_;
+
+  // An operation should have the fs_manager handle IO errors.
+  fs::FsManager* fs_manager_;
+
   OpMapTy ops_; // registered operations
   Mutex lock_;
   scoped_refptr<kudu::Thread> monitor_thread_;

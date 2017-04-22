@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "kudu/fs/data_dir_group.h"
 #include "kudu/fs/file_block_manager.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/log_block_manager.h"
@@ -50,6 +51,7 @@ DECLARE_int64(fs_data_dirs_reserved_bytes);
 DECLARE_int64(disk_reserved_bytes_free_for_testing);
 
 DECLARE_int32(fs_data_dirs_full_disk_cache_seconds);
+DECLARE_uint32(fs_target_data_dirs_per_tablet);
 
 DECLARE_string(block_manager);
 
@@ -90,6 +92,9 @@ class BlockManagerTest : public KuduTest {
   virtual void SetUp() OVERRIDE {
     CHECK_OK(bm_->Create());
     CHECK_OK(bm_->Open());
+    CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(CreateBlockOptions({"test_tablet"})));
+    kudu::fs::DataDirGroup* group = bm_->dd_manager()->GetDataDirGroupForTablet("test_tablet");
+    group->CopyToPB(&test_group_);
   }
 
  protected:
@@ -111,13 +116,19 @@ class BlockManagerTest : public KuduTest {
     if (create) {
       RETURN_NOT_OK(bm_->Create());
     }
-    return bm_->Open();
+    RETURN_NOT_OK(bm_->Open());
+    CHECK_OK(bm_->dd_manager()->LoadDataDirGroupFromPB("test_tablet", test_group_));
+    return Status::OK();
   }
 
   void RunMultipathTest(const vector<string>& paths);
 
   void RunMemTrackerTest();
 
+  void RunBlockDistributionTest(const vector<string>& paths);
+
+  // Keep an internal copy of the data dir group to act as metadata.
+  DataDirGroupPB test_group_;
   gscoped_ptr<T> bm_;
 };
 
@@ -126,6 +137,116 @@ void BlockManagerTest<LogBlockManager>::SetUp() {
   RETURN_NOT_LOG_BLOCK_MANAGER();
   CHECK_OK(bm_->Create());
   CHECK_OK(bm_->Open());
+  CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(CreateBlockOptions({"test_tablet"})));
+  kudu::fs::DataDirGroup* group = bm_->dd_manager()->GetDataDirGroupForTablet("test_tablet");
+  group->CopyToPB(&test_group_);
+}
+
+// Utility function that counts the number of files within a directory
+// hierarchy, ignoring '.', '..', and the file specified by 'instance_name'.
+int count_files(Env* env, const string& path, const string& instance_name) {
+  vector<string> child_paths;
+  Status s = env->GetChildren(path, &child_paths);
+  if (!s.ok()) {
+    return 0;
+  }
+  int count = 0;
+  for (const string& child_path : child_paths) {
+    if (child_path == "." || child_path == ".." || child_path == instance_name) {
+      continue;
+    }
+    string full_child_path = JoinPathSegments(path, child_path);
+    bool is_dir;
+    s = env->IsDirectory(full_child_path, &is_dir);
+    if (is_dir) {
+      // Count the files in the child directories.
+      count += count_files(env, full_child_path, instance_name);
+    } else {
+      // Increment if the child is a file.
+      count++;
+    }
+  }
+  return count;
+}
+
+template<>
+void BlockManagerTest<FileBlockManager>::RunBlockDistributionTest(const vector<string>& paths) {
+  const char* kTestData = "test data";
+  vector<int> blocks_in_each_path(paths.size());
+  // Spread across 1, then 3, then 5 data directories.
+  for (int d: {1, 3, 5}) {
+    // Create a disk group that contains d data directories.
+    string tablet_name = Substitute("$0_disks", d);
+    CreateBlockOptions opts({tablet_name});
+    FLAGS_fs_target_data_dirs_per_tablet = d;
+    CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(opts));
+
+    // Write 20 blocks to this group.
+    for (int i = 0; i < 20; i++) {
+      unique_ptr<WritableBlock> written_block;
+      ASSERT_OK(bm_->CreateBlock(opts, &written_block));
+      ASSERT_OK(written_block->Append(kTestData));
+      ASSERT_OK(written_block->Close());
+    }
+    // Iterate through the disks, counting the number of blocks in each directory, and comparing
+    // against the number of blocks in that data directory in the previous iteration.
+    // A difference indicates new blocks have been written to this directory.
+    int num_paths_added_to = 0;
+    int total_blocks_across_paths = 0;
+    for (int path_idx = 0; path_idx < paths.size(); path_idx++) {
+      int num_blocks = count_files(env_, paths[path_idx], "block_manager_instance");
+      int new_blocks = num_blocks - blocks_in_each_path[path_idx];
+      if (new_blocks > 0) {
+        num_paths_added_to++;
+        total_blocks_across_paths += new_blocks;
+        blocks_in_each_path[path_idx] = num_blocks;
+      }
+    }
+    ASSERT_EQ(20, total_blocks_across_paths);
+    ASSERT_EQ(d, num_paths_added_to);
+  }
+}
+
+template<>
+void BlockManagerTest<LogBlockManager>::RunBlockDistributionTest(const vector<string>& paths) {
+  const char* kTestData = "test data";
+  vector<int> files_in_each_path(paths.size());
+  // Spread across 1, then 3, then 5 data directories.
+  for (int d: {1, 3, 5}) {
+    // Create a disk group that contains d data directories.
+    CreateBlockOptions opts({Substitute("$0_disks", d)});
+    FLAGS_fs_target_data_dirs_per_tablet = d;
+    CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(opts));
+
+    ScopedWritableBlockCloser closer;
+    // Create 20 containers.
+    for (int j = 0; j < 20; j++) {
+      unique_ptr<WritableBlock> block;
+      ASSERT_OK(bm_->CreateBlock(opts, &block));
+      ASSERT_OK(block->Append(kTestData));
+      closer.AddBlock(std::move(block));
+    }
+    ASSERT_OK(closer.CloseBlocks());
+
+    // Check that upon each addition of new paths to data dir groups, new files are being created.
+    // Since log blocks are placed and used randomly within a disk group, the only expected behavior
+    // is that the number of total files and the nuber of paths with containers will increase.
+    bool some_new_files = false;
+    bool some_new_paths = false;
+    for (int path_idx = 0; path_idx < paths.size(); path_idx++) {
+      int num_files = count_files(env_, paths[path_idx], "block_manager_instance");
+      int new_files = num_files - files_in_each_path[path_idx];
+      if (new_files > 0) {
+        some_new_files = true;
+        if (files_in_each_path[path_idx] == 0) {
+          some_new_paths = true;
+        }
+        files_in_each_path[path_idx] = num_files;
+      }
+    }
+    ASSERT_TRUE(some_new_paths);
+    ASSERT_TRUE(some_new_files);
+  }
 }
 
 template <>
@@ -145,12 +266,19 @@ void BlockManagerTest<FileBlockManager>::RunMultipathTest(const vector<string>& 
                                                  &instance));
     }
   }
+  // Create a DataDirGroup for the data that's about to be inserted.
+  // Spread the data across all 3 paths. Writing twenty blocks randomly within
+  // this group should result in blocks being placed in every directory with a
+  // high probability.
+  CreateBlockOptions opts({"multipath_test"});
+  FLAGS_fs_target_data_dirs_per_tablet = 3;
+  CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(opts));
 
-  // Write ten blocks.
+  // Write twenty blocks.
   const char* kTestData = "test data";
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 20; i++) {
     unique_ptr<WritableBlock> written_block;
-    ASSERT_OK(bm_->CreateBlock(&written_block));
+    ASSERT_OK(bm_->CreateBlock(opts, &written_block));
     ASSERT_OK(written_block->Append(kTestData));
     ASSERT_OK(written_block->Close());
   }
@@ -158,36 +286,43 @@ void BlockManagerTest<FileBlockManager>::RunMultipathTest(const vector<string>& 
   // Each path should now have some additional block subdirectories. We
   // can't know for sure exactly how many (depends on the block IDs
   // generated), but this ensures that at least some change were made.
+  int num_blocks = 0;
   for (const string& path : paths) {
     vector<string> children;
     ASSERT_OK(env_->GetChildren(path, &children));
-    ASSERT_GT(children.size(), 3);
+    num_blocks += count_files(env_, path, "block_manager_instance");
   }
+  ASSERT_EQ(20, num_blocks);
 }
 
 template <>
 void BlockManagerTest<LogBlockManager>::RunMultipathTest(const vector<string>& paths) {
   // Write (3 * numPaths * 2) blocks, in groups of (numPaths * 2). That should
   // yield two containers per path.
-  const char* kTestData = "test data";
-  for (int i = 0; i < 3; i++) {
-    ScopedWritableBlockCloser closer;
-    for (int j = 0; j < paths.size() * 2; j++) {
-      unique_ptr<WritableBlock> block;
-      ASSERT_OK(bm_->CreateBlock(&block));
-      ASSERT_OK(block->Append(kTestData));
-      closer.AddBlock(std::move(block));
-    }
-    ASSERT_OK(closer.CloseBlocks());
-  }
+  CreateBlockOptions opts({"multipath_test"});
+  FLAGS_fs_target_data_dirs_per_tablet = 3;
+  CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(opts));
 
-  // Verify the results: 7 children = dot, dotdot, instance file, and two
-  // containers (two files per container).
+  const char* kTestData = "test data";
+  ScopedWritableBlockCloser closer;
+  // Creates (numPaths * 2) containers.
+  for (int j = 0; j < paths.size() * 2; j++) {
+    unique_ptr<WritableBlock> block;
+    ASSERT_OK(bm_->CreateBlock(opts, &block));
+    ASSERT_OK(block->Append(kTestData));
+    closer.AddBlock(std::move(block));
+  }
+  ASSERT_OK(closer.CloseBlocks());
+
+  // Verify the results. Each path has dot, dotdot, instance file.
+  // (numPaths * 2) containers were created, each consisting of 2 files.
+  int sum = 0;
   for (const string& path : paths) {
     vector<string> children;
     ASSERT_OK(env_->GetChildren(path, &children));
-    ASSERT_EQ(children.size(), 7);
+    sum += children.size();
   }
+  ASSERT_EQ(paths.size() * 7, sum);
 }
 
 template <>
@@ -202,7 +337,7 @@ void BlockManagerTest<FileBlockManager>::RunMemTrackerTest() {
   int64_t initial_mem = tracker->consumption();
   ASSERT_EQ(initial_mem, 0);
   unique_ptr<WritableBlock> writer;
-  ASSERT_OK(bm_->CreateBlock(&writer));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
   ASSERT_OK(writer->Close());
   ASSERT_EQ(tracker->consumption(), initial_mem);
 }
@@ -221,7 +356,7 @@ void BlockManagerTest<LogBlockManager>::RunMemTrackerTest() {
 
   // Allocating a persistent block should increase the consumption.
   unique_ptr<WritableBlock> writer;
-  ASSERT_OK(bm_->CreateBlock(&writer));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
   ASSERT_OK(writer->Close());
   ASSERT_GT(tracker->consumption(), initial_mem);
 }
@@ -238,7 +373,7 @@ TYPED_TEST_CASE(BlockManagerTest, BlockManagers);
 TYPED_TEST(BlockManagerTest, EndToEndTest) {
   // Create a block.
   unique_ptr<WritableBlock> written_block;
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
 
   // Write some data to it.
   string test_data = "test data";
@@ -271,7 +406,7 @@ TYPED_TEST(BlockManagerTest, EndToEndTest) {
 TYPED_TEST(BlockManagerTest, ReadAfterDeleteTest) {
   // Write a new block.
   unique_ptr<WritableBlock> written_block;
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   string test_data = "test data";
   ASSERT_OK(written_block->Append(test_data));
   ASSERT_OK(written_block->Close());
@@ -293,7 +428,7 @@ TYPED_TEST(BlockManagerTest, ReadAfterDeleteTest) {
 TYPED_TEST(BlockManagerTest, CloseTwiceTest) {
   // Create a new block and close it repeatedly.
   unique_ptr<WritableBlock> written_block;
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->Close());
   ASSERT_OK(written_block->Close());
 
@@ -322,7 +457,7 @@ TYPED_TEST(BlockManagerTest, CloseManyBlocksTest) {
     for (int i = 0; i < kNumBlocks; i++) {
       // Create a block.
       unique_ptr<WritableBlock> written_block;
-      ASSERT_OK(this->bm_->CreateBlock(&written_block));
+      ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
 
       // Write 64k bytes of random data into it.
       uint8_t data[65536];
@@ -344,7 +479,7 @@ TYPED_TEST(BlockManagerTest, CloseManyBlocksTest) {
 // it doesn't break anything.
 TYPED_TEST(BlockManagerTest, FlushDataAsyncTest) {
   unique_ptr<WritableBlock> written_block;
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   string test_data = "test data";
   ASSERT_OK(written_block->Append(test_data));
   ASSERT_OK(written_block->FlushDataAsync());
@@ -354,7 +489,7 @@ TYPED_TEST(BlockManagerTest, WritableBlockStateTest) {
   unique_ptr<WritableBlock> written_block;
 
   // Common flow: CLEAN->DIRTY->CLOSED.
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_EQ(WritableBlock::CLEAN, written_block->state());
   string test_data = "test data";
   ASSERT_OK(written_block->Append(test_data));
@@ -365,7 +500,7 @@ TYPED_TEST(BlockManagerTest, WritableBlockStateTest) {
   ASSERT_EQ(WritableBlock::CLOSED, written_block->state());
 
   // Test FLUSHING->CLOSED transition.
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->Append(test_data));
   ASSERT_OK(written_block->FlushDataAsync());
   ASSERT_EQ(WritableBlock::FLUSHING, written_block->state());
@@ -373,17 +508,17 @@ TYPED_TEST(BlockManagerTest, WritableBlockStateTest) {
   ASSERT_EQ(WritableBlock::CLOSED, written_block->state());
 
   // Test CLEAN->CLOSED transition.
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->Close());
   ASSERT_EQ(WritableBlock::CLOSED, written_block->state());
 
   // Test FlushDataAsync() no-op.
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->FlushDataAsync());
   ASSERT_EQ(WritableBlock::FLUSHING, written_block->state());
 
   // Test DIRTY->CLOSED transition.
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->Append(test_data));
   ASSERT_OK(written_block->Close());
   ASSERT_EQ(WritableBlock::CLOSED, written_block->state());
@@ -416,7 +551,7 @@ TYPED_TEST(BlockManagerTest, AbortTest) {
                                      false));
 
   unique_ptr<WritableBlock> written_block;
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   string test_data = "test data";
   ASSERT_OK(written_block->Append(test_data));
   ASSERT_OK(written_block->Abort());
@@ -424,7 +559,7 @@ TYPED_TEST(BlockManagerTest, AbortTest) {
   ASSERT_TRUE(this->bm_->OpenBlock(written_block->id(), nullptr)
               .IsNotFound());
 
-  ASSERT_OK(this->bm_->CreateBlock(&written_block));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->Append(test_data));
   ASSERT_OK(written_block->FlushDataAsync());
   ASSERT_OK(written_block->Abort());
@@ -443,13 +578,13 @@ TYPED_TEST(BlockManagerTest, PersistenceTest) {
   unique_ptr<WritableBlock> written_block1;
   unique_ptr<WritableBlock> written_block2;
   unique_ptr<WritableBlock> written_block3;
-  ASSERT_OK(this->bm_->CreateBlock(&written_block1));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block1));
   ASSERT_OK(written_block1->Close());
-  ASSERT_OK(this->bm_->CreateBlock(&written_block2));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block2));
   string test_data = "test data";
   ASSERT_OK(written_block2->Append(test_data));
   ASSERT_OK(written_block2->Close());
-  ASSERT_OK(this->bm_->CreateBlock(&written_block3));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block3));
   ASSERT_OK(written_block3->Append(test_data));
   ASSERT_OK(written_block3->Close());
   ASSERT_OK(this->bm_->DeleteBlock(written_block3->id()));
@@ -484,6 +619,18 @@ TYPED_TEST(BlockManagerTest, PersistenceTest) {
               .IsNotFound());
 }
 
+TYPED_TEST(BlockManagerTest, BlockDistributionTest) {
+  vector<string> paths;
+  for (int i = 0; i < 5; i++) {
+    paths.push_back(this->GetTestPath(Substitute("block_dist_path$0", i)));
+  }
+  ASSERT_OK(this->ReopenBlockManager(scoped_refptr<MetricEntity>(),
+                                     shared_ptr<MemTracker>(),
+                                     paths,
+                                     true));
+  ASSERT_NO_FATAL_FAILURE(this->RunBlockDistributionTest(paths));
+}
+
 TYPED_TEST(BlockManagerTest, MultiPathTest) {
   // Recreate the block manager with three paths.
   vector<string> paths;
@@ -505,7 +652,7 @@ static void CloseHelper(ReadableBlock* block) {
 // Tests that ReadableBlock::Close() is thread-safe and idempotent.
 TYPED_TEST(BlockManagerTest, ConcurrentCloseReadableBlockTest) {
   unique_ptr<WritableBlock> writer;
-  ASSERT_OK(this->bm_->CreateBlock(&writer));
+  ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
   ASSERT_OK(writer->Close());
 
   unique_ptr<ReadableBlock> reader;
@@ -538,7 +685,7 @@ TYPED_TEST(BlockManagerTest, MetricsTest) {
     unique_ptr<ReadableBlock> reader;
 
     // An open writer. Also reflected in total_writable_blocks.
-    ASSERT_OK(this->bm_->CreateBlock(&writer));
+    ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
     ASSERT_NO_FATAL_FAILURE(CheckMetrics(
         entity, 0, 1, i, i + 1,
         i * kTestData.length(), i * kTestData.length()));
@@ -605,7 +752,7 @@ TYPED_TEST(BlockManagerTest, TestDiskSpaceCheck) {
     for (int attempt = 0; attempt < 3; attempt++) {
       unique_ptr<WritableBlock> writer;
       LOG(INFO) << "Attempt #" << ++i;
-      Status s = this->bm_->CreateBlock(&writer);
+      Status s = this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer);
       if (FLAGS_disk_reserved_bytes_free_for_testing < FLAGS_fs_data_dirs_reserved_bytes) {
         if (data_dir_observed_full) {
           // The dir was previously observed as full, so CreateBlock() checked
@@ -616,7 +763,6 @@ TYPED_TEST(BlockManagerTest, TestDiskSpaceCheck) {
           ASSERT_OK(s);
           ASSERT_OK(writer->Append("test data"));
           ASSERT_OK(writer->Close());
-
           // The dir was not previously full so CreateBlock() did not check for
           // fullness, but given the parameters of the test, we know that the
           // dir was observed as full at Close().
@@ -656,7 +802,7 @@ TYPED_TEST(BlockManagerTest, TestMetadataOkayDespiteFailedWrites) {
   // Creates a block, writing the result to 'out' on success.
   auto create_a_block = [&](BlockId* out) -> Status {
     unique_ptr<WritableBlock> block;
-    RETURN_NOT_OK(this->bm_->CreateBlock(&block));
+    RETURN_NOT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &block));
     for (int i = 0; i < kNumAppends; i++) {
       RETURN_NOT_OK(block->Append(kTestData));
     }
@@ -737,7 +883,7 @@ TYPED_TEST(BlockManagerTest, TestGetAllBlockIds) {
   vector<BlockId> ids;
   for (int i = 0; i < 100; i++) {
     unique_ptr<WritableBlock> block;
-    ASSERT_OK(this->bm_->CreateBlock(&block));
+    ASSERT_OK(this->bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &block));
     ASSERT_OK(block->Close());
     ids.push_back(block->id());
   }

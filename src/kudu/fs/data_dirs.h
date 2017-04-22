@@ -21,8 +21,11 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <set>
 #include <vector>
 
+#include "kudu/fs/data_dir_group.h"
+#include "kudu/fs/fs.pb.h"
 #include "kudu/gutil/callback_forward.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/macros.h"
@@ -39,7 +42,9 @@ class MetricEntity;
 class ThreadPool;
 
 namespace fs {
+
 class PathInstanceMetadataFile;
+struct CreateBlockOptions;
 
 struct DataDirMetrics {
   explicit DataDirMetrics(const scoped_refptr<MetricEntity>& entity);
@@ -147,12 +152,35 @@ class DataDirManager {
   // 'max_data_dirs', or if 'mode' is MANDATORY and locks could not be taken.
   Status Open(int max_data_dirs, LockMode mode);
 
-  // Retrieves the next data directory that isn't full. Directories are rotated
-  // via round-robin. Full directories are skipped.
+  // Deserializes a DataDirGroupPB and associates the resulting DataDirGroup
+  // with a tablet_id.
   //
-  // Returns an error if all data directories are full, or upon filesystem
-  // error. On success, 'dir' is guaranteed to be set.
-  Status GetNextDataDir(DataDir** dir);
+  // Results in an error if the tablet already exists.
+  Status LoadDataDirGroupFromPB(const std::string& tablet_id,
+                                const DataDirGroupPB& pb);
+
+  // Adds data directories to a specific tablet's dir group, until the limit
+  // specified by fs_target_data_dirs_per_tablet, or until there is no more space.
+  //
+  // If 'use_all_dirs' is true, ignores the above flag and stripes across all
+  // disks. This behavior is only used when loading a superblock with no
+  // DataDirGroup, allowing for backwards compatability with data from older
+  // version of Kudu.
+  //
+  // Results in an error if all disks are full or if the tablet already exists.
+  Status CreateDataDirGroup(const CreateBlockOptions& opts, bool use_all_dirs = false);
+
+  // Stops tracking the specified tablet. Maps from tablet to group and from
+  // data dir to tablet set are cleared of all references to the tablet. Pointers
+  // to a deleted DataDirGroup are no longer valid and should not be dereferenced.
+  void UntrackTablet(const std::string& tablet_id);
+
+  // Returns a pointer to the tablet's DataDirGroup or nullptr if it is not tracked.
+  DataDirGroup* GetDataDirGroupForTablet(const std::string& tablet_id);
+
+  // Returns a random directory from the specfied option's data dir group. If
+  // there is no room in the group, returns an error.
+  Status GetNextDataDir(const CreateBlockOptions& opts, DataDir** dir);
 
   // Finds a data directory by uuid index, returning nullptr if it can't be
   // found.
@@ -170,6 +198,20 @@ class DataDirManager {
   }
 
  private:
+  // Selects a directory from the available directories that aren't in the
+  // directory group. Selection is based on "The Power of Two Choices in
+  // Randomized Load Balancing", selecting two directories randomly and
+  // choosing the one with less load, quantified as the number of unique
+  // tablets in the directory. Should be called while dir_group_lock_ is held.
+  //
+  // 'group' is the mutable list of uuids already in the group, and 'uuid'
+  // is an output denoting which uuid is added to 'group'. Returns false if the
+  // group is already larger than the limit or if all candidates are full.
+  //
+  // Note: assigning tablets to data dirs should not itself result in an error.
+  // It can, however, result in fewer than targeted dirs being tracked per tablet.
+  bool GetDirForGroup(vector<uint16_t>* group, uint16_t* uuid);
+
   Env* env_;
   const std::string block_manager_type_;
   const std::vector<std::string> paths_;
@@ -178,13 +220,20 @@ class DataDirManager {
 
   std::vector<std::unique_ptr<DataDir>> data_dirs_;
 
-  AtomicInt<int32_t> data_dirs_next_;
-
   typedef std::unordered_map<uint16_t, DataDir*> UuidIndexMap;
   UuidIndexMap data_dir_by_uuid_idx_;
 
   typedef std::unordered_map<DataDir*, uint16_t> ReverseUuidIndexMap;
   ReverseUuidIndexMap uuid_idx_by_data_dir_;
+
+  typedef std::unordered_map<std::string, DataDirGroup> TabletDataDirGroupMap;
+  TabletDataDirGroupMap group_by_tablet_map_;
+
+  typedef std::unordered_map<uint16_t, std::set<std::string>> TabletsByUuidMap;
+  TabletsByUuidMap tablets_by_uuid_map_;
+  
+  // Lock protecting reads and writes to the dir group maps.
+  mutable percpu_rwlock dir_group_lock_;
 
   DISALLOW_COPY_AND_ASSIGN(DataDirManager);
 };

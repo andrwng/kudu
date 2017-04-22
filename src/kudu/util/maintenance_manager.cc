@@ -121,6 +121,7 @@ const MaintenanceManager::Options MaintenanceManager::DEFAULT_OPTIONS = {
 MaintenanceManager::MaintenanceManager(const Options& options)
   : num_threads_(options.num_threads <= 0 ?
       FLAGS_maintenance_manager_num_threads : options.num_threads),
+    fs_manager_(options.fs_manager),
     cond_(&lock_),
     shutdown_(false),
     running_ops_(0),

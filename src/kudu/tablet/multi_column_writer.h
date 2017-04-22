@@ -49,8 +49,9 @@ class MultiColumnWriter {
 
   virtual ~MultiColumnWriter();
 
-  // Open and start writing the columns.
-  Status Open();
+  // Open and start writing the columns. Input options indicate to which blocks
+  // the columns should be written.
+  Status Open(const std::string& tablet_id);
 
   // Append the given block to the output columns.
   //

@@ -27,6 +27,8 @@
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/consensus/opid.pb.h"
 #include "kudu/consensus/opid_util.h"
+#include "kudu/fs/block_manager.h"
+#include "kudu/fs/data_dirs.h"
 #include "kudu/gutil/atomicops.h"
 #include "kudu/gutil/bind.h"
 #include "kudu/gutil/dynamic_annotations.h"
@@ -55,7 +57,8 @@ using strings::Substitute;
 
 using kudu::consensus::MinimumOpId;
 using kudu::consensus::OpId;
-using kudu::consensus::RaftConfigPB;
+using kudu::fs::CreateBlockOptions;
+using kudu::fs::DataDirGroup;
 
 namespace kudu {
 namespace tablet {
@@ -81,6 +84,7 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
     return Status::AlreadyPresent("Tablet already exists", tablet_id);
   }
 
+  RETURN_NOT_OK(fs_manager->dd_manager()->CreateDataDirGroup(CreateBlockOptions({tablet_id})));
   scoped_refptr<TabletMetadata> ret(new TabletMetadata(fs_manager,
                                                        tablet_id,
                                                        table_name,
@@ -164,6 +168,12 @@ vector<BlockId> TabletMetadata::CollectBlockIds() {
 
 Status TabletMetadata::DeleteTabletData(TabletDataState delete_type,
                                         const boost::optional<OpId>& last_logged_opid) {
+  return DeleteTabletData(delete_type, last_logged_opid, false);
+}
+
+Status TabletMetadata::DeleteTabletData(TabletDataState delete_type,
+                                        const boost::optional<OpId>& last_logged_opid,
+                                        bool update_dir_group = false) {
   CHECK(delete_type == TABLET_DATA_DELETED ||
         delete_type == TABLET_DATA_TOMBSTONED ||
         delete_type == TABLET_DATA_COPYING)
@@ -186,6 +196,12 @@ Status TabletMetadata::DeleteTabletData(TabletDataState delete_type,
     if (last_logged_opid) {
       tombstone_last_logged_opid_ = *last_logged_opid;
     }
+  }
+
+  // Remove the tablet's data dir group metadata tracked by the DataDirManager.
+  fs_manager_->dd_manager()->UntrackTablet(tablet_id_);
+  if (update_dir_group) {
+    RETURN_NOT_OK(fs_manager_->dd_manager()->CreateDataDirGroup(CreateBlockOptions({tablet_id_})));
   }
 
   // Flushing will sync the new tablet_data_state_ to disk and will now also
@@ -356,6 +372,20 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
     }
     AddOrphanedBlocksUnlocked(orphaned_blocks);
 
+    if (superblock.has_data_dir_group()) {
+      RETURN_NOT_OK(fs_manager_->dd_manager()->LoadDataDirGroupFromPB(tablet_id_,
+                                                                      superblock.data_dir_group()));
+    } else if (tablet_data_state_ == TABLET_DATA_READY) {
+      // If the superblock does not contain a DataDirGroup, this server has likely been upgraded.
+      // Create a new DataDirGroup for the tablet. If the data data is not TABLET_DATA_READY, group
+      // creation is pointless, as the tablet metadata will be deleted anyway.
+      //
+      // Since we don't know what directories the existing blocks are in, we should assume the data
+      // is spread across all disks.
+      RETURN_NOT_OK(fs_manager_->dd_manager()->CreateDataDirGroup(CreateBlockOptions({tablet_id_}),
+                                                                  /* use_all_dirs = */ true));
+    }
+
     if (superblock.has_tombstone_last_logged_opid()) {
       tombstone_last_logged_opid_ = superblock.tombstone_last_logged_opid();
     } else {
@@ -517,6 +547,7 @@ Status TabletMetadata::ReplaceSuperBlock(const TabletSuperBlockPB &pb) {
   {
     MutexLock l(flush_lock_);
     RETURN_NOT_OK_PREPEND(ReplaceSuperBlockUnlocked(pb), "Unable to replace superblock");
+    fs_manager_->dd_manager()->UntrackTablet(tablet_id_);
   }
 
   RETURN_NOT_OK_PREPEND(LoadFromSuperBlock(pb),
@@ -579,6 +610,12 @@ Status TabletMetadata::ToSuperBlockUnlocked(TabletSuperBlockPB* super_block,
 
   for (const BlockId& block_id : orphaned_blocks_) {
     block_id.CopyToPB(pb.mutable_orphaned_blocks()->Add());
+  }
+
+  DataDirGroup* group = fs_manager_->dd_manager()->GetDataDirGroupForTablet(tablet_id_);
+  // A group may not exist if this is called during a tablet deletion.
+  if (group != nullptr) {
+    group->CopyToPB(pb.mutable_data_dir_group());
   }
 
   super_block->Swap(&pb);

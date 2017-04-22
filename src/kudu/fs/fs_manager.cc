@@ -83,6 +83,7 @@ DECLARE_string(umask);
 using kudu::env_util::ScopedFileDeleter;
 using kudu::fs::BlockManagerOptions;
 using kudu::fs::CreateBlockOptions;
+using kudu::fs::DataDirManager;
 using kudu::fs::FileBlockManager;
 using kudu::fs::LogBlockManager;
 using kudu::fs::ReadableBlock;
@@ -406,6 +407,10 @@ vector<string> FsManager::GetDataRootDirs() const {
   return data_paths;
 }
 
+DataDirManager* FsManager::dd_manager() const {
+  return block_manager_->dd_manager();
+}
+
 string FsManager::GetTabletMetadataDir() const {
   DCHECK(initted_);
   return JoinPathSegments(canonicalized_metadata_fs_root_, kTabletMetadataDirName);
@@ -566,14 +571,27 @@ void FsManager::DumpFileSystemTree(ostream& out, const string& prefix,
   }
 }
 
+void FsManager::MarkDataDirsUnhealthy(const vector<uint16_t>& uuids) {
+  std::lock_guard<simple_spinlock> lock(data_dir_lock_);
+  for (uint16_t uuid : uuids) {
+    unhealthy_data_dirs_.insert(uuid);
+  }
+}
+
 // ==========================================================================
 //  Data read/write interfaces
 // ==========================================================================
 
+Status FsManager::CreateNewBlock(const CreateBlockOptions& opts, unique_ptr<WritableBlock>* block) {
+  CHECK(!read_only_);
+
+  return block_manager_->CreateBlock(opts, block);
+}
+
 Status FsManager::CreateNewBlock(unique_ptr<WritableBlock>* block) {
   CHECK(!read_only_);
 
-  return block_manager_->CreateBlock(block);
+  return block_manager_->CreateBlock(CreateBlockOptions({""}), block);
 }
 
 Status FsManager::OpenBlock(const BlockId& block_id, unique_ptr<ReadableBlock>* block) {

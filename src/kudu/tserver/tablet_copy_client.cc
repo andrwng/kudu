@@ -75,10 +75,10 @@ namespace tserver {
 using consensus::ConsensusMetadata;
 using consensus::ConsensusStatePB;
 using consensus::OpId;
-using consensus::RaftConfigPB;
 using consensus::RaftPeerPB;
 using env_util::CopyFile;
 using fs::WritableBlock;
+using fs::CreateBlockOptions;
 using rpc::Messenger;
 using std::shared_ptr;
 using std::string;
@@ -482,7 +482,7 @@ Status TabletCopyClient::DownloadBlock(const BlockId& old_block_id,
   VLOG_WITH_PREFIX(1) << "Downloading block with block_id " << old_block_id.ToString();
 
   unique_ptr<WritableBlock> block;
-  RETURN_NOT_OK_PREPEND(fs_manager_->CreateNewBlock(&block),
+  RETURN_NOT_OK_PREPEND(fs_manager_->CreateNewBlock(CreateBlockOptions({tablet_id_}), &block),
                         "Unable to create new block");
 
   DataIdPB data_id;

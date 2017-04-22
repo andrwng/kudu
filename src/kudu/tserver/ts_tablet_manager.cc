@@ -32,7 +32,9 @@
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/consensus/opid_util.h"
 #include "kudu/consensus/quorum_util.h"
+#include "kudu/fs/block_manager.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/data_dirs.h"
 #include "kudu/gutil/casts.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/gutil/strings/util.h"
@@ -482,6 +484,10 @@ void TSTabletManager::RunTabletCopy(
         // will simply tablet copy this replica again. We could try to
         // check again after calling Shutdown(), and if the check fails, try to
         // reopen the tablet. For now, we live with the (unlikely) race.
+        //
+        // Note that this leaves the data dir manager without any references to
+        // tablet_id. This is okay because the tablet_copy_client should
+        // generate a new disk group during the call to Start().
         Status s = DeleteTabletData(meta, TABLET_DATA_TOMBSTONED, last_logged_opid);
         if (PREDICT_FALSE(!s.ok())) {
           CALLBACK_AND_RETURN(
@@ -1027,7 +1033,8 @@ Status TSTabletManager::DeleteTabletData(const scoped_refptr<TabletMetadata>& me
 
   // Note: Passing an unset 'last_logged_opid' will retain the last_logged_opid
   // that was previously in the metadata.
-  RETURN_NOT_OK(meta->DeleteTabletData(data_state, last_logged_opid));
+  RETURN_NOT_OK(meta->DeleteTabletData(data_state, last_logged_opid,
+                data_state == TABLET_DATA_COPYING));
   LOG(INFO) << LogPrefix(tablet_id, meta->fs_manager())
             << "Tablet deleted. Last logged OpId: "
             << meta->tombstone_last_logged_opid();

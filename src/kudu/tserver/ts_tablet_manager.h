@@ -179,8 +179,11 @@ class TSTabletManager : public tserver::TabletPeerLookupIf {
 
   Status RunAllLogGC();
 
-  // Delete the tablet using the specified delete_type as the final metadata
+  // Delete the tablet using the specified 'delete_type' as the final metadata
   // state. Deletes the on-disk data, metadata, as well as all WAL segments.
+  //
+  // If 'data_state' is TABLET_DATA_COPYING, this call also creates a new data
+  // dir group for the existing tablet.
   static Status DeleteTabletData(const scoped_refptr<tablet::TabletMetadata>& meta,
                                  tablet::TabletDataState delete_type,
                                  const boost::optional<consensus::OpId>& last_logged_opid);

@@ -21,12 +21,14 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <set>
 #include <vector>
 
 #include "kudu/common/partition.h"
 #include "kudu/common/schema.h"
 #include "kudu/consensus/opid.pb.h"
 #include "kudu/fs/block_id.h"
+#include "kudu/fs/data_dir_group.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/callback.h"
 #include "kudu/gutil/dynamic_annotations.h"
@@ -38,6 +40,7 @@
 #include "kudu/util/status_callback.h"
 
 namespace kudu {
+
 namespace tablet {
 
 class RowSetMetadata;
@@ -62,6 +65,8 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // Create metadata for a new tablet. This assumes that the given superblock
   // has not been written before, and writes out the initial superblock with
   // the provided parameters.
+  //
+  // This also creates a data dir group for the tablet.
   static Status CreateNew(FsManager* fs_manager,
                           const std::string& tablet_id,
                           const std::string& table_name,
@@ -187,6 +192,15 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   Status DeleteTabletData(TabletDataState delete_type,
                           const boost::optional<consensus::OpId>& last_logged_opid);
 
+  // Deletes tablet data and replaces the the data dir group with a new one.
+  //
+  // If 'update_dir_group' is set to true, 'data_dir_group' will also be
+  // updated with a new set of data dirs for the tablet. This is needed when
+  // deleting tablet data at the start of a tablet copy.
+  Status DeleteTabletData(TabletDataState delete_type,
+                          const boost::optional<consensus::OpId>& last_logged_opid,
+                          bool update_dir_group);
+
   // Return true if this metadata references no blocks (either live or orphaned) and is
   // already marked as tombstoned. If this is the case, then calling DeleteTabletData
   // would be a no-op.
@@ -309,6 +323,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   Partition partition_;
 
   FsManager* const fs_manager_;
+
   RowSetMetadataVector rowsets_;
 
   base::subtle::Atomic64 next_rowset_idx_;

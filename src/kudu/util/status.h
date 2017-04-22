@@ -93,6 +93,14 @@
 ///   logged 'Bad status' message.
 #define KUDU_DCHECK_OK(s) KUDU_DCHECK_OK_PREPEND(s, "Bad status")
 
+/// @brief If @c to_call returns with @c err_number, run @c err_handler.
+///   Otherwise CHECK with a message of @c msg followed by the status.
+#define KUDU_CHECK_OR_HANDLE(to_call, err_number, err_handler, msg) do { \
+    const ::kudu::Status& _s = (to_call); \
+    if (_s.posix_code() == err_number) (err_handler); \
+    KUDU_CHECK(_s.ok()) << (msg) << ": " << _s.ToString(); \
+  } while (0);
+
 /// @file status.h
 ///
 /// This header is used in both the Kudu build as well as in builds of

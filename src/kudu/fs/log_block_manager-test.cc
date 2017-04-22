@@ -64,6 +64,9 @@ class LogBlockManagerTest : public KuduTest {
   void SetUp() override {
     CHECK_OK(bm_->Create());
     CHECK_OK(bm_->Open());
+    CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(CreateBlockOptions({"test_tablet"})));
+    DataDirGroup* group = bm_->dd_manager()->GetDataDirGroupForTablet("test_tablet");
+    group->CopyToPB(&test_group_);
   }
 
  protected:
@@ -77,7 +80,9 @@ class LogBlockManagerTest : public KuduTest {
   Status ReopenBlockManager(
       const scoped_refptr<MetricEntity>& metric_entity = scoped_refptr<MetricEntity>()) {
     bm_.reset(CreateBlockManager(metric_entity));
-    return bm_->Open();
+    RETURN_NOT_OK(bm_->Open());
+    RETURN_NOT_OK(bm_->dd_manager()->LoadDataDirGroupFromPB("test_tablet", test_group_));
+    return Status::OK();
   }
 
   void GetOnlyContainerDataFile(string* data_file) {
@@ -107,6 +112,7 @@ class LogBlockManagerTest : public KuduTest {
   }
 
   unique_ptr<LogBlockManager> bm_;
+  DataDirGroupPB test_group_;
 };
 
 static void CheckLogMetrics(const scoped_refptr<MetricEntity>& entity,
@@ -138,7 +144,7 @@ TEST_F(LogBlockManagerTest, MetricsTest) {
 
   // One block --> one container.
   unique_ptr<WritableBlock> writer;
-  ASSERT_OK(bm_->CreateBlock(&writer));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
   ASSERT_NO_FATAL_FAILURE(CheckLogMetrics(entity, 0, 0, 1, 0));
 
   // And when the block is closed, it becomes "under management".
@@ -153,7 +159,7 @@ TEST_F(LogBlockManagerTest, MetricsTest) {
     ScopedWritableBlockCloser closer;
     for (int i = 0; i < 10; i++) {
       unique_ptr<WritableBlock> b;
-      ASSERT_OK(bm_->CreateBlock(&b));
+      ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &b));
       if (saved_id.IsNull()) {
         saved_id = b->id();
       }
@@ -193,7 +199,7 @@ TEST_F(LogBlockManagerTest, ContainerPreallocationTest) {
   // Create a block with some test data. This should also trigger
   // preallocation of the container, provided it's supported by the kernel.
   unique_ptr<WritableBlock> written_block;
-  ASSERT_OK(bm_->CreateBlock(&written_block));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->Append(kTestData));
   ASSERT_OK(written_block->Close());
 
@@ -207,7 +213,7 @@ TEST_F(LogBlockManagerTest, ContainerPreallocationTest) {
 
   // Upon writing a second block, we'd expect the container to remain the same
   // size.
-  ASSERT_OK(bm_->CreateBlock(&written_block));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->Append(kTestData));
   ASSERT_OK(written_block->Close());
   NO_FATALS(GetOnlyContainerDataFile(&container_data_filename));
@@ -217,7 +223,7 @@ TEST_F(LogBlockManagerTest, ContainerPreallocationTest) {
   // Now reopen the block manager and create another block. The block manager
   // should be smart enough to reuse the previously preallocated amount.
   ASSERT_OK(ReopenBlockManager());
-  ASSERT_OK(bm_->CreateBlock(&written_block));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &written_block));
   ASSERT_OK(written_block->Append(kTestData));
   ASSERT_OK(written_block->Close());
   NO_FATALS(GetOnlyContainerDataFile(&container_data_filename));
@@ -239,7 +245,7 @@ TEST_F(LogBlockManagerTest, TestReuseBlockIds) {
     ScopedWritableBlockCloser closer;
     for (int i = 0; i < 4; i++) {
       unique_ptr<WritableBlock> writer;
-      ASSERT_OK(bm_->CreateBlock(&writer));
+      ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
       block_ids.push_back(writer->id());
       closer.AddBlock(std::move(writer));
     }
@@ -249,7 +255,7 @@ TEST_F(LogBlockManagerTest, TestReuseBlockIds) {
   // Create one more block, which should reuse the first container.
   {
     unique_ptr<WritableBlock> writer;
-    ASSERT_OK(bm_->CreateBlock(&writer));
+    ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
     ASSERT_OK(writer->Close());
   }
 
@@ -266,7 +272,7 @@ TEST_F(LogBlockManagerTest, TestReuseBlockIds) {
   bm_->next_block_id_.Store(1);
   for (int i = 0; i < 4; i++) {
     unique_ptr<WritableBlock> writer;
-    ASSERT_OK(bm_->CreateBlock(&writer));
+    ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
     ASSERT_EQ(writer->id(), block_ids[i]);
     ASSERT_OK(writer->Close());
   }
@@ -301,7 +307,7 @@ TEST_F(LogBlockManagerTest, TestMetadataTruncation) {
   BlockId last_block_id;
   for (int i = 0; i < 4; i++) {
     unique_ptr<WritableBlock> writer;
-    ASSERT_OK(bm_->CreateBlock(&writer));
+    ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
     last_block_id = writer->id();
     created_blocks.push_back(last_block_id);
     ASSERT_OK(writer->Close());
@@ -363,7 +369,7 @@ TEST_F(LogBlockManagerTest, TestMetadataTruncation) {
   // Add a new block, increasing the size of the container metadata file.
   {
     unique_ptr<WritableBlock> writer;
-    ASSERT_OK(bm_->CreateBlock(&writer));
+    ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
     last_block_id = writer->id();
     created_blocks.push_back(last_block_id);
     ASSERT_OK(writer->Close());
@@ -405,7 +411,7 @@ TEST_F(LogBlockManagerTest, TestMetadataTruncation) {
   // Add a new block, increasing the size of the container metadata file.
   {
     unique_ptr<WritableBlock> writer;
-    ASSERT_OK(bm_->CreateBlock(&writer));
+    ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
     last_block_id = writer->id();
     created_blocks.push_back(last_block_id);
     ASSERT_OK(writer->Close());
@@ -474,13 +480,13 @@ TEST_F(LogBlockManagerTest, TestAppendExceedsPreallocation) {
 
   // Create a container, preallocate it by one byte, and append more than one.
   unique_ptr<WritableBlock> writer;
-  ASSERT_OK(bm_->CreateBlock(&writer));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
   ASSERT_OK(writer->Append("hello world"));
   ASSERT_OK(writer->Close());
 
   // On second append, don't crash just because the append offset is ahead of
   // the preallocation offset!
-  ASSERT_OK(bm_->CreateBlock(&writer));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
   ASSERT_OK(writer->Append("hello world"));
 }
 
@@ -491,7 +497,7 @@ TEST_F(LogBlockManagerTest, TestPreallocationAndTruncation) {
 
   // Fill up one container.
   unique_ptr<WritableBlock> writer;
-  ASSERT_OK(bm_->CreateBlock(&writer));
+  ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &writer));
   unique_ptr<uint8_t[]> data(new uint8_t[FLAGS_log_container_max_size]);
   memset(data.get(), 0, FLAGS_log_container_max_size);
   ASSERT_OK(writer->Append({ data.get(), FLAGS_log_container_max_size } ));
@@ -575,7 +581,7 @@ TEST_F(LogBlockManagerTest, TestContainerWithManyHoles) {
   vector<BlockId> ids;
   for (int i = 0; i < kNumBlocks; i++) {
     unique_ptr<WritableBlock> block;
-    ASSERT_OK(bm_->CreateBlock(&block));
+    ASSERT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &block));
     ASSERT_OK(block->Append("aaaa"));
     ASSERT_OK(block->Close());
     ids.push_back(block->id());
@@ -661,7 +667,7 @@ TEST_F(LogBlockManagerTest, TestContainerBlockLimiting) {
   auto create_some_blocks = [&]() -> Status {
     for (int i = 0; i < kNumBlocks; i++) {
       unique_ptr<WritableBlock> block;
-      RETURN_NOT_OK(bm_->CreateBlock(&block));
+      RETURN_NOT_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &block));
       RETURN_NOT_OK(block->Append("aaaa"));
       RETURN_NOT_OK(block->Close());
     }

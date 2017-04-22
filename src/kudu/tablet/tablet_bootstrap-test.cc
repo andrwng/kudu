@@ -27,6 +27,7 @@
 #include "kudu/consensus/log_util.h"
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/consensus/opid_util.h"
+#include "kudu/fs/data_dirs.h"
 #include "kudu/server/logical_clock.h"
 #include "kudu/tablet/tablet_bootstrap.h"
 #include "kudu/tablet/tablet-test-util.h"
@@ -203,9 +204,9 @@ TEST_F(BootstrapTest, TestIncompleteTabletCopy) {
   shared_ptr<Tablet> tablet;
   ConsensusBootstrapInfo boot_info;
   Status s = BootstrapTestTablet(-1, -1, &tablet, &boot_info);
-  ASSERT_TRUE(s.IsCorruption()) << "Expected corruption: " << s.ToString();
-  ASSERT_STR_CONTAINS(s.ToString(), "TabletMetadata bootstrap state is TABLET_DATA_COPYING");
-  LOG(INFO) << "State is still TABLET_DATA_COPYING, as expected: " << s.ToString();
+  // Bootstrapping the tablet while it is copying will attempt to create a data
+  // dir group for the tablet when one already exists.
+  ASSERT_TRUE(s.IsAlreadyPresent()) << "Expected already present: " << s.ToString();
 }
 
 // Tests the KUDU-141 scenario: bootstrap when there is
@@ -250,6 +251,10 @@ TEST_F(BootstrapTest, TestOrphanCommit) {
     log::SegmentSequence segments;
     ASSERT_OK(log_->reader()->GetSegmentsSnapshot(&segments));
     fs_manager_->env()->DeleteFile(segments[0]->path());
+
+    // Untrack the tablet in the data dir manager so upon next bootstrap, the
+    // tablet can be metadata's data dir group can be read.
+    fs_manager_->dd_manager()->UntrackTablet(tablet->tablet_id());
   }
   {
     shared_ptr<Tablet> tablet;

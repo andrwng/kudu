@@ -17,10 +17,12 @@
 
 #include "kudu/fs/data_dirs.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -32,6 +34,7 @@
 
 #include "kudu/fs/block_manager.h"
 #include "kudu/fs/block_manager_util.h"
+#include "kudu/fs/data_dir_group.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/map-util.h"
@@ -50,6 +53,15 @@
 #include "kudu/util/status.h"
 #include "kudu/util/stopwatch.h"
 #include "kudu/util/threadpool.h"
+
+DEFINE_uint32(fs_target_data_dirs_per_tablet, 0,
+              "Indicates the target number of data dirs to spread each "
+              "tablet's data across. If greater than the number of data dirs "
+              "available, data will be striped across those available. The "
+              "default value 0 indicates striping should occur across all "
+              "data directories.");
+TAG_FLAG(fs_target_data_dirs_per_tablet, advanced);
+TAG_FLAG(fs_target_data_dirs_per_tablet, evolving);
 
 DEFINE_int64(fs_data_dirs_reserved_bytes, -1,
              "Number of bytes to reserve on each data directory filesystem for "
@@ -79,6 +91,8 @@ namespace fs {
 
 using env_util::ScopedFileDeleter;
 using std::deque;
+using std::iota;
+using std::random_shuffle;
 using std::string;
 using std::unique_ptr;
 using std::unordered_set;
@@ -234,8 +248,7 @@ DataDirManager::DataDirManager(Env* env,
                                vector<string> paths)
     : env_(env),
       block_manager_type_(std::move(block_manager_type)),
-      paths_(std::move(paths)),
-      data_dirs_next_(0) {
+      paths_(std::move(paths)) {
   DCHECK_GT(paths_.size(), 0);
 
   if (metric_entity) {
@@ -387,34 +400,157 @@ Status DataDirManager::Open(int max_data_dirs, LockMode mode) {
   return Status::OK();
 }
 
-Status DataDirManager::GetNextDataDir(DataDir** dir) {
-  // Round robin through the data dirs, ignoring ones that are full.
-  unordered_set<DataDir*> full_dds;
-  while (true) {
-    int32_t cur_idx;
-    int32_t next_idx;
-    do {
-      cur_idx = data_dirs_next_.Load();
-      next_idx = (cur_idx + 1) % data_dirs_.size();
-    } while (!data_dirs_next_.CompareAndSet(cur_idx, next_idx));
+Status DataDirManager::LoadDataDirGroupFromPB(const std::string& tablet_id,
+                                              const DataDirGroupPB& pb) {
+  DataDirGroup* other = InsertOrReturnExisting(&group_by_tablet_map_,
+                                                tablet_id,
+                                                DataDirGroup::FromPB(pb));
+  if (other) {
+    return Status::AlreadyPresent("Tablet already being tracked", tablet_id);
+  }
+  return Status::OK();
+}
 
-    DataDir* candidate = data_dirs_[cur_idx].get();
+Status DataDirManager::CreateDataDirGroup(const CreateBlockOptions& opts, bool use_all_dirs) {
+  std::lock_guard<percpu_rwlock> lock(dir_group_lock_);
+  if (ContainsKey(group_by_tablet_map_, opts.tablet_id)) {
+    return Status::AlreadyPresent("Tablet already being tracked", opts.tablet_id);
+  }
+  // Adjust the disk group size to fit within the total number of data dirs.
+  int kDataDirGroupSize = FLAGS_fs_target_data_dirs_per_tablet;
+  if (kDataDirGroupSize == 0 || use_all_dirs || kDataDirGroupSize > data_dirs_.size()) {
+    kDataDirGroupSize = data_dirs_.size();
+  }
+  // Randomly select directories, giving preference to those with fewer tablets.
+  // Create a new DataDirGroup and add directly to its uuids.
+  LookupOrInsert(&group_by_tablet_map_, opts.tablet_id, DataDirGroup::CreateEmptyGroup());
+  DataDirGroup* group_for_tablet = FindOrNull(group_by_tablet_map_, opts.tablet_id);
+  CHECK(group_for_tablet);
+  while(group_for_tablet->uuids()->size() < kDataDirGroupSize) {
+    uint16_t uuid;
+    if (!GetDirForGroup(group_for_tablet->uuids(), &uuid)) {
+      break;
+    }
+    tablets_by_uuid_map_[uuid].insert(opts.tablet_id);
+  }
+  if (group_for_tablet->uuids()->empty()) {
+    return Status::IOError("All data directories are full", "", ENOSPC);
+  }
+  return Status::OK();
+}
+
+Status DataDirManager::GetNextDataDir(const CreateBlockOptions& opts, DataDir** dir) {
+  // Lock shared to not block other reads to group_by_tablet_map_.
+  shared_lock<rw_spinlock>(dir_group_lock_.get_lock());
+  vector<uint16_t>* group_uuids;
+  vector<uint16_t> all_uuids;
+  if (PREDICT_FALSE(opts.tablet_id == "")) {
+    // This should only be reached by some tests; in cases where there is no
+    // natural tablet_id, select a data dir randomly.
+    for (auto uuid_and_dir_ptr : data_dir_by_uuid_idx_) {
+      all_uuids.push_back(uuid_and_dir_ptr.first);
+    }
+    group_uuids = &all_uuids;
+  } else {
+    // Select the data dir group for the tablet.
+    DataDirGroup* group = FindOrNull(group_by_tablet_map_, opts.tablet_id);
+    if (group == nullptr) {
+      return Status::NotFound("DataDirGroup not found for tablet", opts.tablet_id);
+    }
+    group_uuids = group->uuids();
+  }
+  vector<int> random_indexes(group_uuids->size());
+  iota(random_indexes.begin(), random_indexes.end(), 0);
+  random_shuffle(random_indexes.begin(), random_indexes.end());
+
+  // Randomly select a member of the group that is not full.
+  for (int i : random_indexes) {
+    DataDir* candidate = data_dir_by_uuid_idx_[(*group_uuids)[i]];
     RETURN_NOT_OK(candidate->RefreshIsFull(
         DataDir::RefreshMode::EXPIRED_ONLY));
     if (!candidate->is_full()) {
       *dir = candidate;
       return Status::OK();
     }
+  }
+  return Status::IOError(
+      "All data directories are full. Please free some disk space or "
+      "consider changing the fs_data_dirs_reserved_bytes configuration "
+      "parameter", "", ENOSPC);
+}
 
-    // This data dir was full. If all are full, we can't satisfy the request.
-    full_dds.insert(candidate);
-    if (full_dds.size() == data_dirs_.size()) {
-      return Status::IOError(
-          "All data directories are full. Please free some disk space or "
-          "consider changing the fs_data_dirs_reserved_bytes configuration "
-          "parameter", "", ENOSPC);
+void DataDirManager::UntrackTablet(const std::string& tablet_id) {
+  std::lock_guard<percpu_rwlock> lock(dir_group_lock_);
+  DataDirGroup* group = FindOrNull(group_by_tablet_map_, tablet_id);
+  if (group == nullptr) {
+    return;
+  }
+  // Remove the tablet_id from every data dir in its group.
+  for (int16_t uuid : *(group->uuids())) {
+    tablets_by_uuid_map_[uuid].erase(tablet_id);
+  }
+  group_by_tablet_map_.erase(tablet_id);
+}
+
+DataDirGroup* DataDirManager::GetDataDirGroupForTablet(const std::string& tablet_id) {
+  shared_lock<rw_spinlock> lock(dir_group_lock_.get_lock());
+  return FindOrNull(group_by_tablet_map_, tablet_id);
+}
+
+bool DataDirManager::GetDirForGroup(vector<uint16_t>* group, uint16_t* uuid) {
+  if (group->size() == data_dirs_.size()) {
+    return false;
+  }
+
+  // Determine all potential candidates to be added to the group.
+  vector<uint16_t> dir_uuids;
+  unordered_set<uint16_t> data_dir_set;
+  for (uint16_t uuid : *group) {
+    data_dir_set.insert(uuid);
+  }
+  for (auto uuid_and_dir_ptr : data_dir_by_uuid_idx_) {
+    // If the uuid is already in the group, ignore it.
+    if (ContainsKey(data_dir_set, uuid_and_dir_ptr.first)) {
+      continue;
+    }
+    dir_uuids.push_back(uuid_and_dir_ptr.first);
+  }
+
+  // Select two random uuids and select the one with fewer tablets on it.
+  random_shuffle(dir_uuids.begin(), dir_uuids.end());
+  int iter1;
+  int iter2;
+  uint16_t uuid1 = 0;
+  uint16_t uuid2 = 0;
+  DataDir* candidate;
+  for(iter1 = 0; iter1 < dir_uuids.size(); iter1++) {
+    candidate = data_dir_by_uuid_idx_[dir_uuids[iter1]];
+    if (!candidate->is_full()) {
+      uuid1 = dir_uuids[iter1];
+      break;
     }
   }
+  for (iter2 = iter1 + 1; iter2 < dir_uuids.size(); iter2++) {
+    candidate = data_dir_by_uuid_idx_[dir_uuids[iter2]];
+    if (!candidate->is_full()) {
+      uuid2 = dir_uuids[iter2];
+      break;
+    }
+  }
+  if (iter1 == dir_uuids.size()) {
+    return false;
+  }
+  if (iter2 == dir_uuids.size() ||
+             tablets_by_uuid_map_[uuid1].size() > tablets_by_uuid_map_[uuid2].size()) {
+    // If there is only a single available directory or if the first found is has fewer tablets
+    // than the second, choose the first directory.
+    group->push_back(uuid1);
+    *uuid = uuid1;
+  } else {
+    group->push_back(uuid2);
+    *uuid = uuid2;
+  }
+  return true;
 }
 
 DataDir* DataDirManager::FindDataDirByUuidIndex(uint16_t uuid_idx) const {

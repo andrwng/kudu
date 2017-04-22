@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "kudu/fs/block_id.h"
+#include "kudu/fs/data_dirs.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/stl_util.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -156,8 +157,13 @@ class ReadableBlock : public Block {
   virtual size_t memory_footprint() const = 0;
 };
 
-// Provides options and hints for block placement.
+// Provides options and hints for block placement. For now, this is only used
+// for identifying the correct DataDirGroup to place the next block, as
+// placement is currently based solely on the tablet_id. In the future this may
+// also be used to specify placement for things like bloom files based on
+// parameters like disk class.
 struct CreateBlockOptions {
+  const std::string tablet_id;
 };
 
 // Block manager creation options.
@@ -209,9 +215,6 @@ class BlockManager {
   virtual Status CreateBlock(const CreateBlockOptions& opts,
                              std::unique_ptr<WritableBlock>* block) = 0;
 
-  // Like the above but uses default options.
-  virtual Status CreateBlock(std::unique_ptr<WritableBlock>* block) = 0;
-
   // Opens an existing block for reading.
   //
   // While it is safe to delete a block that has already been opened, it is
@@ -246,6 +249,11 @@ class BlockManager {
   // concurrent operations are ongoing, some of the blocks themselves may not
   // even exist after the call.
   virtual Status GetAllBlockIds(std::vector<BlockId>* block_ids) = 0;
+
+  // Exposes an interface for the DataDirManager, granting other entities, like
+  // the FsManager, the ability to manage data dir groups, which is a function
+  // of each tablet.
+  virtual DataDirManager* dd_manager() = 0;
 };
 
 // Closes a group of blocks.

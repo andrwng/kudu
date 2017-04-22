@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "kudu/cfile/cfile_writer.h"
+#include "kudu/fs/block_manager.h"
 #include "kudu/tablet/compaction.h"
 #include "kudu/tablet/deltafile.h"
 
@@ -59,7 +60,7 @@ class MajorDeltaCompaction {
 
   // Executes the compaction.
   // This has no effect on the metadata of the tablet, etc.
-  Status Compact();
+  Status Compact(const std::string& tablet_id);
 
   // After a compaction is successful, prepares a metadata update which:
   // 1) swaps out the old columns for the new ones
@@ -74,20 +75,20 @@ class MajorDeltaCompaction {
   std::string ColumnNamesToString() const;
 
   // Opens a writer for the base data.
-  Status OpenBaseDataWriter();
+  Status OpenBaseDataWriter(const std::string& tablet_id);
 
   // Opens a writer for the REDO delta file, won't be called if we don't need to write
   // back REDO delta mutations.
-  Status OpenRedoDeltaFileWriter();
+  Status OpenRedoDeltaFileWriter(const std::string& tablet_id);
 
   // Opens a writer for the UNDO delta file, won't be called if we don't need to write
   // back UNDO delta mutations.
-  Status OpenUndoDeltaFileWriter();
+  Status OpenUndoDeltaFileWriter(const std::string& tablet_id);
 
   // Reads the current base data, applies the deltas, and then writes the new base data.
   // A new delta file is written if not all columns were selected for compaction and some
   // deltas need to be written back into a delta file.
-  Status FlushRowSetAndDeltas();
+  Status FlushRowSetAndDeltas(const std::string& tablet_id);
 
   FsManager* const fs_manager_;
 

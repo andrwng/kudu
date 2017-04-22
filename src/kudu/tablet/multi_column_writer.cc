@@ -27,6 +27,7 @@ namespace kudu {
 namespace tablet {
 
 using cfile::CFileWriter;
+using fs::CreateBlockOptions;
 using fs::ScopedWritableBlockCloser;
 using fs::WritableBlock;
 using std::unique_ptr;
@@ -42,10 +43,11 @@ MultiColumnWriter::~MultiColumnWriter() {
   STLDeleteElements(&cfile_writers_);
 }
 
-Status MultiColumnWriter::Open() {
+Status MultiColumnWriter::Open(const std::string& tablet_id) {
   CHECK(cfile_writers_.empty());
 
   // Open columns.
+  CreateBlockOptions block_opts({tablet_id});
   for (int i = 0; i < schema_->num_columns(); i++) {
     const ColumnSchema &col = schema_->column(i);
 
@@ -70,7 +72,7 @@ Status MultiColumnWriter::Open() {
 
     // Open file for write.
     unique_ptr<WritableBlock> block;
-    RETURN_NOT_OK_PREPEND(fs_->CreateNewBlock(&block),
+    RETURN_NOT_OK_PREPEND(fs_->CreateNewBlock(block_opts, &block),
                           "Unable to open output file for column " + col.ToString());
     BlockId block_id(block->id());
 

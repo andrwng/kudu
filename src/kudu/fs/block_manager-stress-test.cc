@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "kudu/fs/fs.pb.h"
 #include "kudu/fs/file_block_manager.h"
 #include "kudu/fs/log_block_manager.h"
 #include "kudu/gutil/stl_util.h"
@@ -105,6 +106,9 @@ class BlockManagerStressTest : public KuduTest {
   virtual void SetUp() OVERRIDE {
     CHECK_OK(bm_->Create());
     CHECK_OK(bm_->Open());
+    CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(CreateBlockOptions({"test_tablet"})));
+    fs::DataDirGroup* group = bm_->dd_manager()->GetDataDirGroupForTablet("test_tablet");
+    group->CopyToPB(&test_group_);
   }
 
   virtual void TearDown() OVERRIDE {
@@ -200,6 +204,9 @@ class BlockManagerStressTest : public KuduTest {
   // The block manager.
   gscoped_ptr<BlockManager> bm_;
 
+  // Test group of disk to spread data across.
+  DataDirGroupPB test_group_;
+
   // The running threads.
   vector<scoped_refptr<Thread> > threads_;
 
@@ -228,7 +235,7 @@ void BlockManagerStressTest<T>::WriterThread() {
     // Create the blocks and write out the PRNG seeds.
     for (int i = 0; i < FLAGS_block_group_size; i++) {
       unique_ptr<WritableBlock> block;
-      CHECK_OK(bm_->CreateBlock(&block));
+      CHECK_OK(bm_->CreateBlock(CreateBlockOptions({"test_tablet"}), &block));
 
       const uint32_t seed = rand.Next() + 1;
       Slice seed_slice(reinterpret_cast<const uint8_t*>(&seed), sizeof(seed));
@@ -424,6 +431,7 @@ TYPED_TEST(BlockManagerStressTest, StressTest) {
   LOG(INFO) << "Running on populated block manager";
   this->bm_.reset(this->CreateBlockManager());
   ASSERT_OK(this->bm_->Open());
+  ASSERT_OK(this->bm_->dd_manager()->LoadDataDirGroupFromPB("test_tablet", this->test_group_));
   this->RunTest(FLAGS_test_duration_secs / 2);
   checker.Stop();
 
