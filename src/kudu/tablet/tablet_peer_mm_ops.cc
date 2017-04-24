@@ -24,6 +24,7 @@
 #include <string>
 
 #include "kudu/fs/fs_manager.h"
+#include "kudu/gutil/casts.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/tablet_metrics.h"
 #include "kudu/util/flag_tags.h"
@@ -181,9 +182,24 @@ void FlushDeltaMemStoresOp::Perform() {
 
   Status s = tablet_peer_->tablet()->FlushDMSWithHighestRetention(max_idx_to_replay_size);
 
-  KUDU_CHECK_OR_HANDLE(tablet_peer_->tablet()->FlushDMSWithHighestRetention(max_idx_to_replay_size),
-                       EIO, manager_->fs_manager()->HandleError(FsErrorOpts()),
-                       Substitute("Failed to flush DMS on $0", tablet_peer_->tablet()->tablet_id()));
+  // Handle IO errors if possible.
+  if (PREDICT_FALSE(s.HasExtras())) {
+    DCHECK(s.posix_code() == EIO);
+    // TODO(awong) figure out a way to make the type of StatusPlus opaque.
+    // Really, the dilemma is we only need ..->HandleError() and the status
+    // Templatized StatusPlus handler?
+    auto handler = [&]() {
+      StatusPlus<uint16_t>* sp = down_cast<StatusPlus<uint16_t>*>(&s);
+      uint16_t dir_uuid = sp->GetExtras();
+      manager_->fs_manager()->HandleError(FsErrorOpts({dir_uuid}));
+    };
+    LOG(WARNING) << Substitute("$0 : Failed to flush DMS on $1",
+                               s.ToString(), tablet_peer_->tablet()->tablet_id());
+  }
+
+  // If the flush did not result in a handlable error, fail out.
+  KUDU_CHECK_OK_PREPEND(s, Substitute("Failed to flush DMS on $0",
+                           tablet_peer_->tablet()->tablet_id()));
 
   {
     std::lock_guard<simple_spinlock> l(lock_);

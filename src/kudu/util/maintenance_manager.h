@@ -38,15 +38,13 @@
 
 namespace kudu {
 
-namespace fs {
-class FsManager;
-}  // namespace fs
 
 template<class T>
 class AtomicGauge;
 class Histogram;
 class MaintenanceManager;
 class MemTracker;
+class FsManager;
 
 class MaintenanceOpStats {
  public:
@@ -264,7 +262,7 @@ class MaintenanceManager : public std::enable_shared_from_this<MaintenanceManage
     int32_t polling_interval_ms;
     uint32_t history_size;
     std::shared_ptr<MemTracker> parent_mem_tracker;
-    fs::FsManager* fs_manager;
+    FsManager* fs_manager;
   };
 
   explicit MaintenanceManager(const Options& options);
@@ -283,7 +281,7 @@ class MaintenanceManager : public std::enable_shared_from_this<MaintenanceManage
 
   void GetMaintenanceManagerStatusDump(MaintenanceManagerStatusPB* out_pb);
 
-  fs::FsManager* fs_manager() const { return fs_manager_; }
+  FsManager* fs_manager() const { return fs_manager_; }
 
   static const Options DEFAULT_OPTIONS;
 
@@ -304,7 +302,7 @@ class MaintenanceManager : public std::enable_shared_from_this<MaintenanceManage
   const int32_t num_threads_;
 
   // An operation should have the fs_manager handle IO errors.
-  fs::FsManager* fs_manager_;
+  FsManager* fs_manager_;
 
   OpMapTy ops_; // registered operations
   Mutex lock_;

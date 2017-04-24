@@ -1513,10 +1513,16 @@ Status LogBlockManager::GetOrCreateContainer(const CreateBlockOptions& opts,
 
   // All containers are in use; create a new one.
   unique_ptr<LogBlockContainer> new_container;
-  RETURN_NOT_OK_PREPEND(LogBlockContainer::Create(this,
-                                                  dir,
-                                                  &new_container),
-                        "Could not create new log block container at " + dir->dir());
+  uint16_t dd_uuid;
+  dd_manager_.FindUuidIndexByDataDir(dir, &dd_uuid);
+  
+  // TODO(awong): clean this up.
+  Status s = LogBlockContainer::Create(this, dir, &new_container);
+  if (PREDICT_FALSE(s.posix_code() == EIO)) {
+    StatusPlus<uint16_t> sp(s, new uint16_t(dd_uuid));
+    return sp.CloneAndPrepend("Could not create new log block container at " + dir->dir());
+  }
+  RETURN_NOT_OK_PREPEND(s, "Could not create new log block container at " + dir->dir());
   {
     std::lock_guard<simple_spinlock> l(lock_);
     dirty_dirs_.insert(dir->dir());

@@ -420,6 +420,30 @@ string FsManager::GetTabletMetadataPath(const string& tablet_id) const {
   return JoinPathSegments(GetTabletMetadataDir(), tablet_id);
 }
 
+void FsManager::HandleError(const FsErrorOpts& opts) {
+  std::lock_guard<simple_spinlock> lock(data_dir_lock_);
+  unhealthy_data_dirs_.insert(opts.uuid);
+  // TODO(awong): add callback to thread pool with extremely high priority.
+  // ensure that the entire data_dir handle happens under another lock.
+  // basically want to ensure that this won't interfere with the handler.
+  //
+  // Alternatively, HandleError will handle everything. Will need to carefully lock.
+  // 1. Tell the DataDirManager to mark the uuid as dead.
+  // 2. Synchronously have it mark other tablets as dead.
+  //    a. Will probably happen at ts_tablet_manager (tablet_peers).
+  //    b. Ongoing transactions should be unaffected(?) except those on the disk.
+  //    c. Every tablet operation will need to check this list under lock? What
+  //    happens if we're in a transaction that is trying to do stuff? Just let
+  //    it proceed. If it runs into an error when touching disk, the handling
+  //    code should take care of things. If not, great. The disk failure didn't
+  //    affect the transaction even though a disk has been affected.
+  //    d. This raises the question, should we just let transactions keep
+  //    proceeding and just have a handling codepath on error? If we assume an
+  //    EIO will affect all transactions, it would be smart to prevent ops from
+  //    starting early. If not, we may be able to continue serving some requests.
+  // 3. Perhaps we can reuse some code if there's a way to mark tablet data as corrupt.
+}
+
 namespace {
 // Return true if 'fname' is a valid tablet ID.
 bool IsValidTabletId(const string& fname) {

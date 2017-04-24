@@ -13,6 +13,7 @@
 #ifndef KUDU_UTIL_STATUS_H_
 #define KUDU_UTIL_STATUS_H_
 
+#include <memory>
 #include <stdint.h>
 #include <string>
 
@@ -97,8 +98,14 @@
 ///   Otherwise CHECK with a message of @c msg followed by the status.
 #define KUDU_CHECK_OR_HANDLE(to_call, err_number, err_handler, msg) do { \
     const ::kudu::Status& _s = (to_call); \
-    if (_s.posix_code() == err_number) (err_handler); \
-    KUDU_CHECK(_s.ok()) << (msg) << ": " << _s.ToString(); \
+    if (PREDICT_FALSE(_s.posix_code() == err_number)) (err_handler); \
+    else KUDU_CHECK(_s.ok()) << (msg) << ": " << _s.ToString(); \
+  } while (0);
+
+#define KUDU_HANDLE(to_call, err_number, err_handler, arg, msg) do { \
+    const ::kudu::Status& _s = (to_call); \
+    if (PREDICT_FALSE(_s.posix_code() == err_number)) (err_handler(arg)); \
+    else KUDU_CHECK(_s.ok()) << (msg) << ": " << _s.ToString(); \
   } while (0);
 
 /// @file status.h
@@ -141,6 +148,8 @@ class KUDU_EXPORT Status {
   Status() : state_(NULL) { }
 
   ~Status() { delete[] state_; }
+
+  bool HasExtras() { return false; }
 
   /// Copy the specified status.
   ///
@@ -435,6 +444,22 @@ inline Status& Status::operator=(Status&& s) {
   return *this;
 }
 #endif
+
+template <typename T>
+class StatusPlus : public Status {
+public:
+  StatusPlus(Status s, T* extras)
+    : s_(s),
+      extras_(std::move(extras)) {}
+
+  T GetExtras() { return *extras_.get(); }
+
+  bool HasExtras() { return true; }
+
+private:
+  Status s_;
+  std::unique_ptr<T> extras_;
+};
 
 }  // namespace kudu
 
