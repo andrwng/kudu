@@ -24,6 +24,7 @@
 
 #include "kudu/fs/block_manager_metrics.h"
 #include "kudu/fs/data_dirs.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/fs_report.h"
 #include "kudu/gutil/strings/numbers.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -234,6 +235,8 @@ class FileWritableBlock : public WritableBlock {
 
   virtual State state() const OVERRIDE;
 
+  virtual void HandleEIO() const override;
+
  private:
   enum SyncMode {
     SYNC,
@@ -281,6 +284,10 @@ FileWritableBlock::~FileWritableBlock() {
     WARN_NOT_OK(Abort(), Substitute("Failed to close block $0",
                                     id().ToString()));
   }
+}
+
+void FileWritableBlock::HandleEIO() const {
+  block_manager_->error_manager()->HandleDataDirFailure(location_.data_dir());
 }
 
 Status FileWritableBlock::Close() {
@@ -384,7 +391,7 @@ Status FileWritableBlock::Close(SyncMode mode) {
 // embed a FileBlockLocation, using the simpler BlockId instead.
 class FileReadableBlock : public ReadableBlock {
  public:
-  FileReadableBlock(const FileBlockManager* block_manager, BlockId block_id,
+  FileReadableBlock(FileBlockManager* block_manager, BlockId block_id,
                     shared_ptr<RandomAccessFile> reader);
 
   virtual ~FileReadableBlock();
@@ -401,9 +408,11 @@ class FileReadableBlock : public ReadableBlock {
 
   virtual size_t memory_footprint() const OVERRIDE;
 
+  virtual void HandleEIO() const override;
+
  private:
   // Back pointer to the owning block manager.
-  const FileBlockManager* block_manager_;
+  FileBlockManager* block_manager_;
 
   // The block's identifier.
   const BlockId block_id_;
@@ -418,7 +427,13 @@ class FileReadableBlock : public ReadableBlock {
   DISALLOW_COPY_AND_ASSIGN(FileReadableBlock);
 };
 
-FileReadableBlock::FileReadableBlock(const FileBlockManager* block_manager,
+void FileReadableBlock::HandleEIO() const {
+  uint16_t uuid_idx = internal::FileBlockLocation::GetDataDirIdx(block_id_);
+  DataDir* dd = block_manager_->dd_manager()->FindDataDirByUuidIndex(uuid_idx);
+  block_manager_->error_manager()->HandleDataDirFailure(dd);
+}
+
+FileReadableBlock::FileReadableBlock(FileBlockManager* block_manager,
                                      BlockId block_id,
                                      shared_ptr<RandomAccessFile> reader)
     : block_manager_(block_manager),
@@ -453,7 +468,6 @@ const BlockId& FileReadableBlock::id() const {
 
 Status FileReadableBlock::Size(uint64_t* sz) const {
   DCHECK(!closed_.Load());
-
   return reader_->Size(sz);
 }
 
@@ -532,6 +546,7 @@ FileBlockManager::FileBlockManager(Env* env, const BlockManagerOptions& opts)
   : env_(DCHECK_NOTNULL(env)),
     read_only_(opts.read_only),
     dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths),
+    error_manager_(DCHECK_NOTNULL(opts.error_manager)),
     file_cache_("fbm", env_, GetFileCacheCapacityForBlockManager(env_),
                 opts.metric_entity),
     rand_(GetRandomSeed32()),
@@ -539,6 +554,7 @@ FileBlockManager::FileBlockManager(Env* env, const BlockManagerOptions& opts)
     mem_tracker_(MemTracker::CreateTracker(-1,
                                            "file_block_manager",
                                            opts.parent_mem_tracker)) {
+  error_manager_->SetDataDirManager(&dd_manager_);
   if (opts.metric_entity) {
     metrics_.reset(new internal::BlockManagerMetrics(opts.metric_entity));
   }
@@ -657,6 +673,13 @@ Status FileBlockManager::DeleteBlock(const BlockId& block_id) {
   CHECK(!read_only_);
 
   string path;
+  uint16_t uuid_idx = internal::FileBlockLocation::GetDataDirIdx(block_id);
+  if (PREDICT_FALSE(dd_manager_.IsDataDirFailed(uuid_idx))) {
+    LOG(WARNING) << Substitute("Block $0 is on a disk that has failed: $1",
+                               block_id.ToString(),
+                               dd_manager_.FindDataDirByUuidIndex(uuid_idx)->dir());
+    return Status::OK();
+  }
   if (!FindBlockPath(block_id, &path)) {
     return Status::NotFound(
         Substitute("Block $0 not found", block_id.ToString()));

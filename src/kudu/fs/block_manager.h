@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "kudu/fs/block_id.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/stl_util.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -43,6 +44,7 @@ namespace fs {
 
 class BlockManager;
 class DataDirManager;
+class FsErrorManager;
 struct FsReport;
 
 // The smallest unit of Kudu data that is backed by the local filesystem.
@@ -135,6 +137,8 @@ class WritableBlock : public Block {
   virtual size_t BytesAppended() const = 0;
 
   virtual State state() const = 0;
+
+  virtual void HandleEIO() const = 0;
 };
 
 // A block that has been opened for reading. Multiple in-memory blocks may
@@ -164,6 +168,8 @@ class ReadableBlock : public Block {
 
   // Returns the memory usage of this object including the object itself.
   virtual size_t memory_footprint() const = 0;
+
+  virtual void HandleEIO() const = 0;
 };
 
 // Provides options and hints for block placement. This is used for identifying
@@ -194,6 +200,9 @@ struct BlockManagerOptions {
 
   // Whether the block manager should only allow reading. Defaults to false.
   bool read_only;
+
+  // Manager for handling EIOs.
+  FsErrorManager* error_manager;
 };
 
 // Utilities for Kudu block lifecycle management. All methods are

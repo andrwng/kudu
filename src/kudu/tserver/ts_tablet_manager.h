@@ -20,6 +20,7 @@
 #include <boost/optional/optional_fwd.hpp>
 #include <gtest/gtest_prod.h>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -184,6 +185,12 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   static Status DeleteTabletData(const scoped_refptr<tablet::TabletMetadata>& meta,
                                  tablet::TabletDataState delete_type,
                                  const boost::optional<consensus::OpId>& last_logged_opid);
+
+  // Asynchronously shut down a tablet replica by deleting the tablet.
+  // TODO(awong): rather than deleting the tablet, don't do anything to the
+  // tablet metadata and just store disk failure state instead.
+  void FailTabletReplicas(const std::set<std::string>& tablet_ids);
+
  private:
   FRIEND_TEST(TsTabletManagerTest, TestPersistBlocks);
 
@@ -281,7 +288,9 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   // running state.
   void InitLocalRaftPeerPB();
 
-  FsManager* const fs_manager_;
+  FsManager* fs_manager_;
+
+  Callback<void(const std::set<std::string>&)> shutdown_replicas_cb_;
 
   TabletServer* server_;
 

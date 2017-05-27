@@ -23,6 +23,7 @@
 #include <glog/logging.h>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/consensus/opid_util.h"
 #include "kudu/consensus/quorum_util.h"
+#include "kudu/fs/data_dirs.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/casts.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -134,7 +136,7 @@ using consensus::StartTabletCopyRequestPB;
 using log::Log;
 using master::ReportedTabletPB;
 using master::TabletReportPB;
-using rpc::ResultTracker;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
@@ -157,7 +159,6 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
     server_(server),
     metric_registry_(metric_registry),
     state_(MANAGER_INITIALIZING) {
-
   CHECK_OK(ThreadPoolBuilder("apply").Build(&apply_pool_));
   apply_pool_->SetQueueLengthHistogram(
       METRIC_op_apply_queue_length.Instantiate(server_->metric_entity()));
@@ -180,6 +181,9 @@ Status TSTabletManager::Init() {
                 .set_max_queue_size(0)
                 .set_max_threads(FLAGS_num_tablets_to_copy_simultaneously)
                 .Build(&tablet_copy_pool_));
+
+  shutdown_replicas_cb_ = Bind(&TSTabletManager::FailTabletReplicas, Unretained(this));
+  fs_manager_->SetTabletsFailedCallback(&shutdown_replicas_cb_);
 
   // Start the threadpool we'll use to open tablets.
   // This has to be done in Init() instead of the constructor, since the
@@ -873,6 +877,8 @@ void TSTabletManager::Shutdown() {
   vector<scoped_refptr<TabletReplica> > replicas_to_shutdown;
   GetTabletReplicas(&replicas_to_shutdown);
 
+  // Since the FsManager is an external entity, revoke its access.
+  fs_manager_->SetTabletsFailedCallback(nullptr);
   for (const scoped_refptr<TabletReplica>& replica : replicas_to_shutdown) {
     replica->Shutdown();
   }
@@ -1029,6 +1035,8 @@ Status TSTabletManager::HandleNonReadyTabletOnStartup(const scoped_refptr<Tablet
       << "Unexpected TabletDataState in tablet " << tablet_id << ": "
       << TabletDataState_Name(data_state) << " (" << data_state << ")";
 
+  // If the tablet data is corrupted, only a tablet copy or tablet deletion
+  // should delete the data.
   // If the tablet is already fully tombstoned with no remaining data or WAL,
   // then no need to roll anything forward.
   bool skip_deletion = meta->IsTombstonedWithNoBlocks() &&
@@ -1094,6 +1102,19 @@ Status TSTabletManager::DeleteTabletData(const scoped_refptr<TabletMetadata>& me
   RETURN_NOT_OK(ConsensusMetadata::DeleteOnDiskData(meta->fs_manager(), meta->tablet_id()));
   MAYBE_FAULT(FLAGS_fault_crash_after_cmeta_deleted);
   return meta->DeleteSuperBlock();
+}
+
+void TSTabletManager::FailTabletReplicas(const set<string>& tablet_ids) {
+  // TODO(awong): the bare minimum this should do is asynchronously shut down
+  // the tablet replicas.
+  for (const string& tablet_id : tablet_ids) {
+    LOG(WARNING) << Substitute("Tablet $0 is located on an unhealthy data dir.", tablet_id);
+    CHECK_OK(apply_pool_->SubmitFunc([tablet_id, this]() {
+        boost::optional<TabletServerErrorPB::Code> error_code;
+        boost::optional<int64_t> op_id;
+        DeleteTablet(tablet_id, TABLET_DATA_TOMBSTONED, op_id, &error_code);
+    }));
+  }
 }
 
 TransitionInProgressDeleter::TransitionInProgressDeleter(

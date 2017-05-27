@@ -21,6 +21,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "kudu/fs/block_manager_metrics.h"
 #include "kudu/fs/block_manager_util.h"
 #include "kudu/fs/data_dirs.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_report.h"
 #include "kudu/gutil/callback.h"
@@ -393,8 +395,10 @@ class LogBlockContainer {
   const DataDir* data_dir() const { return data_dir_; }
   DataDir* mutable_data_dir() const { return data_dir_; }
   const PathInstanceMetadataPB* instance() const { return data_dir_->instance()->metadata(); }
+  void HandleEIO() const;
 
  private:
+  friend class LogWritableBlock;
   LogBlockContainer(LogBlockManager* block_manager, DataDir* data_dir,
                     unique_ptr<WritablePBContainerFile> metadata_file,
                     shared_ptr<RWFile> data_file);
@@ -484,6 +488,10 @@ LogBlockContainer::LogBlockContainer(
       live_bytes_aligned_(0),
       live_blocks_(0),
       metrics_(block_manager->metrics()) {
+}
+
+void LogBlockContainer::HandleEIO() const {
+  block_manager()->error_manager()->HandleDataDirFailure(data_dir_);
 }
 
 Status LogBlockContainer::Create(LogBlockManager* block_manager,
@@ -1066,6 +1074,10 @@ class LogWritableBlock : public WritableBlock {
   // Does not synchronize the written data; that takes place in Close().
   Status AppendMetadata();
 
+  virtual void HandleEIO() const override {
+    container_->HandleEIO();
+  }
+
  private:
   // The owning container. Must outlive the block.
   LogBlockContainer* container_;
@@ -1273,6 +1285,10 @@ class LogReadableBlock : public ReadableBlock {
 
   virtual size_t memory_footprint() const OVERRIDE;
 
+  virtual void HandleEIO() const override {
+    container_->HandleEIO();
+  }
+
  private:
   // The owning container. Must outlive this block.
   LogBlockContainer* container_;
@@ -1391,6 +1407,7 @@ LogBlockManager::LogBlockManager(Env* env, const BlockManagerOptions& opts)
                                            "log_block_manager",
                                            opts.parent_mem_tracker)),
     dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths),
+    error_manager_(DCHECK_NOTNULL(opts.error_manager)),
     file_cache_("lbm", env, GetFileCacheCapacityForBlockManager(env),
                 opts.metric_entity),
     blocks_by_block_id_(10,
@@ -1401,6 +1418,7 @@ LogBlockManager::LogBlockManager(Env* env, const BlockManagerOptions& opts)
     read_only_(opts.read_only),
     buggy_el6_kernel_(IsBuggyEl6Kernel(env->GetKernelRelease())),
     next_block_id_(1) {
+  error_manager_->SetDataDirManager(&dd_manager_);
   blocks_by_block_id_.set_deleted_key(BlockId());
 
   // HACK: when running in a test environment, we often instantiate many
