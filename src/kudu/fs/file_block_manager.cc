@@ -314,7 +314,7 @@ Status FileWritableBlock::Append(const Slice& data) {
 Status FileWritableBlock::AppendV(const vector<Slice>& data) {
   DCHECK(state_ == CLEAN || state_ == DIRTY)
   << "Invalid state: " << state_;
-  RETURN_NOT_OK(writer_->AppendV(data));
+  KUDU_RETURN_AND_HANDLE_EIO(writer_->AppendV(data));
   RETURN_NOT_OK(location_.data_dir()->RefreshIsFull(
       DataDir::RefreshMode::ALWAYS));
   state_ = DIRTY;
@@ -333,7 +333,7 @@ Status FileWritableBlock::FlushDataAsync() {
       << "Invalid state: " << state_;
   if (state_ == DIRTY) {
     VLOG(3) << "Flushing block " << id();
-    RETURN_NOT_OK(writer_->Flush(WritableFile::FLUSH_ASYNC));
+    KUDU_RETURN_AND_HANDLE_EIO(writer_->Flush(WritableFile::FLUSH_ASYNC));
   }
 
   state_ = FLUSHING;
@@ -364,10 +364,16 @@ Status FileWritableBlock::Close(SyncMode mode) {
     if (sync.ok()) {
       sync = block_manager_->SyncMetadata(location_);
     }
+    if (PREDICT_FALSE(sync.posix_code() == EIO)) {
+      HandleEIO();
+    }
     WARN_NOT_OK(sync, Substitute("Failed to sync when closing block $0",
                                  id().ToString()));
   }
   Status close = writer_->Close();
+  if (PREDICT_FALSE(close.posix_code() == EIO)) {
+    HandleEIO();
+  }
 
   state_ = CLOSED;
   writer_.reset();
@@ -479,7 +485,7 @@ Status FileReadableBlock::Read(uint64_t offset, Slice* result) const {
 Status FileReadableBlock::ReadV(uint64_t offset, vector<Slice>* results) const {
   DCHECK(!closed_.Load());
 
-  RETURN_NOT_OK(reader_->ReadV(offset, results));
+  KUDU_RETURN_AND_HANDLE_EIO(reader_->ReadV(offset, results));
 
   if (block_manager_->metrics_) {
     // Calculate the read amount of data
@@ -525,7 +531,8 @@ Status FileBlockManager::SyncMetadata(const internal::FileBlockLocation& locatio
   // Sync them.
   if (FLAGS_enable_data_block_fsync) {
     for (const string& s : to_sync) {
-      RETURN_NOT_OK(env_->SyncDir(s));
+      KUDU_RETURN_AND_HANDLE(EIO, env_->SyncDir(s),
+          error_manager()->HandleDataDirFailure(location.data_dir()));
     }
   }
   return Status::OK();
@@ -631,7 +638,8 @@ Status FileBlockManager::CreateBlock(const CreateBlockOptions& opts,
 
     location = internal::FileBlockLocation::FromParts(dir, uuid_idx, id);
     path = location.GetFullPath();
-    RETURN_NOT_OK_PREPEND(location.CreateBlockDir(env_, &created_dirs), path);
+    KUDU_RETURN_AND_HANDLE_PREPEND(EIO, location.CreateBlockDir(env_, &created_dirs),
+        error_manager_->HandleDataDirFailure(location.data_dir()), path);
     WritableFileOptions wr_opts;
     wr_opts.mode = Env::CREATE_NON_EXISTING;
     s = env_util::OpenFileForWrite(wr_opts, env_, path, &writer);
@@ -650,7 +658,8 @@ Status FileBlockManager::CreateBlock(const CreateBlockOptions& opts,
     }
     block->reset(new internal::FileWritableBlock(this, location, writer));
   }
-  return s;
+  KUDU_RETURN_AND_HANDLE(EIO, s, error_manager_->HandleDataDirFailure(dir));
+  return Status::OK();
 }
 
 Status FileBlockManager::OpenBlock(const BlockId& block_id,

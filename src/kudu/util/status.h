@@ -93,6 +93,22 @@
 ///   logged 'Bad status' message.
 #define KUDU_DCHECK_OK(s) KUDU_DCHECK_OK_PREPEND(s, "Bad status")
 
+/// @brief If @c to_call returns with @c err_number, run @c err_handler.
+///   Returns the status returned by @c to_call if not Status::OK().
+#define KUDU_RETURN_AND_HANDLE(err_number, to_call, err_handler) do { \
+  const ::kudu::Status& s_ = (to_call); \
+  if (s_.posix_code() == (err_number)) (err_handler); \
+  RETURN_NOT_OK(s_); \
+} while (0);
+
+/// @breif If @c to_call returns with @c err_number, run @c err_handler.
+///   Regardless of @c err_number, error statuses will be prepended with @c msg.
+#define KUDU_RETURN_AND_HANDLE_PREPEND(err_number, to_call, err_handler, msg) do { \
+  const ::kudu::Status& s__ = (to_call); \
+  if (s__.posix_code() == (err_number)) (err_handler); \
+  RETURN_NOT_OK_PREPEND(s__, msg); \
+} while (0);
+
 /// @file status.h
 ///
 /// This header is used in both the Kudu build as well as in builds of

@@ -13,13 +13,8 @@ namespace fs {
 
 // Evaluate the expression and if it results in an EIO, handle it.
 // Return if the status is an error.
-#define KUDU_RETURN_OR_HANDLE_EIO(expr) do { \
-  Status s_ = (expr); \
-  if (PREDICT_FALSE(s_.posix_code() == EIO)) { \
-    HandleEIO(); \
-    return s_; \
-  } \
-  RETURN_NOT_OK(s_); \
+#define KUDU_RETURN_AND_HANDLE_EIO(expr) do { \
+  KUDU_RETURN_AND_HANDLE(EIO, (expr), HandleEIO()); \
 } while (0);
 
 // When certain operations fail, the side effects of the failure span

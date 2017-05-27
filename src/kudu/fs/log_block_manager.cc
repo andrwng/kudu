@@ -55,6 +55,7 @@
 #include "kudu/util/pb_util.h"
 #include "kudu/util/random_util.h"
 #include "kudu/util/scoped_cleanup.h"
+#include "kudu/util/status.h"
 #include "kudu/util/stopwatch.h"
 #include "kudu/util/test_util_prod.h"
 #include "kudu/util/threadpool.h"
@@ -623,7 +624,7 @@ Status LogBlockContainer::TruncateDataToNextBlockOffset() {
   if (full()) {
     VLOG(2) << Substitute("Truncating container $0 to offset $1",
                           ToString(), next_block_offset_);
-    RETURN_NOT_OK(data_file_->Truncate(next_block_offset_));
+    KUDU_RETURN_AND_HANDLE_EIO(data_file_->Truncate(next_block_offset_));
   }
   return Status::OK();
 }
@@ -699,7 +700,7 @@ Status LogBlockContainer::ProcessRecord(
       // file size is expensive, so we only do it when the metadata indicates
       // that additional data has been written to the file.
       if (PREDICT_FALSE(record->offset() + record->length() > *data_file_size)) {
-        RETURN_NOT_OK(data_file_->Size(data_file_size));
+        KUDU_RETURN_AND_HANDLE_EIO(data_file_->Size(data_file_size));
       }
 
       // If the record still extends beyond the end of the file, it is malformed.
@@ -805,7 +806,7 @@ Status LogBlockContainer::PunchHole(int64_t offset, int64_t length) {
   if (length) {
     // It's OK if we exceed the file's total size; the kernel will truncate
     // our request.
-    return data_file_->PunchHole(offset, length);
+    KUDU_RETURN_AND_HANDLE_EIO(data_file_->PunchHole(offset, length));
   }
   return Status::OK();
 }
@@ -817,7 +818,7 @@ Status LogBlockContainer::WriteData(int64_t offset, const Slice& data) {
 Status LogBlockContainer::WriteVData(int64_t offset, const vector<Slice>& data) {
   DCHECK_GE(offset, next_block_offset_);
 
-  RETURN_NOT_OK(data_file_->WriteV(offset, data));
+  KUDU_RETURN_AND_HANDLE_EIO(data_file_->WriteV(offset, data));
 
   // This append may have changed the container size if:
   // 1. It was large enough that it blew out the preallocated space.
@@ -827,21 +828,20 @@ Status LogBlockContainer::WriteVData(int64_t offset, const vector<Slice>& data) 
                                   return sum + curr.size();
                                 });
   if (offset + data_size > preallocated_offset_) {
-    RETURN_NOT_OK(data_dir_->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
+    KUDU_RETURN_AND_HANDLE_EIO(data_dir_->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
   }
   return Status::OK();
 }
 
 Status LogBlockContainer::ReadData(int64_t offset, Slice* result) const {
   DCHECK_GE(offset, 0);
-
-  return data_file_->Read(offset, result);
+  KUDU_RETURN_AND_HANDLE_EIO(data_file_->Read(offset, result));
+  return Status::OK();
 }
-
 Status LogBlockContainer::ReadVData(int64_t offset, vector<Slice>* results) const {
   DCHECK_GE(offset, 0);
-
-  return data_file_->ReadV(offset, results);
+  KUDU_RETURN_AND_HANDLE_EIO(data_file_->ReadV(offset, results));
+  return Status::OK();
 }
 
 Status LogBlockContainer::AppendMetadata(const BlockRecordPB& pb) {
@@ -853,7 +853,8 @@ Status LogBlockContainer::AppendMetadata(const BlockRecordPB& pb) {
 Status LogBlockContainer::FlushData(int64_t offset, int64_t length) {
   DCHECK_GE(offset, 0);
   DCHECK_GE(length, 0);
-  return data_file_->Flush(RWFile::FLUSH_ASYNC, offset, length);
+  KUDU_RETURN_AND_HANDLE_EIO(data_file_->Flush(RWFile::FLUSH_ASYNC, offset, length));
+  return Status::OK();
 }
 
 Status LogBlockContainer::FlushMetadata() {
@@ -862,7 +863,7 @@ Status LogBlockContainer::FlushMetadata() {
 
 Status LogBlockContainer::SyncData() {
   if (FLAGS_enable_data_block_fsync) {
-    return data_file_->Sync();
+    KUDU_RETURN_AND_HANDLE_EIO(data_file_->Sync());
   }
   return Status::OK();
 }
@@ -901,8 +902,8 @@ Status LogBlockContainer::EnsurePreallocated(int64_t block_start_offset,
       next_append_length > preallocated_offset_ - block_start_offset) {
     int64_t off = std::max(preallocated_offset_, block_start_offset);
     int64_t len = FLAGS_log_container_preallocate_bytes;
-    RETURN_NOT_OK(data_file_->PreAllocate(off, len, RWFile::CHANGE_FILE_SIZE));
-    RETURN_NOT_OK(data_dir_->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
+    KUDU_RETURN_AND_HANDLE_EIO(data_file_->PreAllocate(off, len, RWFile::CHANGE_FILE_SIZE));
+    KUDU_RETURN_AND_HANDLE_EIO(data_dir_->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
     VLOG(2) << Substitute("Preallocated $0 bytes at offset $1 in container $2",
                           len, off, ToString());
 
@@ -1701,10 +1702,9 @@ Status LogBlockManager::GetOrCreateContainer(const CreateBlockOptions& opts,
 
   // All containers are in use; create a new one.
   unique_ptr<LogBlockContainer> new_container;
-  RETURN_NOT_OK_PREPEND(LogBlockContainer::Create(this,
-                                                  dir,
-                                                  &new_container),
-                        "Could not create new log block container at " + dir->dir());
+  Status s = LogBlockContainer::Create(this, dir, &new_container);
+  KUDU_RETURN_AND_HANDLE_PREPEND(EIO, s, error_manager_->HandleDataDirFailure(dir),
+      "Could not create new log block container at " + dir->dir());
   {
     std::lock_guard<simple_spinlock> l(lock_);
     dirty_dirs_.insert(dir->dir());
