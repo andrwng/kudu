@@ -29,6 +29,8 @@
 #include "kudu/util/maintenance_manager.h"
 #include "kudu/util/metrics.h"
 
+DECLARE_bool(suicide_on_eio);
+
 DEFINE_int32(flush_threshold_mb, 1024,
              "Size at which MemRowSet flushes are triggered. "
              "A MRS can still flush below this threshold if it if hasn't flushed in a while, "
@@ -130,8 +132,18 @@ bool FlushMRSOp::Prepare() {
 void FlushMRSOp::Perform() {
   CHECK(!tablet_replica_->tablet()->rowsets_flush_sem_.try_lock());
 
-  KUDU_CHECK_OK_PREPEND(tablet_replica_->tablet()->FlushUnlocked(),
-                        Substitute("FlushMRS failed on $0", tablet_replica_->tablet_id()));
+  Status s = tablet_replica_->tablet()->FlushUnlocked();
+  if (PREDICT_FALSE(!s.ok())) {
+    LOG(ERROR) << Substitute("FlushMRS failed on $0", tablet_replica_->tablet_id());
+    tablet_replica_->tablet()->rowsets_flush_sem_.unlock();
+
+    // Only handled disk failures (EIOs) are survivable at the moment.
+    // TODO(awong): it may be worth considering other approaches instead of
+    // crashing when the server is full (ENOSPC), e.g. removing some tablets in
+    // order to free up space.
+    CHECK(s.posix_code() == EIO) << "Only posix code 5 (EIO) is survivable, got " << s.posix_code();
+    return;
+  }
 
   {
     std::lock_guard<simple_spinlock> l(lock_);
