@@ -106,6 +106,9 @@ Status TabletServer::WaitInited() {
 Status TabletServer::Start() {
   CHECK(initted_);
 
+  fs_manager_->SetErrorNotificationCb(Bind(&TSTabletManager::FailTabletsInDataDir,
+                                           Unretained(tablet_manager_.get())));
+
   gscoped_ptr<ServiceIf> ts_service(new TabletServiceImpl(this));
   gscoped_ptr<ServiceIf> admin_service(new TabletServiceAdminImpl(this));
   gscoped_ptr<ServiceIf> consensus_service(new ConsensusServiceImpl(this, tablet_manager_.get()));
@@ -135,6 +138,7 @@ void TabletServer::Shutdown() {
     UnregisterAllServices();
 
     // 2. Shut down the tserver's subsystems.
+    fs_manager_->UnsetErrorNotificationCb();
     maintenance_manager_->Shutdown();
     WARN_NOT_OK(heartbeater_->Stop(), "Failed to stop TS Heartbeat thread");
     tablet_manager_->Shutdown();
