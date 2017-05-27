@@ -40,6 +40,7 @@ class RandomAccessFile;
 class WritableFile;
 
 namespace fs {
+class FsErrorManager;
 struct FsReport;
 
 namespace internal {
@@ -92,18 +93,19 @@ class FileBlockManager : public BlockManager {
 
   Status GetAllBlockIds(std::vector<BlockId>* block_ids) override;
 
-  DataDirManager* dd_manager() override { return &dd_manager_; };
+  DataDirManager* dd_manager() override { return &dd_manager_; }
+
+  FsErrorManager* error_manager() { return error_manager_; }
 
  private:
   friend class internal::FileBlockLocation;
   friend class internal::FileReadableBlock;
   friend class internal::FileWritableBlock;
 
-  // Synchronizes the metadata for a block with the given id.
-  Status SyncMetadata(const internal::FileBlockLocation& block_id);
+  // Synchronizes the metadata for a block with the given location.
+  Status SyncMetadata(const internal::FileBlockLocation& location);
 
   // Looks up the path of the file backing a particular block ID.
-  //
   // On success, overwrites 'path' with the file's path.
   bool FindBlockPath(const BlockId& block_id, std::string* path) const;
 
@@ -117,6 +119,8 @@ class FileBlockManager : public BlockManager {
 
   // Manages and owns all of the block manager's data directories.
   DataDirManager dd_manager_;
+
+  FsErrorManager* error_manager_;
 
   // Manages files opened for reading.
   FileCache<RandomAccessFile> file_cache_;

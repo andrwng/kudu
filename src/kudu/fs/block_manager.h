@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "kudu/fs/block_id.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/stl_util.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -43,6 +44,7 @@ namespace fs {
 
 class BlockManager;
 class DataDirManager;
+class FsErrorManager;
 struct FsReport;
 
 // The smallest unit of Kudu data that is backed by the local filesystem.
@@ -194,6 +196,9 @@ struct BlockManagerOptions {
 
   // Whether the block manager should only allow reading. Defaults to false.
   bool read_only;
+
+  // Manager for coordinating error-handling.
+  FsErrorManager* error_manager;
 };
 
 // Utilities for Kudu block lifecycle management. All methods are

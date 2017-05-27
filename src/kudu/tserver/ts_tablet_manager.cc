@@ -23,6 +23,7 @@
 #include <glog/logging.h>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,8 @@
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/consensus/opid_util.h"
 #include "kudu/consensus/quorum_util.h"
+#include "kudu/fs/data_dirs.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/casts.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -134,7 +137,7 @@ using consensus::StartTabletCopyRequestPB;
 using log::Log;
 using master::ReportedTabletPB;
 using master::TabletReportPB;
-using rpc::ResultTracker;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
@@ -154,11 +157,13 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
                                  TabletServer* server,
                                  MetricRegistry* metric_registry)
   : fs_manager_(fs_manager),
+    shutdown_replicas_cb_(Bind(&TSTabletManager::FailTabletReplicas, Unretained(this))),
     server_(server),
     metric_registry_(metric_registry),
     state_(MANAGER_INITIALIZING) {
-
   CHECK_OK(ThreadPoolBuilder("apply").Build(&apply_pool_));
+  fs_manager_->SetTabletsFailedCallback(&shutdown_replicas_cb_);
+
   apply_pool_->SetQueueLengthHistogram(
       METRIC_op_apply_queue_length.Instantiate(server_->metric_entity()));
   apply_pool_->SetQueueTimeMicrosHistogram(
@@ -168,6 +173,8 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
 }
 
 TSTabletManager::~TSTabletManager() {
+  // Since the FsManager is an external entity, revoke its access.
+  fs_manager_->SetTabletsFailedCallback(nullptr);
 }
 
 Status TSTabletManager::Init() {
@@ -606,7 +613,8 @@ Status TSTabletManager::DeleteTablet(
     const string& tablet_id,
     TabletDataState delete_type,
     const boost::optional<int64_t>& cas_config_opid_index_less_or_equal,
-    boost::optional<TabletServerErrorPB::Code>* error_code) {
+    boost::optional<TabletServerErrorPB::Code>* error_code,
+    bool delete_tablet_data) {
 
   if (delete_type != TABLET_DATA_DELETED && delete_type != TABLET_DATA_TOMBSTONED) {
     return Status::InvalidArgument("DeleteTablet() requires an argument that is one of "
@@ -673,16 +681,17 @@ Status TSTabletManager::DeleteTablet(
     opt_last_logged_opid = last_logged_opid;
   }
 
-  Status s = DeleteTabletData(replica->tablet_metadata(), delete_type, opt_last_logged_opid);
-  if (PREDICT_FALSE(!s.ok())) {
-    s = s.CloneAndPrepend(Substitute("Unable to delete on-disk data from tablet $0",
-                                     tablet_id));
-    LOG(WARNING) << s.ToString();
-    replica->SetFailed(s);
-    return s;
+  if (delete_tablet_data) {
+    Status s = DeleteTabletData(replica->tablet_metadata(), delete_type, opt_last_logged_opid);
+    if (PREDICT_FALSE(!s.ok())) {
+      s = s.CloneAndPrepend(Substitute("Unable to delete on-disk data from tablet $0",
+                                      tablet_id));
+      LOG(WARNING) << s.ToString();
+      replica->SetFailed(s);
+      return s;
+    }
+    replica->SetStatusMessage("Deleted tablet blocks from disk");
   }
-
-  replica->SetStatusMessage("Deleted tablet blocks from disk");
 
   // We only remove DELETED tablets from the tablet map.
   if (delete_type == TABLET_DATA_DELETED) {
@@ -792,7 +801,10 @@ void TSTabletManager::OpenTablet(const scoped_refptr<TabletMetadata>& meta,
     if (!s.ok()) {
       LOG(ERROR) << LogPrefix(tablet_id) << "Tablet failed to bootstrap: "
                  << s.ToString();
-      replica->SetFailed(s);
+      // Disk failures should have been handled.
+      if (!fs::IsDiskFailure(s)) {
+        replica->SetFailed(s);
+      }
       return;
     }
   }
@@ -1029,6 +1041,8 @@ Status TSTabletManager::HandleNonReadyTabletOnStartup(const scoped_refptr<Tablet
       << "Unexpected TabletDataState in tablet " << tablet_id << ": "
       << TabletDataState_Name(data_state) << " (" << data_state << ")";
 
+  // If the tablet data is corrupted, only a tablet copy or tablet deletion
+  // should delete the data.
   // If the tablet is already fully tombstoned with no remaining data or WAL,
   // then no need to roll anything forward.
   bool skip_deletion = meta->IsTombstonedWithNoBlocks() &&
@@ -1094,6 +1108,19 @@ Status TSTabletManager::DeleteTabletData(const scoped_refptr<TabletMetadata>& me
   RETURN_NOT_OK(ConsensusMetadata::DeleteOnDiskData(meta->fs_manager(), meta->tablet_id()));
   MAYBE_FAULT(FLAGS_fault_crash_after_cmeta_deleted);
   return meta->DeleteSuperBlock();
+}
+
+void TSTabletManager::FailTabletReplicas(const set<string>& tablet_ids) {
+  // TODO(awong): the bare minimum this should do is asynchronously shut down
+  // the tablet replicas.
+  for (const string& tablet_id : tablet_ids) {
+    LOG(WARNING) << Substitute("Tablet $0 is located on an unhealthy data dir.", tablet_id);
+    CHECK_OK(apply_pool_->SubmitFunc([tablet_id, this]() {
+        boost::optional<TabletServerErrorPB::Code> error_code;
+        boost::optional<int64_t> op_id;
+        DeleteTablet(tablet_id, TABLET_DATA_TOMBSTONED, op_id, &error_code);
+    }));
+  }
 }
 
 TransitionInProgressDeleter::TransitionInProgressDeleter(
