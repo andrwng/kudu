@@ -23,6 +23,7 @@
 #include <glog/logging.h>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -113,7 +114,7 @@ using consensus::kMinimumTerm;
 using log::Log;
 using master::ReportedTabletPB;
 using master::TabletReportPB;
-using rpc::ResultTracker;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
@@ -1065,6 +1066,19 @@ Status TSTabletManager::DeleteTabletData(
   }
   MAYBE_FAULT(FLAGS_fault_crash_after_cmeta_deleted);
   return meta->DeleteSuperBlock();
+}
+
+void TSTabletManager::FailTabletsInDataDir(const string& uuid) {
+  uint16_t* uuid_idx = fs_manager_->dd_manager()->GetUuidIdxForUuid(uuid);
+  if (!uuid_idx || fs_manager_->dd_manager()->IsDataDirFailed(*uuid_idx)) {
+    return;
+  }
+  fs_manager_->dd_manager()->MarkDataDirFailed(*uuid_idx);
+  const set<string>& tablets_on_dir =
+    fs_manager_->dd_manager()->FindTabletsByDataDirUuidIdx(*uuid_idx);
+  for (const string& tablet_id : tablets_on_dir) {
+    LOG(INFO) << "Shutting down tablet (not implemented in this patch): " << tablet_id;
+  }
 }
 
 TransitionInProgressDeleter::TransitionInProgressDeleter(

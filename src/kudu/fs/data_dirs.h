@@ -293,6 +293,11 @@ class DataDirManager {
     return failed_data_dirs_;
   }
 
+  // Returns the uuid_idx for a given UUID or nullptr if it doesn't exist.
+  uint16_t* GetUuidIdxForUuid(const std::string& uuid) {
+    return FindOrNull(idx_by_uuid_, uuid);
+  }
+
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
   FRIEND_TEST(DataDirGroupTest, TestLoadFromPB);
