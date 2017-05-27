@@ -694,11 +694,18 @@ Status DeltaTracker::Flush(MetadataFlushType flush_type) {
   // at some point.
   shared_ptr<DeltaFileReader> dfr;
   Status s = FlushDMS(old_dms.get(), &dfr, flush_type);
-  CHECK(s.ok())
-    << "Failed to flush DMS: " << s.ToString()
-    << "\nTODO: need to figure out what to do with error handling "
-    << "if this fails -- we end up with a DeltaMemStore permanently "
-    << "in the store list. For now, abort.";
+  if (PREDICT_FALSE(!s.ok())) {
+    if (s.posix_code() == EIO) {
+      LOG(ERROR) << "Failed to flush DMS but staying alive: " << s.ToString();
+      return Status::OK();
+    }
+  } else {
+    CHECK(s.ok())
+      << "Failed to flush DMS: " << s.ToString()
+      << "\nTODO: need to figure out what to do with error handling "
+      << "if this fails -- we end up with a DeltaMemStore permanently "
+      << "in the store list. For now, abort.";
+  }
 
 
   // Now, re-take the lock and swap in the DeltaFileReader in place of
