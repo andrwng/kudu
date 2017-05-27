@@ -28,6 +28,7 @@
 #include "kudu/fs/block_manager_metrics.h"
 #include "kudu/fs/block_manager_util.h"
 #include "kudu/fs/data_dirs.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_report.h"
 #include "kudu/gutil/callback.h"
@@ -1392,6 +1393,7 @@ LogBlockManager::LogBlockManager(Env* env, const BlockManagerOptions& opts)
                                            "log_block_manager",
                                            opts.parent_mem_tracker)),
     dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths),
+    error_manager_(DCHECK_NOTNULL(opts.error_manager)),
     file_cache_("lbm", env, GetFileCacheCapacityForBlockManager(env),
                 opts.metric_entity),
     blocks_by_block_id_(10,
@@ -1402,6 +1404,7 @@ LogBlockManager::LogBlockManager(Env* env, const BlockManagerOptions& opts)
     read_only_(opts.read_only),
     buggy_el6_kernel_(IsBuggyEl6Kernel(env->GetKernelRelease())),
     next_block_id_(1) {
+  error_manager_->SetDataDirManager(&dd_manager_);
   blocks_by_block_id_.set_deleted_key(BlockId());
 
   // HACK: when running in a test environment, we often instantiate many

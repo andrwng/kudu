@@ -22,8 +22,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "kudu/fs/fs.pb.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/file_block_manager.h"
+#include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_report.h"
 #include "kudu/fs/log_block_manager.h"
 #include "kudu/fs/log_block_manager-test-util.h"
@@ -96,6 +97,7 @@ class BlockManagerStressTest : public KuduTest {
   BlockManagerStressTest() :
     rand_seed_(SeedRandom()),
     stop_latch_(1),
+    test_error_manager_(new FsErrorManager()),
     test_tablet_name_("test_tablet"),
     total_blocks_written_(0),
     total_bytes_written_(0),
@@ -152,6 +154,7 @@ class BlockManagerStressTest : public KuduTest {
   BlockManager* CreateBlockManager() {
     BlockManagerOptions opts;
     opts.root_paths = data_dirs_;
+    opts.error_manager = test_error_manager_.get();
     return new T(env_, opts);
   }
 
@@ -234,6 +237,9 @@ class BlockManagerStressTest : public KuduTest {
 
   // The block manager.
   gscoped_ptr<BlockManager> bm_;
+
+  // The error manager.
+  std::unique_ptr<FsErrorManager> test_error_manager_;
 
   // Test group of disk to spread data across.
   DataDirGroupPB test_group_pb_;

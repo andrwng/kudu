@@ -20,6 +20,7 @@
 #include <boost/optional/optional_fwd.hpp>
 #include <gtest/gtest_prod.h>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -128,6 +129,14 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
                       const boost::optional<int64_t>& cas_config_opid_index_less_or_equal,
                       boost::optional<TabletServerErrorPB::Code>* error_code);
 
+  // Transitions the tablet state specified by 'tablet_id' with the specified
+  // 'reason'.
+  Status TransitionTabletState(const string& tablet_id,
+                               const string& reason,
+                               scoped_refptr<tablet::TabletReplica>* replica,
+                               scoped_refptr<TransitionInProgressDeleter>* deleter,
+                               boost::optional<TabletServerErrorPB::Code>* error_code);
+
   // Lookup the given tablet replica by its ID.
   // Returns true if the tablet is found successfully.
   bool LookupTablet(const std::string& tablet_id,
@@ -184,6 +193,10 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   static Status DeleteTabletData(const scoped_refptr<tablet::TabletMetadata>& meta,
                                  tablet::TabletDataState delete_type,
                                  const boost::optional<consensus::OpId>& last_logged_opid);
+
+  // Asynchronously shut down a tablet replica without deleting its data.
+  void ShutdownTabletReplicasAsync(const std::set<std::string>& tablet_ids);
+
  private:
   FRIEND_TEST(TsTabletManagerTest, TestPersistBlocks);
 
@@ -281,7 +294,7 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   // running state.
   void InitLocalRaftPeerPB();
 
-  FsManager* const fs_manager_;
+  FsManager* fs_manager_;
 
   TabletServer* server_;
 

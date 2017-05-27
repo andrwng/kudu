@@ -23,6 +23,7 @@
 #include <glog/logging.h>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/consensus/opid_util.h"
 #include "kudu/consensus/quorum_util.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/casts.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -134,7 +136,7 @@ using consensus::StartTabletCopyRequestPB;
 using log::Log;
 using master::ReportedTabletPB;
 using master::TabletReportPB;
-using rpc::ResultTracker;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
@@ -159,6 +161,8 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
     state_(MANAGER_INITIALIZING) {
 
   CHECK_OK(ThreadPoolBuilder("apply").Build(&apply_pool_));
+  fs_manager_->SetNotificationCallback(Bind(&TSTabletManager::ShutdownTabletReplicasAsync,
+                                            Unretained(this)));
   apply_pool_->SetQueueLengthHistogram(
       METRIC_op_apply_queue_length.Instantiate(server_->metric_entity()));
   apply_pool_->SetQueueTimeMicrosHistogram(
@@ -168,6 +172,8 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
 }
 
 TSTabletManager::~TSTabletManager() {
+  // Since the FsManager is an external entity, revoke its access.
+  fs_manager_->SetNotificationCallback(Callback<void(const set<string>&)>());
 }
 
 Status TSTabletManager::Init() {
@@ -602,6 +608,33 @@ scoped_refptr<TabletReplica> TSTabletManager::CreateAndRegisterTabletReplica(
   return replica;
 }
 
+Status TSTabletManager::TransitionTabletState(
+    const string& tablet_id,
+    const string& reason,
+    scoped_refptr<TabletReplica>* replica,
+    scoped_refptr<TransitionInProgressDeleter>* deleter,
+    boost::optional<TabletServerErrorPB::Code>* error_code) {
+  {
+    // Acquire the lock in exclusive mode as we'll add an entry to the
+    // transition_in_progress_ map.
+    std::lock_guard<rw_spinlock> lock(lock_);
+    TRACE("Acquired tablet manager lock");
+    RETURN_NOT_OK(CheckRunningUnlocked(error_code));
+
+    if (!LookupTabletUnlocked(tablet_id, replica)) {
+      *error_code = TabletServerErrorPB::TABLET_NOT_FOUND;
+      return Status::NotFound("Tablet not found", tablet_id);
+    }
+    // Sanity check that the tablet's transition isn't already in progress
+    Status s = StartTabletStateTransitionUnlocked(tablet_id, reason, deleter);
+    if (!s.ok()) {
+      *error_code = TabletServerErrorPB::TABLET_NOT_RUNNING;
+      return s;
+    }
+    return Status::OK();
+  }
+}
+
 Status TSTabletManager::DeleteTablet(
     const string& tablet_id,
     TabletDataState delete_type,
@@ -619,24 +652,8 @@ Status TSTabletManager::DeleteTablet(
 
   scoped_refptr<TabletReplica> replica;
   scoped_refptr<TransitionInProgressDeleter> deleter;
-  {
-    // Acquire the lock in exclusive mode as we'll add a entry to the
-    // transition_in_progress_ map.
-    std::lock_guard<rw_spinlock> lock(lock_);
-    TRACE("Acquired tablet manager lock");
-    RETURN_NOT_OK(CheckRunningUnlocked(error_code));
-
-    if (!LookupTabletUnlocked(tablet_id, &replica)) {
-      *error_code = TabletServerErrorPB::TABLET_NOT_FOUND;
-      return Status::NotFound("Tablet not found", tablet_id);
-    }
-    // Sanity check that the tablet's deletion isn't already in progress
-    Status s = StartTabletStateTransitionUnlocked(tablet_id, "deleting tablet", &deleter);
-    if (PREDICT_FALSE(!s.ok())) {
-      *error_code = TabletServerErrorPB::TABLET_NOT_RUNNING;
-      return s;
-    }
-  }
+  RETURN_NOT_OK(TransitionTabletState(tablet_id, "deleting tablet", &replica,
+      &deleter, error_code));
 
   // If the tablet is already deleted, the CAS check isn't possible because
   // consensus and therefore the log is not available.
@@ -1094,6 +1111,12 @@ Status TSTabletManager::DeleteTabletData(const scoped_refptr<TabletMetadata>& me
   RETURN_NOT_OK(ConsensusMetadata::DeleteOnDiskData(meta->fs_manager(), meta->tablet_id()));
   MAYBE_FAULT(FLAGS_fault_crash_after_cmeta_deleted);
   return meta->DeleteSuperBlock();
+}
+
+void TSTabletManager::ShutdownTabletReplicasAsync(const set<string>& tablet_ids) {
+  for (const string& tablet_id : tablet_ids) {
+    LOG(INFO) << "Shutting down tablet (not implemented): " << tablet_id;
+  }
 }
 
 TransitionInProgressDeleter::TransitionInProgressDeleter(

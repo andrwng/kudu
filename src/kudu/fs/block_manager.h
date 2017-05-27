@@ -43,6 +43,7 @@ namespace fs {
 
 class BlockManager;
 class DataDirManager;
+class FsErrorManager;
 struct FsReport;
 
 // The smallest unit of Kudu data that is backed by the local filesystem.
@@ -194,6 +195,9 @@ struct BlockManagerOptions {
 
   // Whether the block manager should only allow reading. Defaults to false.
   bool read_only;
+
+  // Manager for coordinating error-handling.
+  FsErrorManager* error_manager;
 };
 
 // Utilities for Kudu block lifecycle management. All methods are

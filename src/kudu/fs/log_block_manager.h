@@ -47,12 +47,14 @@ class Env;
 class MetricEntity;
 class RWFile;
 class ThreadPool;
+class FsManager;
 
 namespace pb_util {
 class WritablePBContainerFile;
 } // namespace pb_util
 
 namespace fs {
+class FsErrorManager;
 struct FsReport;
 
 namespace internal {
@@ -185,6 +187,8 @@ class LogBlockManager : public BlockManager {
   Status GetAllBlockIds(std::vector<BlockId>* block_ids) override;
 
   DataDirManager* dd_manager() override { return &dd_manager_; };
+
+  FsErrorManager* error_manager() { return error_manager_; }
 
  private:
   FRIEND_TEST(LogBlockManagerTest, TestLookupBlockLimit);
@@ -357,6 +361,8 @@ class LogBlockManager : public BlockManager {
 
   // Manages and owns all of the block manager's data directories.
   DataDirManager dd_manager_;
+
+  FsErrorManager* error_manager_;
 
   // Maps a data directory to an upper bound on the number of blocks that a
   // container residing in that directory should observe, if one is necessary.

@@ -29,6 +29,7 @@
 #include <google/protobuf/message.h>
 
 #include "kudu/fs/block_id.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/file_block_manager.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/log_block_manager.h"
@@ -124,6 +125,7 @@ FsManager::FsManager(Env* env, const string& root_path)
     wal_fs_root_(root_path),
     data_fs_roots_({ root_path }),
     metric_entity_(nullptr),
+    error_manager_(new fs::FsErrorManager()),
     initted_(false) {
 }
 
@@ -135,10 +137,15 @@ FsManager::FsManager(Env* env,
     data_fs_roots_(opts.data_paths),
     metric_entity_(opts.metric_entity),
     parent_mem_tracker_(opts.parent_mem_tracker),
+    error_manager_(new fs::FsErrorManager()),
     initted_(false) {
 }
 
 FsManager::~FsManager() {
+}
+
+void FsManager::SetNotificationCallback(fs::ErrorNotificationCallback cb) {
+  error_manager_->SetNotificationCallback(std::move(cb));
 }
 
 Status FsManager::Init() {
@@ -224,6 +231,7 @@ void FsManager::InitBlockManager() {
   opts.parent_mem_tracker = parent_mem_tracker_;
   opts.root_paths = GetDataRootDirs();
   opts.read_only = read_only_;
+  opts.error_manager = error_manager_.get();
   if (FLAGS_block_manager == "file") {
     block_manager_.reset(new FileBlockManager(env_, opts));
   } else if (FLAGS_block_manager == "log") {

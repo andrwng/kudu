@@ -24,6 +24,7 @@
 
 #include "kudu/fs/block_manager_metrics.h"
 #include "kudu/fs/data_dirs.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/fs_report.h"
 #include "kudu/gutil/strings/numbers.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -384,7 +385,7 @@ Status FileWritableBlock::Close(SyncMode mode) {
 // embed a FileBlockLocation, using the simpler BlockId instead.
 class FileReadableBlock : public ReadableBlock {
  public:
-  FileReadableBlock(const FileBlockManager* block_manager, BlockId block_id,
+  FileReadableBlock(FileBlockManager* block_manager, BlockId block_id,
                     shared_ptr<RandomAccessFile> reader);
 
   virtual ~FileReadableBlock();
@@ -403,7 +404,7 @@ class FileReadableBlock : public ReadableBlock {
 
  private:
   // Back pointer to the owning block manager.
-  const FileBlockManager* block_manager_;
+  FileBlockManager* block_manager_;
 
   // The block's identifier.
   const BlockId block_id_;
@@ -418,7 +419,7 @@ class FileReadableBlock : public ReadableBlock {
   DISALLOW_COPY_AND_ASSIGN(FileReadableBlock);
 };
 
-FileReadableBlock::FileReadableBlock(const FileBlockManager* block_manager,
+FileReadableBlock::FileReadableBlock(FileBlockManager* block_manager,
                                      BlockId block_id,
                                      shared_ptr<RandomAccessFile> reader)
     : block_manager_(block_manager),
@@ -532,6 +533,7 @@ FileBlockManager::FileBlockManager(Env* env, const BlockManagerOptions& opts)
   : env_(DCHECK_NOTNULL(env)),
     read_only_(opts.read_only),
     dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths),
+    error_manager_(DCHECK_NOTNULL(opts.error_manager)),
     file_cache_("fbm", env_, GetFileCacheCapacityForBlockManager(env_),
                 opts.metric_entity),
     rand_(GetRandomSeed32()),
@@ -539,6 +541,7 @@ FileBlockManager::FileBlockManager(Env* env, const BlockManagerOptions& opts)
     mem_tracker_(MemTracker::CreateTracker(-1,
                                            "file_block_manager",
                                            opts.parent_mem_tracker)) {
+  error_manager_->SetDataDirManager(&dd_manager_);
   if (opts.metric_entity) {
     metrics_.reset(new internal::BlockManagerMetrics(opts.metric_entity));
   }
