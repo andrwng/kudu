@@ -54,7 +54,7 @@ DECLARE_uint64(log_container_max_size);
 DECLARE_int64(fs_data_dirs_reserved_bytes);
 DECLARE_int64(disk_reserved_bytes_free_for_testing);
 DECLARE_int32(fs_data_dirs_full_disk_cache_seconds);
-DECLARE_uint32(fs_target_data_dirs_per_tablet);
+DECLARE_int32(fs_target_data_dirs_per_tablet);
 DECLARE_string(block_manager);
 DECLARE_double(env_inject_eio);
 DECLARE_bool(suicide_on_eio);
