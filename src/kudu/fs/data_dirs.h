@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <boost/optional.hpp>
+#include <gtest/gtest_prod.h>
 
 #include "kudu/fs/fs.pb.h"
 #include "kudu/gutil/callback_forward.h"
@@ -100,6 +101,7 @@ class DataDirGroup {
 struct DataDirMetrics {
   explicit DataDirMetrics(const scoped_refptr<MetricEntity>& entity);
 
+  scoped_refptr<AtomicGauge<uint64_t>> data_dirs_failed;
   scoped_refptr<AtomicGauge<uint64_t>> data_dirs_full;
 };
 
@@ -253,15 +255,40 @@ class DataDirManager {
   bool FindUuidIndexByDataDir(DataDir* dir,
                               uint16_t* uuid_idx) const;
 
+  // Returns a list of all data dirs.
   const std::vector<std::unique_ptr<DataDir>>& data_dirs() const {
     return data_dirs_;
   }
+
+  // Finds the set of tablet_ids in the data dir specified by 'uuid_idx' and
+  // returns a copy, returning an empty set if none are found.
+  std::set<std::string> FindTabletsByDataDirUuidIdx(uint16_t uuid_idx);
+
+  // Adds 'uuid_idx' to the set of failed data directories. Data will
+  // henceforth no longer be served to or from this directory. Calls to this
+  // are idempotent.
+  void MarkDataDirFailed(uint16_t uuid_idx);
+
+  // Returns whether or not the 'uuid_idx' refers to a failed directory.
+  bool IsDataDirFailed(uint16_t uuid_idx) const;
+
+  const std::set<uint16_t> GetFailedDataDirs() const {
+    shared_lock<rw_spinlock> group_lock(dir_group_lock_.get_lock());
+    return failed_data_dirs_;
+  }
+
+  // Returns true if all data dirs registered with the DataDirManager are healthy.
+  // If there are failed data dirs, populates 'healthy_indices' with those in
+  // 'uuid_indices' that have not failed and returns false.
+  bool ValidateHealthyDataDirs(const vector<uint16_t>& uuid_indices,
+                               vector<uint16_t>* healthy_indices) const;
 
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
   FRIEND_TEST(DataDirGroupTest, TestLoadFromPB);
   FRIEND_TEST(DataDirGroupTest, TestLoadBalancingBias);
   FRIEND_TEST(DataDirGroupTest, TestLoadBalancingDistribution);
+  FRIEND_TEST(DataDirGroupTest, TestFailedDirNotAddedToGroup);
 
   // Repeatedly selects directories from those available to put into a new
   // DataDirGroup until 'group_indices' reaches 'target_size' elements.
@@ -274,7 +301,7 @@ class DataDirManager {
   // 'group_indices' is an output that stores the list of uuid_indices to be
   // added. Although this function does not itself change DataDirManager state,
   // its expected usage warrants that it is called within the scope of a
-  // lock_guard of dir_group_lock_.
+  // lock_guard of both dir_group_lock_ and dir_health_lock_.
   Status GetDirsForGroupUnlocked(uint32_t target_size, vector<uint16_t>* group_indices);
 
   Env* env_;
@@ -300,7 +327,10 @@ class DataDirManager {
   UuidByUuidIndexMap uuid_by_idx_;
   UuidIndexByUuidMap idx_by_uuid_;
 
-  // Lock protecting reads and writes to the dir group maps.
+  typedef std::set<uint16_t> FailedDataDirSet;
+  FailedDataDirSet failed_data_dirs_;
+
+  // Lock protecting access to the dir group maps and to failed_data_dirs_.
   // A percpu_rwlock is used so threads attempting to read (e.g. to get the
   // next data directory for a Flush()) do not block each other, while threads
   // attempting to write (e.g. to create a new tablet, thereby creating a new
