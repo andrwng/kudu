@@ -90,7 +90,10 @@ void MvccManager::AbortTransaction(Timestamp timestamp) {
 
   // Remove from our in-flight list.
   TxnState old_state = RemoveInFlightAndGetStateUnlocked(timestamp);
-  CHECK_EQ(old_state, RESERVED) << "transaction with timestamp " << timestamp.ToString()
+  if (old_state != RESERVED) {
+    LOG(INFO) << GetStackTrace();
+  }
+  DCHECK_EQ(old_state, RESERVED) << "transaction with timestamp " << timestamp.ToString()
                                 << " cannot be aborted in state " << old_state;
 
   // If we're aborting the earliest transaction that was in flight,

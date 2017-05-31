@@ -40,6 +40,7 @@
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/atomic.h"
 #include "kudu/util/debug/trace_event.h"
+#include "kudu/util/debug-util.h"
 #include "kudu/util/env.h"
 #include "kudu/util/errno.h"
 #include "kudu/util/flags.h"
@@ -279,6 +280,7 @@ Status IOError(const std::string& context, int err_number) {
         // approach is described in KUDU-616.
         LOG(FATAL) << "Fatal I/O error, context: " << context;
       } else {
+        LOG(ERROR) << GetStackTrace();
         LOG(ERROR) << "I/O error, context: " << context;
       }
   }

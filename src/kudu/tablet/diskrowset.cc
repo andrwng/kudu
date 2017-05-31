@@ -656,7 +656,11 @@ Status DiskRowSet::CheckRowPresent(const RowSetKeyProbe &probe,
   shared_lock<rw_spinlock> l(component_lock_);
 
   rowid_t row_idx;
-  RETURN_NOT_OK(base_data_->CheckRowPresent(probe, present, &row_idx, stats));
+  Status s = base_data_->CheckRowPresent(probe, present, &row_idx, stats);
+  if (PREDICT_FALSE(!s.ok())) {
+    LOG(ERROR) << "Could not check presence of row: " << s.ToString();
+    return s;
+  }
   if (!*present) {
     // If it wasn't in the base data, then it's definitely not in the rowset.
     return Status::OK();
@@ -664,7 +668,7 @@ Status DiskRowSet::CheckRowPresent(const RowSetKeyProbe &probe,
 
   // Otherwise it might be in the base data but deleted.
   bool deleted = false;
-  RETURN_NOT_OK(delta_tracker_->CheckRowDeleted(row_idx, &deleted, stats));
+  RETURN_NOT_OK_PREPEND(delta_tracker_->CheckRowDeleted(row_idx, &deleted, stats), "Failed to check delta tracker rows");
   *present = !deleted;
   return Status::OK();
 }

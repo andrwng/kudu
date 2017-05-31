@@ -56,6 +56,7 @@ class FsErrorManager {
       dd_manager_->MarkDataDirFailed(uuid_idx);
       std::set<std::string> tablets_on_dir = dd_manager_->FindTabletsByDataDirUuidIdx(uuid_idx);
       if (!tablets_on_dir.empty()) {
+        LOG(INFO) << strings::Substitute("TABLETS ON DIR $0: ", uuid_idx) << tablets_on_dir.size();
         shutdown_replicas_cb_->Run(std::move(tablets_on_dir));
         return;
       }

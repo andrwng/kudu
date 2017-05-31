@@ -189,7 +189,8 @@ Tablet::Tablet(const scoped_refptr<TabletMetadata>& metadata,
     next_mrs_id_(0),
     clock_(clock),
     rowsets_flush_sem_(1),
-    state_(kInitialized) {
+    state_(kInitialized),
+    data_in_failed_dir_(false) {
       CHECK(schema()->has_column_ids());
   compaction_policy_.reset(CreateCompactionPolicy());
 
@@ -670,11 +671,11 @@ void Tablet::StartApplying(WriteTransactionState* tx_state) {
   tx_state->set_tablet_components(components_);
 }
 
-void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
+Status Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   int num_ops = tx_state->row_ops().size();
 
   // TODO(todd) determine why we sometimes get empty writes!
-  if (PREDICT_FALSE(num_ops == 0)) return;
+  if (PREDICT_FALSE(num_ops == 0)) return Status::OK();
 
   // The compiler seems to be bad at hoisting this load out of the loops,
   // so load it up top.
@@ -736,7 +737,7 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   // begins.
   vector<pair<RowSet*, int>> pending_group;
   const auto& ProcessPendingGroup = [&]() {
-    if (pending_group.empty()) return;
+    if (pending_group.empty()) return Status::OK();
     // Check invariant of the batch RowSetTree query: within each output group
     // we should have fully-sorted keys.
     DCHECK(std::is_sorted(pending_group.begin(), pending_group.end(),
@@ -760,9 +761,17 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
 
       // TODO(todd) is CHECK_OK correct? it used to be that errors here
       // would just be silently ignored, so this seems at least an improvement.
+      // TODO(awong): For now, leave it as is and say the row is not present.
+      // CheckRowPresent may fail if the tablet is being shut down due to disk
+      // failure.
       bool present = false;
-      CHECK_OK(rs->CheckRowPresent(*op->key_probe, &present, tx_state->mutable_op_stats(op_idx)));
-      if (present) {
+      Status s = rs->CheckRowPresent(*op->key_probe, &present, tx_state->mutable_op_stats(op_idx));
+      if (PREDICT_FALSE(!s.ok())) {
+        
+        LOG(ERROR) << s.ToString();
+        LOG(ERROR) << "Failed to check if row is present. Stopping transaction early.";
+        return s;
+      } else if (present) {
         op->present_in_rowset = rs;
       }
     }
@@ -787,9 +796,10 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   for (auto& p : keys_and_indexes) {
     row_ops_base[p.second]->checked_present = true;
   }
+  return Status::OK();
 }
 
-void Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
+Status Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
   int num_ops = tx_state->row_ops().size();
 
   StartApplying(tx_state);
@@ -799,7 +809,10 @@ void Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
     ValidateOpOrMarkFailed(op);
   }
 
-  BulkCheckPresence(tx_state);
+  Status s = BulkCheckPresence(tx_state);
+  if (PREDICT_FALSE(!s.ok())) {
+    return s;
+  }
 
   // Actually apply the ops.
   for (int op_idx = 0; op_idx < num_ops; op_idx++) {
@@ -813,6 +826,7 @@ void Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
   if (metrics_ && num_ops > 0) {
     metrics_->AddProbeStats(tx_state->mutable_op_stats(0), num_ops, tx_state->arena());
   }
+  return Status::OK();
 }
 
 void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
@@ -836,8 +850,12 @@ void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
       bool present = false;
       // TODO(todd) is CHECK_OK correct? it used to be that errors here
       // would just be silently ignored, so this seems at least an improvement.
-      CHECK_OK(rowset->CheckRowPresent(*row_op->key_probe, &present, stats));
-      if (present) {
+      Status s = rowset->CheckRowPresent(*row_op->key_probe, &present, stats);
+      if (PREDICT_FALSE(!s.ok())) {
+        LOG(ERROR) << s.ToString();
+        LOG(ERROR) << "Failed to check if row is present. Stopping transaction early.";
+        return;
+      } else if (present) {
         row_op->present_in_rowset = rowset;
         break;
       }

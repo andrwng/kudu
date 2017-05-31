@@ -458,6 +458,12 @@ Status TransactionDriver::ApplyAsync() {
 void TransactionDriver::ApplyTask() {
   TRACE_EVENT_FLOW_END0("txn", "ApplyTask", this);
   ADOPT_TRACE(trace());
+  LOG(INFO) << "APPLYING TASK FOR " << ToString();
+  if (state()->tablet_replica()->tablet()->IsDataInFailedDir()) {
+    LOG(INFO) << "TABLET IS ON BAD DISK, NOT APPLYING";
+    txn_tracker_->Release(this);
+    return;
+  }
 
   {
     std::lock_guard<simple_spinlock> lock(lock_);
@@ -471,7 +477,13 @@ void TransactionDriver::ApplyTask() {
 
   {
     gscoped_ptr<CommitMsg> commit_msg;
-    CHECK_OK(transaction_->Apply(&commit_msg));
+    Status s = transaction_->Apply(&commit_msg);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(ERROR) << "Could not Apply transaction " << transaction_->ToString();
+      LOG(ERROR) << "Apply returned with status: " << s.ToString();
+      txn_tracker_->Release(this);
+      return;
+    }
     commit_msg->mutable_commited_op_id()->CopyFrom(op_id_copy_);
     SetResponseTimestamp(transaction_->state(), transaction_->state()->timestamp());
 

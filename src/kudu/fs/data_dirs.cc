@@ -451,6 +451,7 @@ Status DataDirManager::LoadDataDirGroupFromPB(const std::string& tablet_id,
 Status DataDirManager::CreateDataDirGroup(const string& tablet_id,
                                           DirDistributionMode mode) {
   std::lock_guard<percpu_rwlock> write_lock(dir_group_lock_);
+  LOG(INFO) << "CREATING DATADIRGROUP";
   if (ContainsKey(group_by_tablet_map_, tablet_id)) {
     return Status::AlreadyPresent("Tried to create DataDirGroup for tablet but one is already "
                                   "registered", tablet_id);
@@ -486,7 +487,9 @@ Status DataDirManager::CreateDataDirGroup(const string& tablet_id,
     }
   }
   InsertOrDie(&group_by_tablet_map_, tablet_id, DataDirGroup(group_indices));
+  LOG(INFO) << "CREATED DATADIRGROUP FOR " << tablet_id;
   for (uint16_t uuid_idx : group_indices) {
+    LOG(INFO) << Substitute("TABLET $0 HAS UUID_IDX $1", tablet_id, uuid_idx);
     InsertOrDie(&FindOrDie(tablets_by_uuid_idx_map_, uuid_idx), tablet_id);
   }
   return Status::OK();
@@ -554,6 +557,8 @@ Status DataDirManager::GetNextDataDir(const CreateBlockOptions& opts, DataDir** 
 }
 
 void DataDirManager::DeleteDataDirGroup(const std::string& tablet_id) {
+  LOG(INFO) << "DELETING DATADIRGROUP FOR " << tablet_id;
+  LOG(INFO) << GetStackTrace();
   std::lock_guard<percpu_rwlock> lock(dir_group_lock_);
   DataDirGroup* group = FindOrNull(group_by_tablet_map_, tablet_id);
   if (group == nullptr) {

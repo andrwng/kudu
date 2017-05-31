@@ -1107,8 +1107,19 @@ Status TSTabletManager::DeleteTabletData(const scoped_refptr<TabletMetadata>& me
 void TSTabletManager::FailTabletReplicas(const set<string>& tablet_ids) {
   // TODO(awong): the bare minimum this should do is asynchronously shut down
   // the tablet replicas.
+  LOG(INFO) << Substitute("FAILING $0 TABLET REPLICAS", tablet_ids.size());
   for (const string& tablet_id : tablet_ids) {
+    LOG(INFO) << Substitute("TABLET BEING FAILED: $0", tablet_id);
+    // scoped_refptr<TabletReplica> replica;
+    // LookupTablet(tablet_id, &replica);
+    // // If we already know the tablet has data in a failed directory, there
+    // // should already be a pending request to shut down the tablet.
+    // if (replica->tablet()->IsDataInFailedDir()) {
+    //   continue;
+    // }
+    // replica->tablet()->MarkDataInFailedDir();
     LOG(WARNING) << Substitute("Tablet $0 is located on an unhealthy data dir.", tablet_id);
+    LOG(INFO) << "AT TIME OF ASYNC TABLET SHUTDOWN, APPLY POOL HAS " << apply_pool_->queue_length();
     CHECK_OK(apply_pool_->SubmitFunc([tablet_id, this]() {
         boost::optional<TabletServerErrorPB::Code> error_code;
         boost::optional<int64_t> op_id;

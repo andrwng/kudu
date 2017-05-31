@@ -383,6 +383,7 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
     if (superblock.has_data_dir_group()) {
       RETURN_NOT_OK_PREPEND(fs_manager_->dd_manager()->LoadDataDirGroupFromPB(
           tablet_id_, superblock.data_dir_group()), "Failed to load DataDirGroup from superblock");
+      LOG(INFO) << "LOADED DATADIRGROUP FROM SUPERBLOCK";
     } else if (tablet_data_state_ == TABLET_DATA_READY) {
       // If the superblock does not contain a DataDirGroup, this server has
       // likely been upgraded from before 1.5.0. Create a new DataDirGroup for

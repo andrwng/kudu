@@ -154,7 +154,7 @@ class Tablet {
   void StartApplying(WriteTransactionState* tx_state);
 
   // Apply all of the row operations associated with this transaction.
-  void ApplyRowOperations(WriteTransactionState* tx_state);
+  Status ApplyRowOperations(WriteTransactionState* tx_state);
 
   // Apply a single row operation, which must already be prepared.
   // The result is set back into row_op->result
@@ -396,6 +396,18 @@ class Tablet {
   // Return the default bloom filter sizing parameters, configured by server flags.
   static BloomFilterSizing DefaultBloomSizing();
 
+  void MarkDataInFailedDir() {
+    data_in_failed_dir_.Store(true);
+  }
+
+  bool IsDataInFailedDir() const {
+    return data_in_failed_dir_.Load();
+  }
+
+  void MarkDataMoved() {
+    data_in_failed_dir_.Store(false);
+  }
+
  private:
   friend class Iterator;
   friend class TabletReplicaTest;
@@ -448,7 +460,7 @@ class Tablet {
   // For each of the operations in 'tx_state', check for the presence of their
   // row keys in the RowSets in the current RowSetTree (as determined by the transaction's
   // captured TabletComponents).
-  void BulkCheckPresence(WriteTransactionState* tx_state);
+  Status BulkCheckPresence(WriteTransactionState* tx_state);
 
   // Capture a set of iterators which, together, reflect all of the data in the tablet.
   //
@@ -618,6 +630,7 @@ class Tablet {
 
   std::vector<MaintenanceOp*> maintenance_ops_;
 
+  AtomicBool data_in_failed_dir_;
   DISALLOW_COPY_AND_ASSIGN(Tablet);
 };
 
