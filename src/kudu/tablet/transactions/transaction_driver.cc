@@ -458,7 +458,6 @@ Status TransactionDriver::ApplyAsync() {
 void TransactionDriver::ApplyTask() {
   TRACE_EVENT_FLOW_END0("txn", "ApplyTask", this);
   ADOPT_TRACE(trace());
-  LOG(INFO) << "APPLYING TASK FOR " << ToString();
   if (state()->tablet_replica()->tablet()->IsDataInFailedDir()) {
     LOG(INFO) << "TABLET IS ON BAD DISK, NOT APPLYING";
     txn_tracker_->Release(this);

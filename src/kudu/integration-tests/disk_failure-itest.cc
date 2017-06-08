@@ -17,10 +17,12 @@
 
 #include <gtest/gtest.h>
 
+#include <map>
 #include <string>
 #include <vector>
 
 #include "kudu/client/client.h"
+#include "kudu/gutil/callback.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/strings/join.h"
 #include "kudu/integration-tests/ts_itest-base.h"
@@ -34,15 +36,20 @@ DECLARE_string(block_manager);
 
 namespace kudu {
 
-using client::KuduInsert;
+using client::KuduUpsert;
 using client::KuduTable;
 using client::KuduSession;
+using client::sp::shared_ptr;
 using std::string;
 using std::unique_ptr;
 using std::vector;
+using std::map;
 using strings::Substitute;
 using tserver::TabletServerIntegrationTestBase;
 using tserver::TServerDetails;
+
+typedef map<string, uint32_t> FilesPerDiskMap;
+typedef map<ExternalTabletServer*, FilesPerDiskMap> FilesPerDiskPerTserverMap;
 
 // Returns a glob that matches file-block files within 'data_dir'.
 // File-block filenames are sixteen characters and fall somewhere under a
@@ -56,7 +63,142 @@ string GlobForBlockFileInDataDir(const string& data_dir) {
   return JoinStrings(lbm_globs, ",");
 }
 
-class DiskFailureITest : public TabletServerIntegrationTestBase {};
+const vector<string> ts_flags = {
+  // Flush frequently to trigger writes.
+  "--flush_threshold_mb=1",
+  "--flush_threshold_secs=1",
+
+  // Ensure a tablet will only store data on a single disk.
+  "--fs_target_data_dirs_per_tablet=1"
+};
+
+class DiskFailureITest : public TabletServerIntegrationTestBase {
+ public:
+  void SetupDefaultTable(const string& table_id, vector<ExternalTabletServer*>* ext_tservers) {
+    FLAGS_num_replicas = 3;
+    FLAGS_num_tablet_servers = 3;
+    ext_tservers->clear();
+    NO_FATALS(CreateCluster("survivable_cluster", ts_flags, {}, /* num_data_dirs */ 2));
+    NO_FATALS(CreateClient(&client_));
+    if (!table_id.empty()) {
+      NO_FATALS(CreateTable(table_id));
+    }
+    WaitForTSAndReplicas();
+    vector<TServerDetails*> tservers;
+    AppendValuesFromMap(tablet_servers_, &tservers);
+    ASSERT_EQ(3, tservers.size());
+    for (auto* details : tservers) {
+      ext_tservers->push_back(cluster_->tablet_server_by_uuid(details->uuid()));
+    }
+  }
+
+  void SetServerSurvivalFlags(vector<ExternalTabletServer*>& ext_tservers) {
+    for (auto& ext_tserver : ext_tservers) {
+      ASSERT_OK(cluster_->SetFlag(ext_tserver, "follower_unavailable_considered_failed_sec", "10"));
+      ASSERT_OK(cluster_->SetFlag(ext_tserver, "suicide_on_eio", "false"));
+    }
+  }
+
+  // Returns the number of files in each data dir in each tablet server.
+  FilesPerDiskPerTserverMap GetFilesPerTserver(const vector<ExternalTabletServer*> ext_tservers) {
+    FilesPerDiskPerTserverMap counts_per_tserver;
+    for (const auto& ext_tserver : ext_tservers) {
+      // Look for the path that has data.
+      FilesPerDiskMap& counts_per_dir = LookupOrInsert(&counts_per_tserver, ext_tserver, {});
+      for (const string& data_dir : ext_tserver->data_dirs()) {
+        vector<string> files;
+        string data_path = JoinPathSegments(data_dir, "data");
+        inspect_->ListFilesInDir(data_path, &files);
+        LOG(INFO) << data_path << " has " << files.size();
+        InsertOrDie(&counts_per_dir, data_path, files.size());
+      }
+    }
+    return counts_per_tserver;
+  }
+
+  void GetDataDirsWrittenToByFunction(const vector<ExternalTabletServer*> ext_tservers,
+                                      std::function<void(void)> f,
+                                      int target_written_dirs,
+                                      vector<string>* dirs_written,
+                                      vector<string>* dirs_not_written = nullptr) {
+    FilesPerDiskPerTserverMap counts_before_workload = GetFilesPerTserver(ext_tservers);
+    f();
+    vector<string> dirs_not_written_default;
+    if (dirs_not_written == nullptr) {
+      dirs_not_written = &dirs_not_written_default;
+    }
+    ASSERT_EVENTUALLY([&] {
+      FilesPerDiskPerTserverMap counts_after_workload = GetFilesPerTserver(ext_tservers);
+      dirs_written->clear();
+      dirs_not_written->clear();
+      int total_num_dirs = 0;
+      // Go through the counts and see where they differ.
+      for (ExternalTabletServer* ext_tserver : ext_tservers) {
+        total_num_dirs += ext_tserver->data_dirs().size();
+        FilesPerDiskMap counts_per_dir_before = counts_before_workload[ext_tserver];
+        FilesPerDiskMap counts_per_dir_after = counts_after_workload[ext_tserver];
+        for (const auto& e : counts_per_dir_before) {
+          uint32_t counts_after = FindOrDie(counts_per_dir_after, e.first);
+          uint32_t counts_before = e.second;
+          ASSERT_GE(counts_after, counts_before);
+          if (counts_after - counts_before > 0) {
+            dirs_written->push_back(e.first);
+          } else {
+            dirs_not_written->push_back(e.first);
+          }
+        }
+      }
+      ASSERT_EQ(target_written_dirs, dirs_written->size());
+      ASSERT_EQ(total_num_dirs - target_written_dirs, dirs_not_written->size());
+    });
+  }
+
+  // Runs a workload and returns a list of data dir paths written to and not
+  // written to during the workload. After iterating through all ext_tservers,
+  // exactly 'target_written_dirs' must have been written.
+  void GetDataDirsWrittenTo(const vector<ExternalTabletServer*> ext_tservers,
+                            TestWorkload& workload,
+                            int target_written_dirs,
+                            vector<string>* dirs_written,
+                            vector<string>* dirs_not_written = nullptr) {
+    std::function<void(void)> f = [&] {
+      workload.Setup();
+      workload.Start();
+    };
+    GetDataDirsWrittenToByFunction(
+        ext_tservers, f, target_written_dirs, dirs_written, dirs_not_written);
+    workload.StopAndJoin();
+  }
+
+  // Waits for 'ext_tserver' to experience 'target_failed_disks' disk failures.
+  void WaitForDiskFailures(const ExternalTabletServer* ext_tserver,
+                           int64_t target_failed_disks = 1) const {
+    ASSERT_EVENTUALLY([&] {
+      int64_t failed_on_ts;
+      ext_tserver->GetInt64Metric(&METRIC_ENTITY_server, nullptr, &METRIC_data_dirs_failed,
+          "value", &failed_on_ts);
+      ASSERT_EQ(target_failed_disks, failed_on_ts);
+    });
+  }
+
+  // Inserts an upsert payload of a specific range of rows.
+  void UpsertPayload(const string& table_name, int start_row, int num_rows, int size = 10) {
+    shared_ptr<KuduTable> table;
+    ASSERT_OK(client_->OpenTable(table_name, &table));
+    shared_ptr<KuduSession> session = client_->NewSession();
+    ASSERT_OK(session->SetFlushMode(KuduSession::MANUAL_FLUSH));
+    string payload(size, 'x');
+    for (int i = 0; i < num_rows; i++) {
+      unique_ptr<KuduUpsert> upsert(table->NewUpsert());
+      KuduPartialRow* row = upsert->mutable_row();
+	  ASSERT_OK(row->SetInt32(0, i + start_row));
+	  ASSERT_OK(row->SetInt32(1, 0));
+	  ASSERT_OK(row->SetStringCopy(2, payload));
+	  ASSERT_OK(session->Apply(upsert.release()));
+	  ignore_result(session->Flush());
+    }
+  }
+};
 
 // This test is set up so each tablet occupies its own disk on each tserver.
 // The '|' represents a separation of disks.
@@ -76,34 +218,13 @@ class DiskFailureITest : public TabletServerIntegrationTestBase {};
 //    ts-0       ts-1      ts-2
 // [ X | ba ] [ X | ab ] [ a | b ]
 TEST_F(DiskFailureITest, DiskFaultSurvivalOnWrite) {
-  FLAGS_num_replicas = 3;
-  FLAGS_num_tablet_servers = 3;
   const string kTableIdA = "table_a";
   const string kTableIdB = "table_b";
-  vector<TServerDetails*> tservers;
-  vector<string> ts_flags, master_flags;
-  ts_flags = {
-    // Flush frequently to trigger writes.
-    "--flush_threshold_mb=1",
-    "--flush_threshold_secs=1",
-
-    // Ensure a tablet will only store data on a single disk.
-    "--fs_target_data_dirs_per_tablet=1"
-  };
-
   vector<ExternalTabletServer*> ext_tservers;
-  NO_FATALS(CreateCluster("survivable_cluster", ts_flags, master_flags, /* num_data_dirs */ 2));
-  NO_FATALS(CreateClient(&client_));
-  AppendValuesFromMap(tablet_servers_, &tservers);
-  ASSERT_EQ(3, tservers.size());
-  for (auto* details : tservers) {
-    ext_tservers.push_back(cluster_->tablet_server_by_uuid(details->uuid()));
-  }
+  SetupDefaultTable("", &ext_tservers);
   TestWorkload workload_a(cluster_.get());
   workload_a.set_table_name(kTableIdA);
   workload_a.set_write_pattern(TestWorkload::WritePattern::INSERT_SEQUENTIAL_ROWS);
-  workload_a.Setup();
-  workload_a.Start();
 
   // Wait for the tablets to finish writing and find which data dir the tablet
   // put its data.
@@ -113,33 +234,7 @@ TEST_F(DiskFailureITest, DiskFaultSurvivalOnWrite) {
   // tablets unless tablet metadata striping is also implemented.
   vector<string> dirs_with_A_data;
   vector<string> dirs_without_A_data;
-  ASSERT_EVENTUALLY([&] {
-    int num_servers_with_data = 0;
-    dirs_with_A_data.clear();
-    dirs_without_A_data.clear();
-    for (int ts = 0; ts < tservers.size(); ts++) {
-      // Look for the path that has data.
-      string path_with_data = "";
-      string path_without_data = "";
-      for (const string& data_dir : ext_tservers[ts]->data_dirs()) {
-        vector<string> files;
-        string data_path = JoinPathSegments(data_dir, "data");
-        inspect_->ListFilesInDir(data_path, &files);
-        LOG(INFO) << data_path << " has " << files.size();
-        if (files.size() == 1) {
-          // "Empty" directories will only have the instance file.
-          path_without_data = data_path;
-        } else {
-          path_with_data = data_path;
-          num_servers_with_data++;
-        }
-      }
-      dirs_with_A_data.emplace_back(path_with_data);
-      dirs_without_A_data.emplace_back(path_without_data);
-    }
-    ASSERT_EQ(tservers.size(), num_servers_with_data);
-  });
-  workload_a.StopAndJoin();
+  GetDataDirsWrittenTo(ext_tservers, workload_a, 3, &dirs_with_A_data, &dirs_without_A_data);
   WaitForReplicasAndUpdateLocations(kTableIdA);
   ASSERT_GT(tablet_replicas_.size(), 0);
   string tablet_id_a = (*tablet_replicas_.begin()).first;
@@ -153,11 +248,7 @@ TEST_F(DiskFailureITest, DiskFaultSurvivalOnWrite) {
   string tablet_id_b = (*(++tablet_replicas_.begin())).first;
 
   // Set flags to fail the appropriate directories.
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "follower_unavailable_considered_failed_sec", "10"));
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[1], "follower_unavailable_considered_failed_sec", "10"));
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[2], "follower_unavailable_considered_failed_sec", "10"));
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "suicide_on_eio", "false"));
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[1], "suicide_on_eio", "false"));
+  SetServerSurvivalFlags(ext_tservers);
   ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio", "1.0"));
   ASSERT_OK(cluster_->SetFlag(ext_tservers[1], "env_inject_eio", "1.0"));
   ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio_globs",
@@ -169,22 +260,10 @@ TEST_F(DiskFailureITest, DiskFaultSurvivalOnWrite) {
   // Add data, expecting the flushes to fail.
   workload_a.Start();
   workload_b.Start();
-  ASSERT_EVENTUALLY([&] {
-    int64_t failed_on_ts0;
-    int64_t failed_on_ts1;
-    ext_tservers[0]->GetInt64Metric(&METRIC_ENTITY_server, nullptr, &METRIC_data_dirs_failed,
-        "value", &failed_on_ts0);
-    if (failed_on_ts0 != 0) {
-      workload_a.StopAndJoin();
-    }
-    ext_tservers[1]->GetInt64Metric(&METRIC_ENTITY_server, nullptr, &METRIC_data_dirs_failed,
-        "value", &failed_on_ts1);
-    if (failed_on_ts1 != 0) {
-      workload_b.StopAndJoin();
-    }
-    ASSERT_EQ(1, failed_on_ts0);
-    ASSERT_EQ(1, failed_on_ts1);
-  });
+  WaitForDiskFailures(ext_tservers[0]);
+  workload_a.StopAndJoin();
+  WaitForDiskFailures(ext_tservers[1]);
+  workload_b.StopAndJoin();
 
   // Check that the servers are still alive.
   for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
@@ -194,6 +273,83 @@ TEST_F(DiskFailureITest, DiskFaultSurvivalOnWrite) {
   // Check that the tablet servers agree.
   ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id_a, 0));
   ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id_b, 0));
+}
+
+// This test is set up so a single tablet occupies one of two disks on each
+// tserver.
+//    ts-0      ts-1      ts-2
+// [ a |   ] [   | a ] [ a |   ]
+//
+// EIOs are triggered on one disk on one tserver at a time.
+//    ts-0      ts-1      ts-2
+// [ X |   ] [   | a ] [ a |   ]
+//
+// This will trigger a tablet copy onto a separate disk.
+//    ts-0      ts-1      ts-2
+// [ X | a ] [   | a ] [ a |   ]
+//
+// Repeating this for each tserver should result in tablet copies for each and
+// disk failures for each.
+//    ts-0       ts-1      ts-2
+// [ X | a ] [ a | X ] [ X | a ]
+TEST_F(DiskFailureITest, TestFailDuringFlushDMS) {
+  vector<ExternalTabletServer*> ext_tservers;
+  SetupDefaultTable(kTableId, &ext_tservers);
+  std::function<void(void)> f = [&] {
+    UpsertPayload(kTableId, 0, 100);
+  };
+  vector<string> paths_with_data;
+  GetDataDirsWrittenToByFunction(ext_tservers, f, 3, &paths_with_data);
+  string tablet_id = (*tablet_replicas_.begin()).first;
+
+  // Iterate through the disks and crash the dir with data on each.
+  SetServerSurvivalFlags(ext_tservers);
+  for (int ts = 0; ts < ext_tservers.size(); ts++) {
+    ASSERT_OK(cluster_->SetFlag(ext_tservers[ts], "env_inject_eio", "1.0"));
+    ASSERT_OK(cluster_->SetFlag(ext_tservers[ts], "env_inject_eio_globs",
+        GlobForBlockFileInDataDir(paths_with_data[ts])));
+    UpsertPayload(kTableId, 0, 100);
+    WaitForDiskFailures(ext_tservers[ts], 1);
+    ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
+  }
+}
+
+TEST_F(DiskFailureITest, TestFailDuringCompaction) {
+  // Upsert a bunch of rows repeatedly.
+  // Stop and switch on disk failures.
+  // Check that failures do occur.
+  vector<ExternalTabletServer*> ext_tservers;
+  SetupDefaultTable(kTableId, &ext_tservers);
+  std::function<void(void)> f = [&] {
+    UpsertPayload(kTableId, 0, 100);
+  };
+  vector<string> paths_with_data;
+  GetDataDirsWrittenToByFunction(ext_tservers, f, 3, &paths_with_data);
+  string tablet_id = (*tablet_replicas_.begin()).first;
+  for (int i = 0; i < 10; i++) {
+    UpsertPayload(kTableId, 0, 100);
+  }
+  // TODO(awong): instead wait for server's compact_rs_duration histogram to hit 1.
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
+
+  SetServerSurvivalFlags(ext_tservers);
+  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio", "1.0"));
+  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio_globs",
+      GlobForBlockFileInDataDir(paths_with_data[0])));
+  WaitForDiskFailures(ext_tservers[0], 1);
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
+}
+
+TEST_F(DiskFailureITest, TestFailDuringScan) {
+  vector<ExternalTabletServer*> ext_tservers;
+  SetupDefaultTable(kTableId, &ext_tservers);
+  TestWorkload write_workload(cluster_.get());
+  vector<string> paths_with_data;
+  GetDataDirsWrittenTo(ext_tservers, write_workload, 3, &paths_with_data);
+  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio", "1.0"));
+  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio_globs",
+      GlobForBlockFileInDataDir(paths_with_data[0])));
+
 }
 
 }  // namespace kudu
