@@ -796,7 +796,10 @@ void TSTabletManager::OpenTablet(const scoped_refptr<TabletMetadata>& meta,
     if (!s.ok()) {
       LOG(ERROR) << LogPrefix(tablet_id) << "Tablet failed to bootstrap: "
                  << s.ToString();
-      replica->SetFailed(s);
+      // EIOs should have been handled.
+      if (s.posix_code() != EIO) {
+        replica->SetFailed(s);
+      }
       return;
     }
   }

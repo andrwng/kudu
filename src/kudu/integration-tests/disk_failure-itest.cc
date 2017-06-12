@@ -74,6 +74,8 @@ const vector<string> ts_flags = {
 
 class DiskFailureITest : public TabletServerIntegrationTestBase {
  public:
+  // Sets up a cluster and creates a tablet with three servers with two disks
+  // each.
   void SetupDefaultTable(const string& table_id, vector<ExternalTabletServer*>* ext_tservers) {
     FLAGS_num_replicas = 3;
     FLAGS_num_tablet_servers = 3;
@@ -341,15 +343,56 @@ TEST_F(DiskFailureITest, TestFailDuringCompaction) {
 }
 
 TEST_F(DiskFailureITest, TestFailDuringScan) {
+  // Write some data to a table.
+  vector<ExternalTabletServer*> ext_tservers;
+  SetupDefaultTable(kTableId, &ext_tservers);
+  TestWorkload write_workload(cluster_.get());
+  write_workload.set_write_pattern(TestWorkload::WritePattern::INSERT_SEQUENTIAL_ROWS);
+  vector<string> paths_with_data;
+  GetDataDirsWrittenTo(ext_tservers, write_workload, 3, &paths_with_data);
+  string tablet_id = (*tablet_replicas_.begin()).first;
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
+  SleepFor(MonoDelta::FromSeconds(5));
+
+  // Create a read workload before any failures can happen.
+  TestWorkload read_workload(cluster_.get());
+  read_workload.set_num_read_threads(1);
+  read_workload.set_num_write_threads(0);
+  read_workload.set_io_error_allowed(true);
+  read_workload.Setup();
+
+  // Fail one of the directories that have data.
+  SetServerSurvivalFlags(ext_tservers);
+  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio", "1.0"));
+  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio_globs",
+      GlobForBlockFileInDataDir(paths_with_data[0])));
+  
+  // Read from the table and expect the first tserver to fail.
+  read_workload.Start();
+  WaitForDiskFailures(ext_tservers[0]);
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
+}
+
+TEST_F(DiskFailureITest, TestFailDuringStartup) {
   vector<ExternalTabletServer*> ext_tservers;
   SetupDefaultTable(kTableId, &ext_tservers);
   TestWorkload write_workload(cluster_.get());
   vector<string> paths_with_data;
   GetDataDirsWrittenTo(ext_tservers, write_workload, 3, &paths_with_data);
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio", "1.0"));
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio_globs",
-      GlobForBlockFileInDataDir(paths_with_data[0])));
+  string tablet_id = (*tablet_replicas_.begin()).first;
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
+  SleepFor(MonoDelta::FromSeconds(5));
+  ext_tservers[0]->Shutdown();
+  vector<string> extra_startup_flags = {
+    "follower_unavailable_considered_failed_sec=10",
+    "suicide_on_eio=false",
+    "--env_inject_eio=1.0",
+    Substitute("--env_inject_eio_globs=$0", GlobForBlockFileInDataDir(paths_with_data[0]))
+  };
+  ASSERT_OK(ext_tservers[0]->Restart(extra_startup_flags));
 
+  WaitForDiskFailures(ext_tservers[0], 1);
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
 }
 
 }  // namespace kudu

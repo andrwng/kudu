@@ -566,7 +566,7 @@ class ExternalTabletServer : public ExternalDaemon {
 
   // Restarts the daemon.
   // Requires that it has previously been shutdown.
-  Status Restart() WARN_UNUSED_RESULT;
+  Status Restart(std::vector<std::string> extra_startup_flags = {}) WARN_UNUSED_RESULT;
 
  private:
   const std::string master_addrs_;

@@ -1239,7 +1239,7 @@ Status ExternalTabletServer::Start() {
   return Status::OK();
 }
 
-Status ExternalTabletServer::Restart() {
+Status ExternalTabletServer::Restart(vector<string> extra_startup_flags) {
   // We store the addresses on shutdown so make sure we did that first.
   if (bound_rpc_.port() == 0) {
     return Status::IllegalState("Tablet server cannot be restarted. Must call Shutdown() first.");
@@ -1256,6 +1256,7 @@ Status ExternalTabletServer::Restart() {
                                bound_http_.host()));
   }
   flags.push_back("--tserver_master_addrs=" + master_addrs_);
+  flags.insert(flags.end(), extra_startup_flags.begin(), extra_startup_flags.end());
   return StartProcess(flags);
 }
 

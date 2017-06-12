@@ -109,6 +109,13 @@ class TestWorkload {
     already_present_allowed_ = allowed;
   }
 
+  // Set whether or not scanner errors with Status::IOError() are expected.
+  // These errors are expected in testing disk failures. By default this
+  // triggers a check failure.
+  void set_io_error_allowed(bool allowed) {
+    io_error_allowed_ = allowed;
+  }
+
   // Override the default "simple" schema.
   void set_schema(const client::KuduSchema& schema);
 
@@ -219,6 +226,7 @@ class TestWorkload {
   bool not_found_allowed_;
   bool already_present_allowed_;
   bool network_error_allowed_;
+  bool io_error_allowed_;
   WritePattern write_pattern_;
   client::KuduSchema schema_;
 
