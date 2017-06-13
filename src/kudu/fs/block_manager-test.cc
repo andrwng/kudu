@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,7 @@
 #include "kudu/util/thread.h"
 
 using google::protobuf::util::MessageDifferencer;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
