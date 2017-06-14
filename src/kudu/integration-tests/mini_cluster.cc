@@ -155,8 +155,8 @@ Status MiniCluster::StartSingleMaster() {
   gscoped_ptr<MiniMaster> mini_master(
       new MiniMaster(env_, GetMasterFsRoot(0), master_rpc_port));
   RETURN_NOT_OK_PREPEND(mini_master->Start(), "Couldn't start master");
-  RETURN_NOT_OK(mini_master->master()->
-      WaitUntilCatalogManagerIsLeaderAndReadyForTests(MonoDelta::FromSeconds(5)));
+  RETURN_NOT_OK(mini_master->master()->WaitUntilCatalogManagerIsLeaderAndReadyForTests(
+      MonoDelta::FromSeconds(kMasterStartupWaitTimeSeconds)));
   mini_masters_.push_back(shared_ptr<MiniMaster>(mini_master.release()));
   return Status::OK();
 }
@@ -177,7 +177,7 @@ Status MiniCluster::AddTabletServer() {
   // set the master addresses
   tablet_server->options()->master_addresses.clear();
   for (const shared_ptr<MiniMaster>& master : mini_masters_) {
-    tablet_server->options()->master_addresses.push_back(HostPort(master->bound_rpc_addr()));
+    tablet_server->options()->master_addresses.emplace_back(master->bound_rpc_addr());
   }
   RETURN_NOT_OK(tablet_server->Start())
   mini_tablet_servers_.push_back(shared_ptr<MiniTabletServer>(tablet_server.release()));
@@ -341,8 +341,8 @@ std::shared_ptr<MasterServiceProxy> MiniCluster::master_proxy() const {
 }
 
 std::shared_ptr<MasterServiceProxy> MiniCluster::master_proxy(int idx) const {
-  return std::shared_ptr<MasterServiceProxy>(
-      new MasterServiceProxy(messenger_, CHECK_NOTNULL(mini_master(idx))->bound_rpc_addr()));
+  return std::make_shared<MasterServiceProxy>(
+      messenger_, CHECK_NOTNULL(mini_master(idx))->bound_rpc_addr());
 }
 
 } // namespace kudu

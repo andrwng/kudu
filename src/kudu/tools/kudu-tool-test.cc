@@ -327,10 +327,10 @@ TEST_F(ToolTest, TestHelpXML) {
       "local_replica",
       "master",
       "pbc",
+      "perf",
       "remote_replica",
       "table",
       "tablet",
-      "test",
       "tserver",
       "wal",
       "dump",
@@ -350,10 +350,10 @@ TEST_F(ToolTest, TestTopLevelHelp) {
       "local_replica.*tablet replicas",
       "master.*Kudu Master",
       "pbc.*protobuf container",
+      "perf.*performance of a Kudu cluster",
       "remote_replica.*tablet replicas on a Kudu Tablet Server",
       "table.*Kudu tables",
       "tablet.*Kudu tablets",
-      "test.*tests",
       "tserver.*Kudu Tablet Server",
       "wal.*write-ahead log"
   };
@@ -405,7 +405,8 @@ TEST_F(ToolTest, TestModeHelp) {
   {
     const vector<string> kLocalReplicaCMetaRegexes = {
         "print_replica_uuids.*Print all tablet replica peer UUIDs",
-        "rewrite_raft_config.*Rewrite a tablet replica"
+        "rewrite_raft_config.*Rewrite a tablet replica",
+        "set_term.*Bump the current term"
     };
     NO_FATALS(RunTestHelp("local_replica cmeta", kLocalReplicaCMetaRegexes));
     // Try with a hyphen instead of an underscore.
@@ -442,6 +443,12 @@ TEST_F(ToolTest, TestModeHelp) {
     NO_FATALS(RunTestHelp("pbc", kPbcModeRegexes));
   }
   {
+    const vector<string> kPerfRegexes = {
+        "loadgen.*Run load generation with optional scan afterwards",
+    };
+    NO_FATALS(RunTestHelp("perf", kPerfRegexes));
+  }
+  {
     const vector<string> kRemoteReplicaModeRegexes = {
         "check.*Check if all tablet replicas",
         "copy.*Copy a tablet replica from one Kudu Tablet Server",
@@ -473,12 +480,6 @@ TEST_F(ToolTest, TestModeHelp) {
         "remove_replica.*Remove an existing replica"
     };
     NO_FATALS(RunTestHelp("tablet change_config", kChangeConfigModeRegexes));
-  }
-  {
-    const vector<string> kTestRegexes = {
-        "loadgen.*Run load generation test with optional scan afterwards",
-    };
-    NO_FATALS(RunTestHelp("test", kTestRegexes));
   }
   {
     const vector<string> kTServerModeRegexes = {
@@ -1153,7 +1154,7 @@ void ToolTest::RunLoadgen(int num_tservers,
   }
   vector<string> args = {
     GetKuduCtlAbsolutePath(),
-    "test",
+    "perf",
     "loadgen",
     cluster_->master()->bound_rpc_addr().ToString(),
   };
@@ -1477,6 +1478,64 @@ TEST_F(ToolTest, TestLocalReplicaTombstoneDelete) {
     ASSERT_TRUE(tombstoned_opid.IsInitialized());
     ASSERT_EQ(last_logged_opid.term(), tombstoned_opid.term());
     ASSERT_EQ(last_logged_opid.index(), tombstoned_opid.index());
+  }
+}
+
+// Test for 'local_replica cmeta' functionality.
+TEST_F(ToolTest, TestLocalReplicaCMetaOps) {
+  NO_FATALS(StartMiniCluster());
+
+  // TestWorkLoad.Setup() internally generates a table.
+  TestWorkload workload(mini_cluster_.get());
+  workload.set_num_replicas(1);
+  workload.Setup();
+  MiniTabletServer* ts = mini_cluster_->mini_tablet_server(0);
+  const string ts_uuid = ts->uuid();
+  const string& flags = Substitute("-fs-wal-dir $0", ts->options()->fs_opts.wal_path);
+  string tablet_id;
+  {
+    vector<string> tablets;
+    NO_FATALS(RunActionStdoutLines(Substitute("local_replica list $0", flags), &tablets));
+    ASSERT_EQ(1, tablets.size());
+    tablet_id = tablets[0];
+  }
+  const auto& cmeta_path = ts->server()->fs_manager()->GetConsensusMetadataPath(tablet_id);
+
+  ts->Shutdown();
+
+  // Test print_replica_uuids.
+  // We only have a single replica, so we expect one line, with our server's UUID.
+  {
+    vector<string> uuids;
+    NO_FATALS(RunActionStdoutLines(Substitute("local_replica cmeta print_replica_uuids $0 $1",
+                                               flags, tablet_id), &uuids));
+    ASSERT_EQ(1, uuids.size());
+    EXPECT_EQ(ts_uuid, uuids[0]);
+  }
+
+  // Test using set-term to bump the term to 123.
+  {
+    NO_FATALS(RunActionStdoutNone(Substitute("local_replica cmeta set-term $0 $1 123",
+                                             flags, tablet_id)));
+
+    string stdout;
+    NO_FATALS(RunActionStdoutString(Substitute("pbc dump $0", cmeta_path),
+                                    &stdout));
+    ASSERT_STR_CONTAINS(stdout, "current_term: 123");
+  }
+
+  // Test that set-term refuses to decrease the term.
+  {
+    string stdout, stderr;
+    Status s = RunTool(Substitute("local_replica cmeta set-term $0 $1 10",
+                                  flags, tablet_id),
+                       &stdout, &stderr,
+                       /* stdout_lines = */ nullptr,
+                       /* stderr_lines = */ nullptr);
+    EXPECT_FALSE(s.ok());
+    EXPECT_EQ("", stdout);
+    EXPECT_THAT(stderr, testing::HasSubstr(
+        "specified term 10 must be higher than current term 123"));
   }
 }
 

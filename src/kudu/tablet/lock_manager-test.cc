@@ -101,7 +101,7 @@ TEST_F(LockManagerTest, TestMoveLock) {
   // Move it to a new instance.
   ScopedRowLock moved_lock(std::move(row_lock));
   ASSERT_TRUE(moved_lock.acquired());
-  ASSERT_FALSE(row_lock.acquired());
+  ASSERT_FALSE(row_lock.acquired()); // NOLINT(misc-use-after-move)
 }
 
 class LmTestResource {
@@ -160,9 +160,8 @@ class LmTestThread {
       std::vector<shared_ptr<ScopedRowLock> > locks;
       // TODO: We don't have an API for multi-row
       for (const Slice* key : keys_) {
-        locks.push_back(shared_ptr<ScopedRowLock>(
-                          new ScopedRowLock(manager_, my_txn,
-                                            *key, LockManager::LOCK_EXCLUSIVE)));
+        locks.push_back(std::make_shared<ScopedRowLock>(
+            manager_, my_txn, *key, LockManager::LOCK_EXCLUSIVE));
       }
 
       for (LmTestResource* r : resources_) {
@@ -249,8 +248,8 @@ TEST_F(LockManagerTest, TestContention) {
          r != resources.end(); ++r) {
       keys.push_back((*r)->id());
     }
-    threads.push_back(shared_ptr<LmTestThread>(
-        new LmTestThread(&lock_manager_, keys, resources)));
+    threads.push_back(std::make_shared<LmTestThread>(
+        &lock_manager_, keys, resources));
   }
   runPerformanceTest("Contended", &threads);
 }
@@ -264,12 +263,12 @@ TEST_F(LockManagerTest, TestUncontended) {
   }
   vector<Slice> slices;
   for (int i = 0; i < FLAGS_num_test_threads; i++) {
-    slices.push_back(Slice(slice_strings[i]));
+    slices.emplace_back(slice_strings[i]);
   }
   vector<shared_ptr<LmTestResource> > resources;
   for (int i = 0; i < FLAGS_num_test_threads; i++) {
     resources.push_back(
-        shared_ptr<LmTestResource>(new LmTestResource(&slices[i])));
+        std::make_shared<LmTestResource>(&slices[i]));
   }
   vector<shared_ptr<LmTestThread> > threads;
   for (int i = 0; i < FLAGS_num_test_threads; ++i) {
@@ -277,8 +276,8 @@ TEST_F(LockManagerTest, TestUncontended) {
     k.push_back(&slices[i]);
     vector<LmTestResource*> r;
     r.push_back(resources[i].get());
-    threads.push_back(shared_ptr<LmTestThread>(
-        new LmTestThread(&lock_manager_, k, r)));
+    threads.push_back(std::make_shared<LmTestThread>(
+        &lock_manager_, k, r));
   }
   runPerformanceTest("Uncontended", &threads);
 }

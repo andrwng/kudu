@@ -23,6 +23,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -108,14 +109,14 @@ static Status StatusFromRpcError(const ErrorStatusPB& error) {
 
 ClientNegotiation::ClientNegotiation(unique_ptr<Socket> socket,
                                      const security::TlsContext* tls_context,
-                                     const boost::optional<security::SignedTokenPB>& authn_token,
+                                     boost::optional<security::SignedTokenPB> authn_token,
                                      RpcEncryption encryption)
     : socket_(std::move(socket)),
       helper_(SaslHelper::CLIENT),
       tls_context_(tls_context),
       encryption_(encryption),
       tls_negotiated_(false),
-      authn_token_(authn_token),
+      authn_token_(std::move(authn_token)),
       psecret_(nullptr, std::free),
       negotiated_authn_(AuthenticationType::INVALID),
       negotiated_mech_(SaslMechanism::INVALID),
@@ -481,8 +482,6 @@ Status ClientNegotiation::HandleTlsHandshake(const NegotiatePB& response) {
   RETURN_NOT_OK(s);
 
   // TLS handshake is finished.
-  DCHECK(token.empty());
-
   if (ContainsKey(server_features_, TLS_AUTHENTICATION_ONLY) &&
       ContainsKey(client_features_, TLS_AUTHENTICATION_ONLY)) {
     TRACE("Negotiated auth-only $0 with cipher suite $1",
@@ -526,7 +525,7 @@ Status ClientNegotiation::AuthenticateByToken(faststring* recv_buf,
   // Send the token to the server.
   NegotiatePB pb;
   pb.set_step(NegotiatePB::TOKEN_EXCHANGE);
-  pb.mutable_authn_token()->Swap(authn_token_.get_ptr());
+  *pb.mutable_authn_token() = std::move(*authn_token_);
   RETURN_NOT_OK(SendNegotiatePB(pb));
   pb.Clear();
 

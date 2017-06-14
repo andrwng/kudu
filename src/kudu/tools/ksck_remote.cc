@@ -135,7 +135,7 @@ class ChecksumStepper;
 class ChecksumCallbackHandler {
  public:
   explicit ChecksumCallbackHandler(ChecksumStepper* const stepper)
-      : stepper(DCHECK_NOTNULL(stepper)) {
+      : stepper_(DCHECK_NOTNULL(stepper)) {
   }
 
   // Invoked by an RPC completion callback. Simply calls back into the stepper.
@@ -143,7 +143,7 @@ class ChecksumCallbackHandler {
   void Run();
 
  private:
-  ChecksumStepper* const stepper;
+  ChecksumStepper* const stepper_;
 };
 
 // Simple class to have a "conversation" over multiple requests to a server
@@ -158,7 +158,7 @@ class ChecksumStepper {
       : schema_(schema),
         tablet_id_(std::move(tablet_id)),
         server_uuid_(std::move(server_uuid)),
-        options_(std::move(options)),
+        options_(options),
         callbacks_(callbacks),
         proxy_(std::move(proxy)),
         call_seq_id_(0),
@@ -267,7 +267,7 @@ class ChecksumStepper {
 };
 
 void ChecksumCallbackHandler::Run() {
-  stepper->HandleResponse();
+  stepper_->HandleResponse();
   delete this;
 }
 
@@ -350,8 +350,8 @@ Status RemoteKsckMaster::RetrieveTabletsList(const shared_ptr<KsckTable>& table)
         new KsckTablet(table.get(), t->tablet().id()));
     vector<shared_ptr<KsckTabletReplica>> replicas;
     for (const auto* r : t->tablet().replicas()) {
-      replicas.push_back(shared_ptr<KsckTabletReplica>(
-          new KsckTabletReplica(r->ts().uuid(), r->is_leader())));
+      replicas.push_back(std::make_shared<KsckTabletReplica>(
+          r->ts().uuid(), r->is_leader()));
     }
     tablet->set_replicas(replicas);
     tablets.push_back(tablet);

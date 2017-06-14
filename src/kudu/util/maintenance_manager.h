@@ -282,12 +282,16 @@ class MaintenanceManager : public std::enable_shared_from_this<MaintenanceManage
     memory_pressure_func_ = std::move(f);
   }
 
-  static const Options DEFAULT_OPTIONS;
+  static const Options kDefaultOptions;
 
  private:
   FRIEND_TEST(MaintenanceManagerTest, TestLogRetentionPrioritization);
   typedef std::map<MaintenanceOp*, MaintenanceOpStats,
           MaintenanceOpComparator> OpMapTy;
+
+  // Return true if tests have currently disabled the maintenance
+  // manager by way of changing the gflags at runtime.
+  bool disabled_for_tests() const;
 
   void RunSchedulerThread();
 

@@ -68,8 +68,8 @@ Slice Partition::range_key(const string& partition_key) const {
 
 bool Partition::Equals(const Partition& other) const {
   if (this == &other) return true;
-  if (partition_key_start().compare(other.partition_key_start()) != 0) return false;
-  if (partition_key_end().compare(other.partition_key_end()) != 0) return false;
+  if (partition_key_start() != other.partition_key_start()) return false;
+  if (partition_key_end() != other.partition_key_end()) return false;
   if (hash_buckets_ != other.hash_buckets_) return false;
   return true;
 }
@@ -330,7 +330,7 @@ Status PartitionSchema::SplitRangeBounds(const Schema& schema,
       lower = std::move(*split);
     }
 
-    new_bounds.emplace_back(std::move(lower), std::move(upper));
+    new_bounds.emplace_back(std::move(lower), upper);
   }
 
   if (split != splits.end()) {
@@ -751,7 +751,7 @@ string PartitionSchema::RangeKeyDebugString(const ConstContiguousRow& key) const
     string column;
     int32_t column_idx = key.schema()->find_column_by_id(column_id);
     if (column_idx == Schema::kColumnNotFound) {
-      components.push_back("<unknown-column>");
+      components.emplace_back("<unknown-column>");
       break;
     }
     key.schema()->column(column_idx).DebugCellAppend(key.cell(column_idx), &column);

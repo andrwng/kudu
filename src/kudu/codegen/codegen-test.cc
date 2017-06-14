@@ -69,10 +69,10 @@ class CodegenTest : public KuduTest {
     base_ = SchemaBuilder(base_).Build(); // add IDs
 
     // Create an extended default schema
-    cols.push_back(ColumnSchema("int32-R ",  INT32, false, kI32R,  nullptr));
-    cols.push_back(ColumnSchema("int32-RW",  INT32, false, kI32R, kI32W));
-    cols.push_back(ColumnSchema("str32-R ", STRING, false, kStrR,  nullptr));
-    cols.push_back(ColumnSchema("str32-RW", STRING, false, kStrR, kStrW));
+    cols.emplace_back("int32-R ",  INT32, false, kI32R,  nullptr);
+    cols.emplace_back("int32-RW",  INT32, false, kI32R, kI32W);
+    cols.emplace_back("str32-R ", STRING, false, kStrR,  nullptr);
+    cols.emplace_back("str32-RW", STRING, false, kStrR, kStrW);
     defaults_.Reset(cols, 1);
     defaults_ = SchemaBuilder(defaults_).Build(); // add IDs
 
@@ -258,6 +258,14 @@ TEST_F(CodegenTest, ObservablesTest) {
   ASSERT_EQ(iwith->is_identity(), iwithout.is_identity());
   ASSERT_TRUE(iwith->is_identity());
 }
+
+// Test empty projection
+TEST_F(CodegenTest, TestEmpty) {
+  Schema empty;
+  TestProjection<true>(&empty);
+  TestProjection<false>(&empty);
+}
+
 // Test key projection
 TEST_F(CodegenTest, TestKey) {
   Schema key = base_.CreateKeyProjection();

@@ -64,6 +64,7 @@ MiniTabletServer::MiniTabletServer(const string& fs_root,
 }
 
 MiniTabletServer::~MiniTabletServer() {
+  Shutdown();
 }
 
 Status MiniTabletServer::Start() {

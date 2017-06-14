@@ -46,8 +46,8 @@ struct DataTypeEncodingTraits {};
 template<DataType Type, EncodingType Encoding> struct TypeEncodingTraits
   : public DataTypeEncodingTraits<Type, Encoding> {
 
-  static const DataType type = Type;
-  static const EncodingType encoding_type = Encoding;
+  static const DataType kType = Type;
+  static const EncodingType kEncodingType = Encoding;
 };
 
 // Generic, fallback, partial specialization that should work for all
@@ -185,7 +185,7 @@ struct DataTypeEncodingTraits<IntType, RLE> {
 
 template<typename TypeEncodingTraitsClass>
 TypeEncodingInfo::TypeEncodingInfo(TypeEncodingTraitsClass t)
-    : encoding_type_(TypeEncodingTraitsClass::encoding_type),
+    : encoding_type_(TypeEncodingTraitsClass::kEncodingType),
       create_builder_func_(TypeEncodingTraitsClass::CreateBlockBuilder),
       create_decoder_func_(TypeEncodingTraitsClass::CreateBlockDecoder) {
 }
@@ -280,7 +280,7 @@ class TypeEncodingResolver {
     }
     mapping_.insert(
         make_pair(make_pair(type, encoding),
-                  shared_ptr<TypeEncodingInfo>(new TypeEncodingInfo(traits))));
+                  std::make_shared<TypeEncodingInfo>(traits)));
   }
 
   unordered_map<pair<DataType, EncodingType>,

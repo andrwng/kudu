@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include <glog/stl_logging.h>
 
@@ -86,7 +87,7 @@ TEST_F(TsRecoveryITest, TestRestartWithOrphanedReplicates) {
   TestWorkload work(cluster_.get());
   work.set_num_replicas(1);
   work.set_num_write_threads(4);
-  work.set_write_timeout_millis(100);
+  work.set_write_timeout_millis(1000);
   work.set_timeout_allowed(true);
   work.Setup();
 
@@ -440,12 +441,12 @@ class UpdaterThreads {
   // 'inserted' is an atomic integer which stores the number of rows
   // which have been inserted up to that point.
   UpdaterThreads(AtomicInt<int32_t>* inserted,
-                 const shared_ptr<KuduClient>& client,
-                 const shared_ptr<KuduTable>& table)
+                 shared_ptr<KuduClient> client,
+                 shared_ptr<KuduTable> table)
     : should_run_(false),
       inserted_(inserted),
-      client_(client),
-      table_(table) {
+      client_(std::move(client)),
+      table_(std::move(table)) {
   }
 
   // Start running the updater threads.

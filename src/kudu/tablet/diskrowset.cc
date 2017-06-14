@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <map>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 #include <boost/optional.hpp>
@@ -80,7 +81,7 @@ DiskRowSetWriter::DiskRowSetWriter(RowSetMetadata* rowset_metadata,
                                    BloomFilterSizing bloom_sizing)
     : rowset_metadata_(rowset_metadata),
       schema_(schema),
-      bloom_sizing_(std::move(bloom_sizing)),
+      bloom_sizing_(bloom_sizing),
       finished_(false),
       written_count_(0) {
   CHECK(schema->has_column_ids());
@@ -292,7 +293,7 @@ RollingDiskRowSetWriter::RollingDiskRowSetWriter(
     : state_(kInitialized),
       tablet_metadata_(DCHECK_NOTNULL(tablet_metadata)),
       schema_(schema),
-      bloom_sizing_(std::move(bloom_sizing)),
+      bloom_sizing_(bloom_sizing),
       target_rowset_size_(target_rowset_size),
       row_idx_in_cur_drs_(0),
       can_roll_(false),
@@ -488,11 +489,11 @@ Status DiskRowSet::Open(const shared_ptr<RowSetMetadata>& rowset_metadata,
 
 DiskRowSet::DiskRowSet(shared_ptr<RowSetMetadata> rowset_metadata,
                        LogAnchorRegistry* log_anchor_registry,
-                       const TabletMemTrackers& mem_trackers)
+                       TabletMemTrackers mem_trackers)
     : rowset_metadata_(std::move(rowset_metadata)),
       open_(false),
       log_anchor_registry_(log_anchor_registry),
-      mem_trackers_(mem_trackers) {}
+      mem_trackers_(std::move(mem_trackers)) {}
 
 Status DiskRowSet::Open() {
   TRACE_EVENT0("tablet", "DiskRowSet::Open");

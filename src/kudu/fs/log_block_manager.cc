@@ -50,6 +50,7 @@
 #include "kudu/util/locks.h"
 #include "kudu/util/malloc.h"
 #include "kudu/util/metrics.h"
+#include "kudu/util/monotime.h"
 #include "kudu/util/mutex.h"
 #include "kudu/util/path_util.h"
 #include "kudu/util/pb_util.h"
@@ -1398,7 +1399,7 @@ static const char* kBlockManagerType = "log";
 
 // These values were arrived at via experimentation. See commit 4923a74 for
 // more details.
-const map<int64_t, int64_t> LogBlockManager::per_fs_block_size_block_limits({
+const map<int64_t, int64_t> LogBlockManager::kPerFsBlockSizeBlockLimits({
   { 1024, 673 },
   { 2048, 1353 },
   { 4096, 2721 }});
@@ -1495,7 +1496,7 @@ Status LogBlockManager::Open(FsReport* report) {
         uint64_t fs_block_size =
             dd->instance()->metadata()->filesystem_block_size_bytes();
         bool untested_block_size =
-            !ContainsKey(per_fs_block_size_block_limits, fs_block_size);
+            !ContainsKey(kPerFsBlockSizeBlockLimits, fs_block_size);
         string msg = Substitute(
             "Data dir $0 is on an ext4 filesystem vulnerable to KUDU-1508 "
             "with $1block size $2", dd->dir(),
@@ -1856,6 +1857,7 @@ void LogBlockManager::OpenDataDir(DataDir* dir,
         "Could not list children of $0", dir->dir()));
     return;
   }
+  MonoTime last_opened_container_log_time = MonoTime::Now();
   for (const string& child : children) {
     string container_name;
     if (!TryStripSuffixString(
@@ -2028,6 +2030,14 @@ void LogBlockManager::OpenDataDir(DataDir* dir,
     local_report.stats.live_block_bytes_aligned += container->live_bytes_aligned();
     local_report.stats.live_block_count += container->live_blocks();
     local_report.stats.lbm_container_count++;
+
+    // Log number of containers opened every 10 seconds
+    MonoTime now = MonoTime::Now();
+    if ((now - last_opened_container_log_time).ToSeconds() > 10) {
+      LOG(INFO) << Substitute("Opened $0 log block containers in $1",
+                              local_report.stats.lbm_container_count, dir->dir());
+      last_opened_container_log_time = now;
+    }
 
     next_block_id_.StoreMax(max_block_id + 1);
 
@@ -2273,9 +2283,8 @@ Status LogBlockManager::Repair(
 
     // Rewrite this metadata file. Failures are non-fatal.
     int64_t file_bytes_delta;
-    Status s = RewriteMetadataFile(StrCat(e.first, kContainerMetadataFileSuffix),
-                                   e.second,
-                                   &file_bytes_delta);
+    const auto& meta_path = StrCat(e.first, kContainerMetadataFileSuffix);
+    Status s = RewriteMetadataFile(meta_path, e.second, &file_bytes_delta);
     if (!s.ok()) {
       WARN_NOT_OK(s, "could not rewrite metadata file");
       continue;
@@ -2287,6 +2296,9 @@ Status LogBlockManager::Repair(
 
     metadata_files_compacted++;
     metadata_bytes_delta += file_bytes_delta;
+    VLOG(1) << "Compacted metadata file " << meta_path
+            << " (saved " << file_bytes_delta << " bytes)";
+
   }
 
   // The data directory can be synchronized once for all of the new metadata files.
@@ -2340,6 +2352,10 @@ Status LogBlockManager::RewriteMetadataFile(const string& metadata_file_name,
                         "could not get file size of temporary metadata file");
   RETURN_NOT_OK_PREPEND(env_->RenameFile(tmp_file_name, metadata_file_name),
                         "could not rename temporary metadata file");
+  // Evict the old path from the file cache, so that when we re-open the new
+  // metadata file for write, we don't accidentally get a cache hit on the
+  // old file descriptor pointing to the now-deleted old version.
+  file_cache_.Invalidate(metadata_file_name);
 
   tmp_deleter.Cancel();
   *file_bytes_delta = (static_cast<int64_t>(old_metadata_size) - new_metadata_size);
@@ -2370,7 +2386,7 @@ bool LogBlockManager::IsBuggyEl6Kernel(const string& kernel_release) {
 }
 
 int64_t LogBlockManager::LookupBlockLimit(int64_t fs_block_size) {
-  const int64_t* limit = FindFloorOrNull(per_fs_block_size_block_limits,
+  const int64_t* limit = FindFloorOrNull(kPerFsBlockSizeBlockLimits,
                                          fs_block_size);
   if (limit) {
     return *limit;
@@ -2378,7 +2394,7 @@ int64_t LogBlockManager::LookupBlockLimit(int64_t fs_block_size) {
 
   // Block size must have been less than the very first key. Return the
   // first recorded entry and hope for the best.
-  return per_fs_block_size_block_limits.begin()->second;
+  return kPerFsBlockSizeBlockLimits.begin()->second;
 }
 
 } // namespace fs

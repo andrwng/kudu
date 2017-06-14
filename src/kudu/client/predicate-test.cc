@@ -220,7 +220,7 @@ class PredicateTest : public KuduTest {
   // Returns a vector of string values.
   vector<string> CreateStringValues() {
     return {
-      string("", 0),
+      string(),
       string("\0", 1),
       string("\0\0", 2),
       string("a", 1),
@@ -350,9 +350,9 @@ class PredicateTest : public KuduTest {
 
     // Add some additional values to check against.
     vector<string> test_values = values;
-    test_values.push_back("aa");
-    test_values.push_back(string("\1", 1));
-    test_values.push_back(string("a\1", 1));
+    test_values.emplace_back("aa");
+    test_values.emplace_back("\1", 1);
+    test_values.emplace_back("a\1", 1);
 
     for (const string& v : test_values) {
       SCOPED_TRACE(strings::Substitute("test value: '$0'", strings::CHexEscape(v)));

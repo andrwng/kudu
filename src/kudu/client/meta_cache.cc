@@ -71,7 +71,7 @@ namespace client {
 namespace internal {
 
 namespace {
-const int MAX_RETURNED_TABLE_LOCATIONS = 10;
+const int kMaxReturnedTableLocations = 10;
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////
@@ -142,7 +142,7 @@ void RemoteTabletServer::Update(const master::TSInfoPB& pb) {
 
   rpc_hostports_.clear();
   for (const HostPortPB& hostport_pb : pb.rpc_addresses()) {
-    rpc_hostports_.push_back(HostPort(hostport_pb.host(), hostport_pb.port()));
+    rpc_hostports_.emplace_back(hostport_pb.host(), hostport_pb.port());
   }
 }
 
@@ -651,7 +651,7 @@ void LookupRpc::SendRpc() {
   // Fill out the request.
   req_.mutable_table()->set_table_id(table_->id());
   req_.set_partition_key_start(partition_key_);
-  req_.set_max_returned_locations(MAX_RETURNED_TABLE_LOCATIONS);
+  req_.set_max_returned_locations(kMaxReturnedTableLocations);
 
   // The end partition key is left unset intentionally so that we'll prefetch
   // some additional tablets.
@@ -814,7 +814,7 @@ Status MetaCache::ProcessLookupResponse(const LookupRpc& rpc,
     tablets_by_key.clear();
     MetaCacheEntry entry(expiration_time, "", "");
     VLOG(3) << "Caching '" << rpc.table_name() << "' entry " << entry.DebugString(rpc.table());
-    InsertOrDie(&tablets_by_key, "", std::move(entry));
+    InsertOrDie(&tablets_by_key, "", entry);
   } else {
 
     // The comments below will reference the following diagram:
@@ -841,7 +841,7 @@ Status MetaCache::ProcessLookupResponse(const LookupRpc& rpc,
       tablets_by_key.erase(tablets_by_key.begin(), tablets_by_key.lower_bound(first_lower_bound));
       MetaCacheEntry entry(expiration_time, "", first_lower_bound);
       VLOG(3) << "Caching '" << rpc.table_name() << "' entry " << entry.DebugString(rpc.table());
-      InsertOrDie(&tablets_by_key, "", std::move(entry));
+      InsertOrDie(&tablets_by_key, "", entry);
     }
 
     // last_upper_bound tracks the upper bound of the previously processed
@@ -861,7 +861,7 @@ Status MetaCache::ProcessLookupResponse(const LookupRpc& rpc,
 
         MetaCacheEntry entry(expiration_time, last_upper_bound, tablet_lower_bound);
         VLOG(3) << "Caching '" << rpc.table_name() << "' entry " << entry.DebugString(rpc.table());
-        InsertOrDie(&tablets_by_key, last_upper_bound, std::move(entry));
+        InsertOrDie(&tablets_by_key, last_upper_bound, entry);
       }
       last_upper_bound = tablet_upper_bound;
 
@@ -907,10 +907,10 @@ Status MetaCache::ProcessLookupResponse(const LookupRpc& rpc,
       VLOG(3) << "Caching '" << rpc.table_name() << "' entry " << entry.DebugString(rpc.table());
 
       InsertOrDie(&tablets_by_id_, tablet_id, remote);
-      InsertOrDie(&tablets_by_key, tablet_lower_bound, std::move(entry));
+      InsertOrDie(&tablets_by_key, tablet_lower_bound, entry);
     }
 
-    if (!last_upper_bound.empty() && tablet_locations.size() < MAX_RETURNED_TABLE_LOCATIONS) {
+    if (!last_upper_bound.empty() && tablet_locations.size() < kMaxReturnedTableLocations) {
       // There is a non-covered range between the last tablet and the end of the
       // partition key space, such as F.
 
@@ -920,7 +920,7 @@ Status MetaCache::ProcessLookupResponse(const LookupRpc& rpc,
 
       MetaCacheEntry entry(expiration_time, last_upper_bound, "");
       VLOG(3) << "Caching '" << rpc.table_name() << "' entry " << entry.DebugString(rpc.table());
-      InsertOrDie(&tablets_by_key, last_upper_bound, std::move(entry));
+      InsertOrDie(&tablets_by_key, last_upper_bound, entry);
     }
   }
 
