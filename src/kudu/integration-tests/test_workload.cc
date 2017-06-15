@@ -60,6 +60,8 @@ TestWorkload::TestWorkload(MiniClusterBase* cluster)
     timeout_allowed_(false),
     not_found_allowed_(false),
     network_error_allowed_(false),
+    io_error_allowed_(false),
+    illegal_state_allowed_(false),
     schema_(KuduSchemaFromSchema(GetSimpleTestSchema())),
     num_replicas_(3),
     num_tablets_(1),
@@ -210,10 +212,21 @@ void TestWorkload::ReadThread() {
     int64_t expected_row_count = rows_inserted_.Load();
     size_t row_count = 0;
 
-    CHECK_OK(scanner.Open());
+    Status s = scanner.Open();
+    if ((io_error_allowed_ && s.IsIOError()) || (illegal_state_allowed_ && s.IsIllegalState())) {
+      return;
+    }
+    if (illegal_state_allowed_ && s.IsIllegalState()) {
+      return;
+    }
+    CHECK_OK(s);
     while (scanner.HasMoreRows()) {
       KuduScanBatch batch;
-      CHECK_OK(scanner.NextBatch(&batch));
+      s = scanner.NextBatch(&batch);
+      if ((io_error_allowed_ && s.IsIOError()) || (illegal_state_allowed_ && s.IsIllegalState())) {
+        return;
+      }
+      CHECK_OK(s);
       row_count += batch.NumRows();
     }
 

@@ -109,6 +109,19 @@ class TestWorkload {
     already_present_allowed_ = allowed;
   }
 
+  // Set whether or not scanner errors with Status::IOError() are expected.
+  // These errors are expected in testing disk failures. By default this
+  // triggers a check failure.
+  void set_io_error_allowed(bool allowed) {
+    io_error_allowed_ = allowed;
+  }
+
+  // Set whether opening a scanner with error Status::IllegalState() is expected.
+  // This is expected if the tablet is failed or shutdown due to disk failure.
+  void set_illegal_state_allowed(bool allowed) {
+    illegal_state_allowed_ = allowed;
+  }
+
   // Override the default "simple" schema.
   void set_schema(const client::KuduSchema& schema);
 
@@ -219,6 +232,8 @@ class TestWorkload {
   bool not_found_allowed_;
   bool already_present_allowed_;
   bool network_error_allowed_;
+  bool io_error_allowed_;
+  bool illegal_state_allowed_;
   WritePattern write_pattern_;
   client::KuduSchema schema_;
 
