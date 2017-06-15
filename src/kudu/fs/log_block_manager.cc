@@ -579,10 +579,20 @@ Status LogBlockContainer::Open(LogBlockManager* block_manager,
     uint64_t metadata_size = 0;
     uint64_t data_size = 0;
     Status s = env->GetFileSize(metadata_path, &metadata_size);
+    if (PREDICT_FALSE(s.posix_code() == EIO)) {
+      uint16_t uuid_idx;
+      CHECK(block_manager->dd_manager()->FindUuidIndexByDataDir(dir, &uuid_idx));
+      block_manager->dd_manager()->MarkDataDirFailed(uuid_idx);
+    }
     if (!s.IsNotFound()) {
       RETURN_NOT_OK_PREPEND(s, "unable to determine metadata file size");
     }
     s = env->GetFileSize(data_path, &data_size);
+    if (PREDICT_FALSE(s.posix_code() == EIO)) {
+      uint16_t uuid_idx;
+      CHECK(block_manager->dd_manager()->FindUuidIndexByDataDir(dir, &uuid_idx));
+      block_manager->dd_manager()->MarkDataDirFailed(uuid_idx);
+    }
     if (!s.IsNotFound()) {
       RETURN_NOT_OK_PREPEND(s, "unable to determine data file size");
     }
@@ -1539,10 +1549,13 @@ Status LogBlockManager::Open(FsReport* report) {
   for (const auto& dd : dd_manager_.data_dirs()) {
     dd->WaitOnClosures();
   }
+  if (dd_manager_.GetFailedDataDirs().size() == dd_manager_.data_dirs().size()) {
+    return Status::IOError("Couldn't open any data dirs");
+  }
 
   // Ensure that no open failed.
   for (const auto& s : statuses) {
-    if (!s.ok()) {
+    if (!s.ok() && s.posix_code() != EIO) {
       return s;
     }
   }

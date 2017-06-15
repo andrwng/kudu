@@ -280,7 +280,6 @@ Status IOError(const std::string& context, int err_number) {
         // approach is described in KUDU-616.
         LOG(FATAL) << "Fatal I/O error, context: " << context;
       } else {
-        LOG(ERROR) << GetStackTrace();
         LOG(ERROR) << "I/O error, context: " << context;
       }
   }

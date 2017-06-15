@@ -767,10 +767,8 @@ Status Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
       bool present = false;
       Status s = rs->CheckRowPresent(*op->key_probe, &present, tx_state->mutable_op_stats(op_idx));
       if (PREDICT_FALSE(!s.ok())) {
-        
         LOG(ERROR) << s.ToString();
         LOG(ERROR) << "Failed to check if row is present. Stopping transaction early.";
-        return s;
       } else if (present) {
         op->present_in_rowset = rs;
       }

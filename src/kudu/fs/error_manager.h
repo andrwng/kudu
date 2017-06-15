@@ -44,8 +44,12 @@ class FsErrorManager {
   // not include this directory, and any calls to create new blocks will avoid
   // block placement on this directory.
   void HandleDataDirFailure(DataDir* dir) {
+    // This may be null if the TSTabletManager has been deleted during server
+    // shutdown or if the TSTabletManager has not yet been initialized.
+    if (!shutdown_replicas_cb_) {
+      return;
+    }
     CHECK(dir);
-    CHECK(shutdown_replicas_cb_);
     LOG(WARNING) << strings::Substitute("Dir $0 failed, marking for failure", dir->dir());
     uint16_t uuid_idx;
     if (dd_manager_->FindUuidIndexByDataDir(dir, &uuid_idx)) {

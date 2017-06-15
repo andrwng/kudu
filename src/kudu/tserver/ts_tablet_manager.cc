@@ -156,10 +156,13 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
                                  TabletServer* server,
                                  MetricRegistry* metric_registry)
   : fs_manager_(fs_manager),
+    shutdown_replicas_cb_(Bind(&TSTabletManager::FailTabletReplicas, Unretained(this))),
     server_(server),
     metric_registry_(metric_registry),
     state_(MANAGER_INITIALIZING) {
   CHECK_OK(ThreadPoolBuilder("apply").Build(&apply_pool_));
+  fs_manager_->SetTabletsFailedCallback(&shutdown_replicas_cb_);
+
   apply_pool_->SetQueueLengthHistogram(
       METRIC_op_apply_queue_length.Instantiate(server_->metric_entity()));
   apply_pool_->SetQueueTimeMicrosHistogram(
@@ -169,6 +172,8 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
 }
 
 TSTabletManager::~TSTabletManager() {
+  // Since the FsManager is an external entity, revoke its access.
+  fs_manager_->SetTabletsFailedCallback(nullptr);
 }
 
 Status TSTabletManager::Init() {
@@ -181,9 +186,6 @@ Status TSTabletManager::Init() {
                 .set_max_queue_size(0)
                 .set_max_threads(FLAGS_num_tablets_to_copy_simultaneously)
                 .Build(&tablet_copy_pool_));
-
-  shutdown_replicas_cb_ = Bind(&TSTabletManager::FailTabletReplicas, Unretained(this));
-  fs_manager_->SetTabletsFailedCallback(&shutdown_replicas_cb_);
 
   // Start the threadpool we'll use to open tablets.
   // This has to be done in Init() instead of the constructor, since the
@@ -610,7 +612,8 @@ Status TSTabletManager::DeleteTablet(
     const string& tablet_id,
     TabletDataState delete_type,
     const boost::optional<int64_t>& cas_config_opid_index_less_or_equal,
-    boost::optional<TabletServerErrorPB::Code>* error_code) {
+    boost::optional<TabletServerErrorPB::Code>* error_code,
+    bool delete_tablet_data) {
 
   if (delete_type != TABLET_DATA_DELETED && delete_type != TABLET_DATA_TOMBSTONED) {
     return Status::InvalidArgument("DeleteTablet() requires an argument that is one of "
@@ -677,16 +680,17 @@ Status TSTabletManager::DeleteTablet(
     opt_last_logged_opid = last_logged_opid;
   }
 
-  Status s = DeleteTabletData(replica->tablet_metadata(), delete_type, opt_last_logged_opid);
-  if (PREDICT_FALSE(!s.ok())) {
-    s = s.CloneAndPrepend(Substitute("Unable to delete on-disk data from tablet $0",
-                                     tablet_id));
-    LOG(WARNING) << s.ToString();
-    replica->SetFailed(s);
-    return s;
+  if (delete_tablet_data) {
+    Status s = DeleteTabletData(replica->tablet_metadata(), delete_type, opt_last_logged_opid);
+    if (PREDICT_FALSE(!s.ok())) {
+      s = s.CloneAndPrepend(Substitute("Unable to delete on-disk data from tablet $0",
+                                      tablet_id));
+      LOG(WARNING) << s.ToString();
+      replica->SetFailed(s);
+      return s;
+    }
+    replica->SetStatusMessage("Deleted tablet blocks from disk");
   }
-
-  replica->SetStatusMessage("Deleted tablet blocks from disk");
 
   // We only remove DELETED tablets from the tablet map.
   if (delete_type == TABLET_DATA_DELETED) {
@@ -880,8 +884,6 @@ void TSTabletManager::Shutdown() {
   vector<scoped_refptr<TabletReplica> > replicas_to_shutdown;
   GetTabletReplicas(&replicas_to_shutdown);
 
-  // Since the FsManager is an external entity, revoke its access.
-  fs_manager_->SetTabletsFailedCallback(nullptr);
   for (const scoped_refptr<TabletReplica>& replica : replicas_to_shutdown) {
     replica->Shutdown();
   }

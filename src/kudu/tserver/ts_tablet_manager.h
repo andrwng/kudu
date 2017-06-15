@@ -127,7 +127,8 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   Status DeleteTablet(const std::string& tablet_id,
                       tablet::TabletDataState delete_type,
                       const boost::optional<int64_t>& cas_config_opid_index_less_or_equal,
-                      boost::optional<TabletServerErrorPB::Code>* error_code);
+                      boost::optional<TabletServerErrorPB::Code>* error_code,
+                      bool delete_tablet_data = true);
 
   // Lookup the given tablet replica by its ID.
   // Returns true if the tablet is found successfully.

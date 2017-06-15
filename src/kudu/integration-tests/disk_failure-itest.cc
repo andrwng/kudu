@@ -69,7 +69,7 @@ const vector<string> ts_flags = {
   "--flush_threshold_secs=1",
 
   // Ensure a tablet will only store data on a single disk.
-  "--fs_target_data_dirs_per_tablet=1"
+  "--fs_target_data_dirs_per_tablet=1",
 };
 
 class DiskFailureITest : public TabletServerIntegrationTestBase {
@@ -219,7 +219,7 @@ class DiskFailureITest : public TabletServerIntegrationTestBase {
 // data would be replicated on the remaining disks.
 //    ts-0       ts-1      ts-2
 // [ X | ba ] [ X | ab ] [ a | b ]
-TEST_F(DiskFailureITest, DiskFaultSurvivalOnWrite) {
+TEST_F(DiskFailureITest, TestFailDuringFlushMRS) {
   const string kTableIdA = "table_a";
   const string kTableIdB = "table_b";
   vector<ExternalTabletServer*> ext_tservers;
@@ -263,8 +263,8 @@ TEST_F(DiskFailureITest, DiskFaultSurvivalOnWrite) {
   workload_a.Start();
   workload_b.Start();
   WaitForDiskFailures(ext_tservers[0]);
-  workload_a.StopAndJoin();
   WaitForDiskFailures(ext_tservers[1]);
+  workload_a.StopAndJoin();
   workload_b.StopAndJoin();
 
   // Check that the servers are still alive.
@@ -275,6 +275,7 @@ TEST_F(DiskFailureITest, DiskFaultSurvivalOnWrite) {
   // Check that the tablet servers agree.
   ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id_a, 0));
   ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id_b, 0));
+  SleepFor(MonoDelta::FromSeconds(10));
 }
 
 // This test is set up so a single tablet occupies one of two disks on each
@@ -316,32 +317,6 @@ TEST_F(DiskFailureITest, TestFailDuringFlushDMS) {
   }
 }
 
-TEST_F(DiskFailureITest, TestFailDuringCompaction) {
-  // Upsert a bunch of rows repeatedly.
-  // Stop and switch on disk failures.
-  // Check that failures do occur.
-  vector<ExternalTabletServer*> ext_tservers;
-  SetupDefaultTable(kTableId, &ext_tservers);
-  std::function<void(void)> f = [&] {
-    UpsertPayload(kTableId, 0, 100);
-  };
-  vector<string> paths_with_data;
-  GetDataDirsWrittenToByFunction(ext_tservers, f, 3, &paths_with_data);
-  string tablet_id = (*tablet_replicas_.begin()).first;
-  for (int i = 0; i < 10; i++) {
-    UpsertPayload(kTableId, 0, 100);
-  }
-  // TODO(awong): instead wait for server's compact_rs_duration histogram to hit 1.
-  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
-
-  SetServerSurvivalFlags(ext_tservers);
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio", "1.0"));
-  ASSERT_OK(cluster_->SetFlag(ext_tservers[0], "env_inject_eio_globs",
-      GlobForBlockFileInDataDir(paths_with_data[0])));
-  WaitForDiskFailures(ext_tservers[0], 1);
-  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
-}
-
 TEST_F(DiskFailureITest, TestFailDuringScan) {
   // Write some data to a table.
   vector<ExternalTabletServer*> ext_tservers;
@@ -370,28 +345,6 @@ TEST_F(DiskFailureITest, TestFailDuringScan) {
   // Read from the table and expect the first tserver to fail.
   read_workload.Start();
   WaitForDiskFailures(ext_tservers[0]);
-  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
-}
-
-TEST_F(DiskFailureITest, TestFailDuringStartup) {
-  vector<ExternalTabletServer*> ext_tservers;
-  SetupDefaultTable(kTableId, &ext_tservers);
-  TestWorkload write_workload(cluster_.get());
-  vector<string> paths_with_data;
-  GetDataDirsWrittenTo(ext_tservers, write_workload, 3, &paths_with_data);
-  string tablet_id = (*tablet_replicas_.begin()).first;
-  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
-  SleepFor(MonoDelta::FromSeconds(5));
-  ext_tservers[0]->Shutdown();
-  vector<string> extra_startup_flags = {
-    "follower_unavailable_considered_failed_sec=10",
-    "suicide_on_eio=false",
-    "--env_inject_eio=1.0",
-    Substitute("--env_inject_eio_globs=$0", GlobForBlockFileInDataDir(paths_with_data[0]))
-  };
-  ASSERT_OK(ext_tservers[0]->Restart(extra_startup_flags));
-
-  WaitForDiskFailures(ext_tservers[0], 1);
   ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
 }
 
