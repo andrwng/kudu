@@ -144,5 +144,28 @@ TEST_F(TSDiskFailureTest, TestFailDuringTabletStartup) {
   ASSERT_OK(s);
 }
 
+TEST_F(TSDiskFailureTest, TestFailDuringServerStartup) {
+  InsertTestRowsDirect(0, 100);
+  ASSERT_OK(tablet_replica_->tablet()->Flush());
+
+  DataDirManager* dd_manager = mini_server_->server()->fs_manager()->dd_manager();
+  DataDir* dir_with_tablet;
+  ASSERT_OK(dd_manager->GetNextDataDir(CreateBlockOptions({ kTabletId }), &dir_with_tablet));
+  string glob_for_dir = JoinPathSegments(dir_with_tablet->dir(), "**");
+
+  ShutdownTablet();
+
+  // Fail the tablet's directories.
+  FLAGS_suicide_on_eio = false;
+  FLAGS_env_inject_eio = 1.0;
+  FLAGS_env_inject_eio_globs = glob_for_dir;
+  mini_server_.reset(new MiniTabletServer(GetTestPath("TabletServerTest-fsroot"), 0, 3));
+  mini_server_->options()->master_addresses.clear();
+  mini_server_->options()->master_addresses.emplace_back("255.255.255.255", 1);
+  Status s = mini_server_->Start();
+  LOG(INFO) << s.ToString();
+  ASSERT_OK(s);
+}
+
 }  // namespace tserver
 }  // namespace kudu

@@ -149,6 +149,10 @@ class DataDir {
     return metadata_file_.get();
   }
 
+  PathInstanceMetadataFile* mutable_instance() {
+    return metadata_file_.get();
+  }
+
   bool is_full() const {
     std::lock_guard<simple_spinlock> l(lock_);
     return is_full_;
@@ -185,6 +189,11 @@ class DataDirManager {
     NONE,
   };
 
+  enum class AccessMode {
+    READ_ONLY,
+    READ_WRITE
+  };
+
   enum class DirDistributionMode {
     ACROSS_ALL_DIRS,
     USE_FLAG_SPEC,
@@ -193,7 +202,8 @@ class DataDirManager {
   DataDirManager(Env* env,
                  scoped_refptr<MetricEntity> metric_entity,
                  std::string block_manager_type,
-                 std::vector<std::string> paths);
+                 std::vector<std::string> paths,
+                 AccessMode mode);
   ~DataDirManager();
 
   // Shuts down all directories' thread pools.
@@ -277,6 +287,11 @@ class DataDirManager {
     return failed_data_dirs_;
   }
 
+  // Writes the disk health states to all healthy instances.
+  void WriteDiskHealthStatesUnlocked();
+
+  // Attempts to lock the metadata file.
+  Status TryLockInstance(PathInstanceMetadataFile* instance, LockMode mode);
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
   FRIEND_TEST(DataDirGroupTest, TestLoadFromPB);
@@ -303,6 +318,18 @@ class DataDirManager {
   void RemoveUnhealthyDataDirsUnlocked(const vector<uint16_t>& uuid_indices,
                                        vector<uint16_t>* healthy_indices) const;
 
+  // Writes the instances in 'dirty_indices' to reflect the failed disks.
+  // If any instance fails in the process, this will mark it as failed and
+  // attempt to write to the remaining healthy disks.
+  //
+  // Updates 'path_set_' to reflect the final set of healthy dirs.
+  //
+  // It's worth pointing out that this only affects the DataDirManager state
+  // (e.g. there is no error-handling specific to tablets). As such, this
+  // should only be called before tablets begin bootstrapping.
+  Status UpdateInstanceFilesUnlocked(const vector<PathInstanceMetadataFile*>& instances,
+                                     const vector<uint16_t>& dirty_indices);
+
   Env* env_;
   const std::string block_manager_type_;
   const std::vector<std::string> paths_;
@@ -310,6 +337,9 @@ class DataDirManager {
   std::unique_ptr<DataDirMetrics> metrics_;
 
   std::vector<std::unique_ptr<DataDir>> data_dirs_;
+
+  typedef std::unordered_map<std::string, std::string> PathUuidMap;
+  PathUuidMap uuid_by_path_;
 
   typedef std::unordered_map<uint16_t, DataDir*> UuidIndexMap;
   UuidIndexMap data_dir_by_uuid_idx_;
@@ -335,6 +365,15 @@ class DataDirManager {
   // attempting to write (e.g. to create a new tablet, thereby creating a new
   // data directory group) block all threads.
   mutable percpu_rwlock dir_group_lock_;
+
+  // The DataDirManager's view of what each path set should look like.
+  PathSetPB path_set_;
+
+  // Indicates whether the DataDirManager is writable after the intial Create() call.
+  bool read_only_;
+
+  // LockMode of the DataDirManager.
+  LockMode lock_mode_;
 
   // RNG used to select directories.
   ThreadSafeRandom rng_;

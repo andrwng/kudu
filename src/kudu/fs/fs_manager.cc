@@ -309,14 +309,25 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
   unordered_set<string> to_sync;
   for (const string& root : canonicalized_all_fs_roots_) {
     bool created;
-    RETURN_NOT_OK_PREPEND(CreateDirIfMissing(root, &created),
-                          "Unable to create FSManager root");
+    Status s = CreateDirIfMissing(root, &created);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(ERROR) << "Unable to create FSManager root";
+      if (IsDiskFailure(s)) {
+        continue;
+      }
+      return s;
+    }
     if (created) {
       delete_on_failure.push_front(new ScopedFileDeleter(env_, root));
       to_sync.insert(DirName(root));
     }
-    RETURN_NOT_OK_PREPEND(WriteInstanceMetadata(metadata, root),
-                          "Unable to write instance metadata");
+    s = WriteInstanceMetadata(metadata, root);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(ERROR) << "Unable to write instance metadata";
+      if (IsDiskFailure(s)) {
+        continue;
+      }
+    }
     delete_on_failure.push_front(new ScopedFileDeleter(
         env_, GetInstanceMetadataPath(root)));
   }
@@ -338,8 +349,15 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
   // Ensure newly created directories are synchronized to disk.
   if (FLAGS_enable_data_block_fsync) {
     for (const string& dir : to_sync) {
-      RETURN_NOT_OK_PREPEND(env_->SyncDir(dir),
-                            Substitute("Unable to synchronize directory $0", dir));
+      Status s = env_->SyncDir(dir);
+      if (PREDICT_FALSE(!s.ok())) {
+        LOG(ERROR) << Substitute("Unable to synchronize directory $0", dir);
+        // Non-disk-failures and WAL or TabletMetadata dirs failures are fatal.
+        if (!IsDiskFailure(s) || DirName(GetWalsRootDir()) == dir ||
+            DirName(GetTabletMetadataDir()) == dir) {
+          return s;
+        }
+      }
     }
   }
 
