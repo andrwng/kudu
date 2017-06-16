@@ -42,7 +42,9 @@ class TabletServer;
 class MiniTabletServer {
  public:
   // Note: The host portion of 'rpc_bind_addr' is also used for the http service.
-  MiniTabletServer(const std::string& fs_root, const HostPort& rpc_bind_addr);
+  MiniTabletServer(const std::string& fs_root,
+                   const HostPort& rpc_bind_addr,
+                   int num_data_dirs = 1);
   ~MiniTabletServer();
 
   // Return the options which will be used to start the tablet server.
