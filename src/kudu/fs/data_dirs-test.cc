@@ -57,7 +57,8 @@ class DataDirGroupTest : public KuduTest {
       test_tablet_name_("test_tablet"),
       test_block_opts_(CreateBlockOptions({ test_tablet_name_ })),
       entity_(METRIC_ENTITY_server.Instantiate(&registry_, "test")),
-      dd_manager_(new DataDirManager(env_, entity_, "file", GetDirNames(kNumDirs))) {}
+      dd_manager_(new DataDirManager(env_, entity_, "file", GetDirNames(kNumDirs),
+          DataDirManager::AccessMode::READ_WRITE)) {}
 
   virtual void SetUp() override {
     KuduTest::SetUp();
@@ -229,16 +230,6 @@ TEST_F(DataDirGroupTest, TestFailedDirNotAddedToGroup) {
     ASSERT_NE(nullptr, uuid_idx);
     ASSERT_NE(0, *uuid_idx);
   }
-  dd_manager_->DeleteDataDirGroup(test_tablet_name_);
-
-  for (uint16_t i = 1; i < kNumDirs; i++) {
-    dd_manager_->MarkDataDirFailed(i);
-  }
-  ASSERT_EQ(kNumDirs, down_cast<AtomicGauge<uint64_t>*>(
-        entity_->FindOrNull(METRIC_data_dirs_failed).get())->value());
-  Status s = dd_manager_->CreateDataDirGroup(test_tablet_name_);
-  ASSERT_TRUE(s.IsIOError());
-  ASSERT_STR_CONTAINS(s.ToString(), "No healthy data directories available");
 }
 
 TEST_F(DataDirGroupTest, TestLoadBalancingDistribution) {

@@ -1533,6 +1533,12 @@ Status LogBlockManager::Open(FsReport* report) {
   // filesystem, and gflags information.
   for (const auto& dd : dd_manager_->data_dirs()) {
     boost::optional<int64_t> limit;
+    uint16_t uuid_idx;
+    dd_manager_->FindUuidIndexByDataDir(dd.get(), &uuid_idx);
+    if (dd_manager_->IsDataDirFailed(uuid_idx)) {
+      // Blocks should not be placed in failed directories.
+      limit = 0;
+    }
     if (FLAGS_log_container_max_blocks == -1) {
       // No limit, unless this is KUDU-1508.
 
@@ -1573,6 +1579,10 @@ Status LogBlockManager::Open(FsReport* report) {
   int i = -1;
   for (const auto& dd : dd_manager_->data_dirs()) {
     i++;
+    if (dd_manager_->IsDataDirFailed(i)) {
+      statuses[i] = Status::IOError("Data directory failed", "", EIO);
+      continue;
+    }
     // Open the data dir asynchronously.
     dd->ExecClosure(
         Bind(&LogBlockManager::OpenDataDir,
