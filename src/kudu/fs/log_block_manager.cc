@@ -1416,7 +1416,8 @@ LogBlockManager::LogBlockManager(Env* env,
   : mem_tracker_(MemTracker::CreateTracker(-1,
                                            "log_block_manager",
                                            opts.parent_mem_tracker)),
-    dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths),
+    dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths, opts.read_only ?
+        DataDirManager::AccessMode::READ_ONLY : DataDirManager::AccessMode::READ_WRITE),
     error_manager_(DCHECK_NOTNULL(error_manager)),
     file_cache_("lbm", env, GetFileCacheCapacityForBlockManager(env),
                 opts.metric_entity),
@@ -1489,6 +1490,9 @@ Status LogBlockManager::Open(FsReport* report) {
   // Establish (and log) block limits for each data directory using kernel,
   // filesystem, and gflags information.
   for (const auto& dd : dd_manager_.data_dirs()) {
+    if (!dd->instance()->healthy_instance()) {
+      continue;
+    }
     boost::optional<int64_t> limit;
 
     if (FLAGS_log_container_max_blocks == -1) {
@@ -1530,6 +1534,10 @@ Status LogBlockManager::Open(FsReport* report) {
   vector<Status> statuses(dd_manager_.data_dirs().size());
   int i = 0;
   for (const auto& dd : dd_manager_.data_dirs()) {
+    if (!dd->instance()->healthy_instance()) {
+      statuses[i] = Status::IOError("Data directory failed", "", EIO);
+      continue;
+    }
     // Open the data dir asynchronously.
     dd->ExecClosure(
         Bind(&LogBlockManager::OpenDataDir,

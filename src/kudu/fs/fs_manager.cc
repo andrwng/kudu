@@ -254,8 +254,15 @@ Status FsManager::Open(FsReport* report) {
   // are not yet initialized on disk.
   for (const string& root : canonicalized_all_fs_roots_) {
     gscoped_ptr<InstanceMetadataPB> pb(new InstanceMetadataPB);
-    RETURN_NOT_OK(pb_util::ReadPBContainerFromPath(env_, GetInstanceMetadataPath(root),
-                                                   pb.get()));
+    Status s = pb_util::ReadPBContainerFromPath(env_, GetInstanceMetadataPath(root), pb.get());
+    if (PREDICT_FALSE(!s.ok())) {
+      if (s.IsDiskFailure()) {
+        // Disk failure should be handled when creating the in-memory DataDirs.
+        LOG(ERROR) << "Failed to read metadata file from " << root;
+        continue;
+      }
+      return s;
+    }
     if (!metadata_) {
       metadata_.reset(pb.release());
     } else if (pb->uuid() != metadata_->uuid()) {
@@ -313,14 +320,25 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
   unordered_set<string> to_sync;
   for (const string& root : canonicalized_all_fs_roots_) {
     bool created;
-    RETURN_NOT_OK_PREPEND(CreateDirIfMissing(root, &created),
-                          "Unable to create FSManager root");
+    Status s = CreateDirIfMissing(root, &created);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(ERROR) << "Unable to create FSManager root" << s.ToString();
+      if (s.IsDiskFailure()) {
+        continue;
+      }
+      return s;
+    }
     if (created) {
       delete_on_failure.push_front(new ScopedFileDeleter(env_, root));
       to_sync.insert(DirName(root));
     }
-    RETURN_NOT_OK_PREPEND(WriteInstanceMetadata(metadata, root),
-                          "Unable to write instance metadata");
+    s = WriteInstanceMetadata(metadata, root);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(ERROR) << "Unable to write instance metadata" << s.ToString();
+      if (s.IsDiskFailure()) {
+        continue;
+      }
+    }
     delete_on_failure.push_front(new ScopedFileDeleter(
         env_, GetInstanceMetadataPath(root)));
   }
@@ -331,6 +349,8 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
                                     GetConsensusMetadataDir() };
   for (const string& dir : ancillary_dirs) {
     bool created;
+    // TODO(awong): Make failures of the metadata and WAL dirs resilient to
+    // disk failure.
     RETURN_NOT_OK_PREPEND(CreateDirIfMissing(dir, &created),
                           Substitute("Unable to create directory $0", dir));
     if (created) {
@@ -342,8 +362,16 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
   // Ensure newly created directories are synchronized to disk.
   if (FLAGS_enable_data_block_fsync) {
     for (const string& dir : to_sync) {
-      RETURN_NOT_OK_PREPEND(env_->SyncDir(dir),
-                            Substitute("Unable to synchronize directory $0", dir));
+      Status s = env_->SyncDir(dir);
+      if (PREDICT_FALSE(!s.ok())) {
+        LOG(ERROR) << Substitute("Unable to synchronize directory $0", dir);
+        // Non-disk-failures and WAL or TabletMetadata dirs failures are fatal.
+        if (!s.IsDiskFailure() ||
+            DirName(GetWalsRootDir()) == dir ||
+            DirName(GetTabletMetadataDir()) == dir) {
+          return s;
+        }
+      }
     }
   }
 

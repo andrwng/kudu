@@ -367,6 +367,34 @@ TEST_P(DiskFailureITest, TestFailDuringScan) {
   ASSERT_OK(WaitForServersToAgree(kAgreementTimeout, tablet_servers_, tablet_id, 0));
 }
 
+TEST_P(DiskFailureITest, TestFailDuringServerStartup) {
+  vector<ExternalTabletServer*> ext_tservers;
+  NO_FATALS(SetupDefaultCluster(&ext_tservers));
+  NO_FATALS(SetUpDefaultTable());
+
+  // Write some data to a table.
+  TestWorkload write_workload(cluster_.get());
+  write_workload.set_write_pattern(TestWorkload::WritePattern::INSERT_SEQUENTIAL_ROWS);
+  vector<string> paths_with_data;
+  NO_FATALS(GetDataDirsWrittenToByWorkload(ext_tservers, &write_workload, 3, &paths_with_data));
+  NO_FATALS(WaitForTSAndReplicas(kTableId));
+  string tablet_id = (*tablet_replicas_.begin()).first;
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 1));
+
+  // Fail one of the directories that have data.
+  NO_FATALS(SetServerSurvivalFlags(ext_tservers));
+  cluster_->tablet_server(0)->mutable_flags()->assign({
+      Substitute("--env_inject_eio_globs=$0", JoinPathSegments(paths_with_data[0], "**")),
+      "--env_inject_eio=1.0",
+      "--suicide_on_eio=false",
+      Substitute("--block_manager=$0", GetParam())
+  });
+  cluster_->tablet_server(0)->Shutdown();
+  ASSERT_OK(cluster_->tablet_server(0)->Restart());
+  NO_FATALS(WaitForDiskFailures(ext_tservers[0]));
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 1));
+}
+
 #if defined(__linux__)
 INSTANTIATE_TEST_CASE_P(DiskFailure, DiskFailureITest, ::testing::Values("file", "log"));
 #else

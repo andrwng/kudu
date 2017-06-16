@@ -585,6 +585,8 @@ Status TabletMetadata::ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb) {
   flush_lock_.AssertAcquired();
 
   string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
+  // TODO(awong): handle failures here by making the DataDirManager aware of
+  // which directories contain tablet metadata.
   RETURN_NOT_OK_PREPEND(pb_util::WritePBContainerToPath(
                             fs_manager_->env(), path, pb,
                             pb_util::OVERWRITE, pb_util::SYNC),
@@ -596,6 +598,8 @@ Status TabletMetadata::ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb) {
 
 Status TabletMetadata::ReadSuperBlockFromDisk(TabletSuperBlockPB* superblock) const {
   string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
+  // TODO(awong): handle failures here by making the DataDirManager aware of
+  // which directories contain tablet metadata.
   RETURN_NOT_OK_PREPEND(
       pb_util::ReadPBContainerFromPath(fs_manager_->env(), path, superblock),
       Substitute("Could not load tablet metadata from $0", path));

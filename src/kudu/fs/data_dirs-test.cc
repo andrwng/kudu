@@ -57,7 +57,8 @@ class DataDirGroupTest : public KuduTest {
       test_tablet_name_("test_tablet"),
       test_block_opts_(CreateBlockOptions({ test_tablet_name_ })),
       entity_(METRIC_ENTITY_server.Instantiate(&registry_, "test")),
-      dd_manager_(new DataDirManager(env_, entity_, "file", GetDirNames(kNumDirs))) {}
+      dd_manager_(new DataDirManager(env_, entity_, "file", GetDirNames(kNumDirs),
+          DataDirManager::AccessMode::READ_WRITE)) {}
 
   virtual void SetUp() override {
     KuduTest::SetUp();

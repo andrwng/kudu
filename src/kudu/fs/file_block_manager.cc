@@ -554,7 +554,8 @@ FileBlockManager::FileBlockManager(Env* env,
                                    const BlockManagerOptions& opts)
   : env_(DCHECK_NOTNULL(env)),
     read_only_(opts.read_only),
-    dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths),
+    dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths, opts.read_only ?
+        DataDirManager::AccessMode::READ_ONLY : DataDirManager::AccessMode::READ_WRITE),
     error_manager_(DCHECK_NOTNULL(error_manager)),
     file_cache_("fbm", env_, GetFileCacheCapacityForBlockManager(env_),
                 opts.metric_entity),
