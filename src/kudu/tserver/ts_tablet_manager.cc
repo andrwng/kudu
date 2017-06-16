@@ -1080,7 +1080,7 @@ Status TSTabletManager::DeleteTabletData(const scoped_refptr<TabletMetadata>& me
 }
 
 void TSTabletManager::FailTabletsInDataDir(const string& uuid) {
-  uint16_t* uuid_idx = fs_manager_->dd_manager()->GetUuidIdxForUuid(uuid);
+  const uint16_t* uuid_idx = fs_manager_->dd_manager()->GetUuidIdxForUuid(uuid);
   if (!uuid_idx || fs_manager_->dd_manager()->IsDataDirFailed(*uuid_idx)) {
     return;
   }

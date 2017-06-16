@@ -164,6 +164,10 @@ class DataDir {
     return metadata_file_.get();
   }
 
+  PathInstanceMetadataFile* mutable_instance() {
+    return metadata_file_.get();
+  }
+
   bool is_full() const {
     std::lock_guard<simple_spinlock> l(lock_);
     return is_full_;
@@ -201,6 +205,11 @@ class DataDirManager {
     NONE,
   };
 
+  enum class AccessMode {
+    READ_ONLY,
+    READ_WRITE
+  };
+
   enum class DirDistributionMode {
     ACROSS_ALL_DIRS,
     USE_FLAG_SPEC,
@@ -209,7 +218,8 @@ class DataDirManager {
   DataDirManager(Env* env,
                  scoped_refptr<MetricEntity> metric_entity,
                  std::string block_manager_type,
-                 std::vector<std::string> paths);
+                 std::vector<std::string> paths,
+                 AccessMode mode);
   ~DataDirManager();
 
   // Shuts down all directories' thread pools.
@@ -294,9 +304,13 @@ class DataDirManager {
   }
 
   // Returns the uuid_idx for a given UUID or nullptr if it doesn't exist.
-  uint16_t* GetUuidIdxForUuid(const std::string& uuid) {
+  const uint16_t* GetUuidIdxForUuid(const std::string& uuid) const {
     return FindOrNull(idx_by_uuid_, uuid);
   }
+
+  // Writes the disk health states to all healthy instances.
+  // Must be called while dir_group_lock_ is held.
+  void WritePathHealthStatesUnlocked();
 
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
@@ -324,13 +338,27 @@ class DataDirManager {
   void RemoveUnhealthyDataDirsUnlocked(const vector<uint16_t>& uuid_indices,
                                        vector<uint16_t>* healthy_indices) const;
 
+  // Writes the instances in 'dirty_idx_list' to reflect the failed dirs. If
+  // any instance fails in the process, this will mark its dir as failed and
+  // attempt to write to the remaining healthy disks.
+  //
+  // This only affects the DataDirManager state, so it shouldn't be used if
+  // state out of the jurisdiction of the DataDirManager needs to be updated.
+  Status UpdateInstanceFiles(const vector<PathInstanceMetadataFile*>& instances,
+                             const vector<int>& dirty_idx_list);
+
   Env* env_;
   const std::string block_manager_type_;
   const std::vector<std::string> paths_;
+  
+  const AccessMode mode_;
 
   std::unique_ptr<DataDirMetrics> metrics_;
 
   std::vector<std::unique_ptr<DataDir>> data_dirs_;
+
+  typedef std::unordered_map<std::string, std::string> PathUuidMap;
+  PathUuidMap uuid_by_path_;
 
   typedef std::unordered_map<uint16_t, DataDir*> UuidIndexMap;
   UuidIndexMap data_dir_by_uuid_idx_;
@@ -356,6 +384,9 @@ class DataDirManager {
   // attempting to write (e.g. to create a new tablet, thereby creating a new
   // data directory group) block all threads.
   mutable percpu_rwlock dir_group_lock_;
+
+  // The DataDirManager's view of what each path set should look like.
+  PathSetPB path_set_;
 
   // RNG used to select directories.
   ThreadSafeRandom rng_;
