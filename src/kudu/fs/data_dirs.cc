@@ -215,6 +215,9 @@ void DataDir::WaitOnClosures() {
 }
 
 Status DataDir::RefreshIsFull(RefreshMode mode) {
+  if (!metadata_file_->no_failures()) {
+    return Status::IOError("Data dir not successfully opened", dir_, EIO);
+  }
   switch (mode) {
     case RefreshMode::EXPIRED_ONLY: {
       std::lock_guard<simple_spinlock> l(lock_);
@@ -303,6 +306,7 @@ Status DataDirManager::Create(int flags) {
   unordered_set<string> to_sync;
   for (const auto& p : paths_) {
     bool created;
+    // TODO(awong): This may be worth failing.
     RETURN_NOT_OK_PREPEND(env_util::CreateDirIfMissing(env_, p, &created),
                           Substitute("Could not create directory $0", p));
     if (created) {
@@ -317,16 +321,23 @@ Status DataDirManager::Create(int flags) {
     string instance_filename = JoinPathSegments(p, kInstanceMetadataFileName);
     PathInstanceMetadataFile metadata(env_, block_manager_type_,
                                       instance_filename);
-    RETURN_NOT_OK_PREPEND(metadata.Create(all_uuids[idx], all_uuids), instance_filename);
-    delete_on_failure.push_front(new ScopedFileDeleter(env_, instance_filename));
+    // TODO(awong): if this fails, create an invalid metadata file.
+    Status s = metadata.Create(all_uuids[idx], all_uuids);
+    if (!s.ok()) {
+      LOG(ERROR) << s.ToString() << ":" << instance_filename;
+    } else {
+      delete_on_failure.push_front(new ScopedFileDeleter(env_, instance_filename));
+    }
     idx++;
   }
 
   // Ensure newly created directories are synchronized to disk.
   if (flags & FLAG_CREATE_FSYNC) {
     for (const string& dir : to_sync) {
-      RETURN_NOT_OK_PREPEND(env_->SyncDir(dir),
-                            Substitute("Unable to synchronize directory $0", dir));
+      Status s = env_->SyncDir(dir);
+      if (!s.ok()) {
+        LOG(ERROR) << s.ToString() << Substitute("Unable to synchronize directory $0", dir); 
+      }
     }
   }
 
@@ -348,6 +359,7 @@ Status DataDirManager::Open(int max_data_dirs, LockMode mode) {
     gscoped_ptr<PathInstanceMetadataFile> instance(
         new PathInstanceMetadataFile(env_, block_manager_type_,
                                      instance_filename));
+    // If this fails, we should still create a DataDir (perhaps one with an invalid instance).
     RETURN_NOT_OK_PREPEND(instance->LoadFromDisk(),
                           Substitute("Could not open $0", instance_filename));
     if (mode != LockMode::NONE) {
@@ -368,9 +380,11 @@ Status DataDirManager::Open(int max_data_dirs, LockMode mode) {
 
     // Create a per-dir thread pool.
     gscoped_ptr<ThreadPool> pool;
-    RETURN_NOT_OK(ThreadPoolBuilder(Substitute("data dir $0", i))
-                  .set_max_threads(1)
-                  .Build(&pool));
+    if (instance->no_failures()) {
+      RETURN_NOT_OK(ThreadPoolBuilder(Substitute("data dir $0", i))
+                    .set_max_threads(1)
+                    .Build(&pool));
+    }
 
     // Create the data directory in-memory structure itself.
     unique_ptr<DataDir> dd(new DataDir(

@@ -74,6 +74,10 @@ class PathInstanceMetadataFile {
   std::string path() const { return DirName(filename_); }
   PathInstanceMetadataPB* const metadata() const { return metadata_.get(); }
 
+  bool no_failures() const {
+    return no_failures_;
+  }
+
   // Check the integrity of the provided instances' path sets.
   static Status CheckIntegrity(const std::vector<PathInstanceMetadataFile*>& instances);
 
@@ -83,6 +87,7 @@ class PathInstanceMetadataFile {
   const std::string filename_;
   gscoped_ptr<PathInstanceMetadataPB> metadata_;
   gscoped_ptr<FileLock> lock_;
+  bool no_failures_;
 };
 
 } // namespace fs

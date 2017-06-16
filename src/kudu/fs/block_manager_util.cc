@@ -22,6 +22,7 @@
 
 #include <gflags/gflags.h>
 
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/strings/join.h"
@@ -46,7 +47,8 @@ PathInstanceMetadataFile::PathInstanceMetadataFile(Env* env,
                                                    string filename)
     : env_(env),
       block_manager_type_(std::move(block_manager_type)),
-      filename_(std::move(filename)) {}
+      filename_(std::move(filename)),
+      no_failures_(true) {}
 
 PathInstanceMetadataFile::~PathInstanceMetadataFile() {
   if (lock_) {
@@ -60,7 +62,7 @@ Status PathInstanceMetadataFile::Create(const string& uuid, const vector<string>
   DCHECK(ContainsKey(set<string>(all_uuids.begin(), all_uuids.end()), uuid));
 
   uint64_t block_size;
-  RETURN_NOT_OK(env_->GetBlockSize(DirName(filename_), &block_size));
+  RETURN_NOT_OK_HANDLE(env_->GetBlockSize(DirName(filename_), &block_size), no_failures_ = false);
 
   PathInstanceMetadataPB new_instance;
 
@@ -87,7 +89,8 @@ Status PathInstanceMetadataFile::LoadFromDisk() {
       "Opening a metadata file that's already locked would release the lock";
 
   gscoped_ptr<PathInstanceMetadataPB> pb(new PathInstanceMetadataPB());
-  RETURN_NOT_OK(pb_util::ReadPBContainerFromPath(env_, filename_, pb.get()));
+  RETURN_NOT_OK_HANDLE(pb_util::ReadPBContainerFromPath(env_, filename_, pb.get()),
+      no_failures_ = false);
 
   if (pb->block_manager_type() != block_manager_type_) {
     return Status::IOError(Substitute(
@@ -97,7 +100,7 @@ Status PathInstanceMetadataFile::LoadFromDisk() {
   }
 
   uint64_t block_size;
-  RETURN_NOT_OK(env_->GetBlockSize(filename_, &block_size));
+  RETURN_NOT_OK_HANDLE(env_->GetBlockSize(filename_, &block_size), no_failures_ = false);
   if (pb->filesystem_block_size_bytes() != block_size) {
     return Status::IOError("Wrong filesystem block size", Substitute(
         "Expected $0 but was $1", pb->filesystem_block_size_bytes(), block_size));
@@ -136,10 +139,25 @@ Status PathInstanceMetadataFile::CheckIntegrity(
   // Map of instance UUID to path instance structure. Tracks duplicate UUIDs.
   unordered_map<string, PathInstanceMetadataFile*> uuids;
 
+  int main_id;
+  uint64_t max_timestamp = 0;
+  for (int i = 0; i < instances.size(); i++) {
+    if (instances[i]->metadata()->path_set().has_timestamp()) {
+      uint64_t timestamp = instances[i]->metadata()->path_set().timestamp();
+      if (max_timestamp < timestamp) {
+        main_id = i;
+      }
+    }
+  }
+
   // Set of UUIDs specified in the path set of the first instance. All instances
   // will be compared against this one to make sure all path sets match.
-  set<string> all_uuids(instances[0]->metadata()->path_set().all_uuids().begin(),
-                        instances[0]->metadata()->path_set().all_uuids().end());
+  set<string> all_uuids(instances[main_id]->metadata()->path_set().all_uuids().begin(),
+                        instances[main_id]->metadata()->path_set().all_uuids().end());
+
+  set<PathDiskState> all_disk_states(
+      instances[main_id]->metadata()->path_set().all_disk_states().begin(),
+      instances[main_id]->metadata()->path_set().all_disk_states().end());
 
   if (all_uuids.size() != instances.size()) {
     return Status::IOError(

@@ -38,6 +38,12 @@ message InstanceMetadataPB {
   // TODO: add a "node type" (TS/Master?)
 }
 
+// The state of a path instance's parent disk.
+enum PathDiskState {
+  HEALTHY = 0;
+  FAILED = 1;
+}
+
 // Describes a collection of filesystem path instances and the membership of a
 // particular instance in the collection.
 //
@@ -49,10 +55,17 @@ message PathSetPB {
   // Globally unique identifier for this path instance.
   required bytes uuid = 1;
 
-  // All UUIDs in this path instance set. In a healthy filesystem:
-  // 1. There exists an on-disk PathInstanceMetadataPB for each listed UUID, and
-  // 2. Every PathSetPB contains an identical copy of all_uuids.
+  // All UUIDs in this path instance set. In a healthy filesystem,
+  // 1. There is an on-disk PathInstanceMetadataPB for each healthy UUID, and
+  // 2. There are no PathSetPBs with a UUID unknown to the 'all_uuids' of the
+  //    PathSetPB with the highest 'timestamp'.
   repeated bytes all_uuids = 2;
+
+  // Hybrid timestamp indicating when this PathSetPB was last updated.
+  optional uint64 timestamp = 3;
+
+  // PathDiskStates corresponding to UUIDs in 'all_uuids'.
+  repeated PathDiskState all_disk_states = 4;
 }
 
 // A filesystem instance can contain multiple paths. One of these structures
