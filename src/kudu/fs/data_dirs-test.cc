@@ -22,24 +22,32 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags_declare.h>
 
-#include "kudu/fs/fs.pb.h"
 #include "kudu/fs/block_manager.h"
+#include "kudu/fs/block_manager_util.h"
 #include "kudu/fs/data_dirs.h"
+#include "kudu/fs/fs.pb.h"
+#include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/strings/substitute.h"
+#include "kudu/gutil/strings/join.h"
+#include "kudu/gutil/map-util.h"
 #include "kudu/util/env_util.h"
+#include "kudu/util/path_util.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/test_util.h"
-#include "kudu/gutil/map-util.h"
 
 using std::set;
 using std::string;
 using std::vector;
+using std::unique_ptr;
 using strings::Substitute;
 
+DECLARE_bool(suicide_on_eio);
+DECLARE_double(env_inject_eio);
 DECLARE_int32(fs_data_dirs_full_disk_cache_seconds);
+DECLARE_int32(fs_target_data_dirs_per_tablet);
 DECLARE_int64(disk_reserved_bytes_free_for_testing);
 DECLARE_int64(fs_data_dirs_reserved_bytes);
-DECLARE_int32(fs_target_data_dirs_per_tablet);
+DECLARE_string(env_inject_eio_globs);
 
 METRIC_DECLARE_gauge_uint64(data_dirs_failed);
 
@@ -51,13 +59,31 @@ using internal::DataDirGroup;
 static const char* kDirNamePrefix = "test_data_dir";
 static const int kNumDirs = 10;
 
-class DataDirGroupTest : public KuduTest {
+// Use log block mode. This should not have much effect on the directory
+// manager itself, but log blocks are expected to be more common in production.
+static const char* kBlockType = "log";
+
+class DataDirsTest : public KuduTest {
+ protected:
+  vector<string> GetDirNames(int num_dirs) {
+    vector<string> ret;
+    for (int i = 0; i < num_dirs; i++) {
+      string dir_name = Substitute("$0-$1", kDirNamePrefix, i);
+      ret.push_back(GetTestPath(dir_name));
+      CHECK_OK(env_util::CreateDirIfMissing(env_, ret[i]));
+    }
+    return ret;
+  }
+};
+
+class DataDirGroupTest : public DataDirsTest {
  public:
   DataDirGroupTest() :
       test_tablet_name_("test_tablet"),
       test_block_opts_(CreateBlockOptions({ test_tablet_name_ })),
       entity_(METRIC_ENTITY_server.Instantiate(&registry_, "test")),
-      dd_manager_(new DataDirManager(env_, entity_, "file", GetDirNames(kNumDirs))) {}
+      dd_manager_(new DataDirManager(env_, entity_, kBlockType, GetDirNames(kNumDirs),
+          DataDirManager::AccessMode::READ_WRITE)) {}
 
   virtual void SetUp() override {
     KuduTest::SetUp();
@@ -69,16 +95,6 @@ class DataDirGroupTest : public KuduTest {
   }
 
  protected:
-  vector<string> GetDirNames(int num_dirs) {
-    vector<string> ret;
-    for (int i = 0; i < num_dirs; i++) {
-      string dir_name = Substitute("$0-$1", kDirNamePrefix, i);
-      ret.push_back(GetTestPath(dir_name));
-      CHECK_OK(env_util::CreateDirIfMissing(env_, ret[i]));
-    }
-    return ret;
-  }
-
   const string test_tablet_name_;
   const CreateBlockOptions test_block_opts_;
   MetricRegistry registry_;
@@ -229,16 +245,6 @@ TEST_F(DataDirGroupTest, TestFailedDirNotAddedToGroup) {
     ASSERT_NE(nullptr, uuid_idx);
     ASSERT_NE(0, *uuid_idx);
   }
-  dd_manager_->DeleteDataDirGroup(test_tablet_name_);
-
-  for (uint16_t i = 1; i < kNumDirs; i++) {
-    dd_manager_->MarkDataDirFailed(i);
-  }
-  ASSERT_EQ(kNumDirs, down_cast<AtomicGauge<uint64_t>*>(
-        entity_->FindOrNull(METRIC_data_dirs_failed).get())->value());
-  Status s = dd_manager_->CreateDataDirGroup(test_tablet_name_);
-  ASSERT_TRUE(s.IsIOError());
-  ASSERT_STR_CONTAINS(s.ToString(), "No healthy data directories available");
 }
 
 TEST_F(DataDirGroupTest, TestLoadBalancingDistribution) {
@@ -342,6 +348,118 @@ TEST_F(DataDirGroupTest, TestLoadBalancingBias) {
     }
   }
   ASSERT_TRUE(some_added_to_skewed_dirs);
+}
+
+class DataDirManagerTest : public DataDirsTest {
+ public:
+   DataDirManagerTest() :
+     test_roots_(JoinPathSegmentsV(GetDirNames(kNumDirs), "root")) {}
+
+  virtual void SetUp() override {
+    // Place the data roots one directory below the roots. The DataDirManager
+    // will only canonicalize the dirname of a data root. Placing the data root
+    // one layer below the test roots lets us test canonicalization failures.
+    dd_manager_.reset(new DataDirManager(env_, nullptr, kBlockType, test_roots_));
+  }
+
+ protected:
+  // The test roots. Data will be placed in a data directory within the root.
+  // E.g. Test root: /test_data_dir_0/root, Data dir: /test_data_dir_0/root/data
+  vector<string> test_roots_;
+
+  unique_ptr<DataDirManager> dd_manager_;
+};
+
+// Test ensuring that the directory manager not be created with failed disks.
+TEST_F(DataDirManagerTest, TestCreateWithFailedDirs) {
+  FLAGS_suicide_on_eio = false;
+  FLAGS_env_inject_eio = 1.0;
+  // Fail the directory containing the test root so canonicalization of the
+  // data root fails.
+  FLAGS_env_inject_eio_globs = DirName(test_roots_[0]);
+
+  ASSERT_OK(dd_manager_->Init());
+  Status s = dd_manager_->Create();
+  ASSERT_STR_CONTAINS(s.ToString(), "Cannot create directory manager with disks failed");
+  ASSERT_TRUE(s.IsIOError());
+  FLAGS_env_inject_eio = 0;
+}
+
+// Test ensuring that the directory manager can be opened with failed disks,
+// provided it was successfully created.
+TEST_F(DataDirManagerTest, TestOpenWithFailedDirs) {
+  ASSERT_OK(dd_manager_->Init());
+  // Create the roots if necessary. This will happen in the FsManager
+  // currently.
+  //
+  // TODO(awong): move this bit of logic to Create()? This already
+  // happens for the data dir, but not the root.
+  for (const string& test_root : test_roots_) {
+    ASSERT_OK(env_util::CreateDirIfMissing(env_, test_root));
+  }
+  ASSERT_OK(dd_manager_->Create());
+
+  FLAGS_suicide_on_eio = false;
+  FLAGS_env_inject_eio = 1.0;
+  FLAGS_env_inject_eio_globs = JoinPathSegments(test_roots_[0], "**");
+
+  // The directory manager will successfully open with a single failed directory.
+  ASSERT_OK(dd_manager_->Open());
+  set<uint16_t> failed_dirs;
+
+  // Ensure that the instance that failed to open is appropriately handled.
+  // It should be marked failed and other instances on healthy directories must
+  // store on disk that the directory has failed.
+  auto disks_durably_failed = [&] (int num_failed) {
+    failed_dirs = dd_manager_->GetFailedDataDirs();
+    ASSERT_EQ(num_failed, dd_manager_->GetFailedDataDirs().size());
+
+    // Check that the on-disk paths were successfully updated.
+    for (int i = 0; i < kNumDirs; i++) {
+      // A failed disk will not have been updated, so we can ignore them.
+      DataDir* dd = dd_manager_->FindDataDirByUuidIndex(i);
+      if (ContainsKey(failed_dirs, i)) {
+        continue;
+      }
+
+      // Read an instance from disk.
+      string instance_file = JoinPathSegments(dd->dir(), kInstanceMetadataFileName);
+      PathInstanceMetadataFile instance(env_, kBlockType, instance_file);
+      ASSERT_OK(instance.LoadFromDisk());
+
+      // The first directory should be failed and the rest should be healthy.
+      // Directories corresponding to failed UUID
+      for (int uuid_idx = 0; uuid_idx < kNumDirs; uuid_idx++) {
+        PathHealthStatePB expected_state =
+            ContainsKey(failed_dirs, uuid_idx) ? DISK_FAILED : HEALTHY;
+
+        // Ensure the instance's path set aligns with all the failed UUID
+        // indices reported by the directory manager.
+        PathPB path_pb = instance.metadata()->path_set().all_paths(uuid_idx);
+        ASSERT_EQ(expected_state, path_pb.health_state()) << pb_util::SecureDebugString(path_pb);
+      }
+    }
+  };
+  disks_durably_failed(1);
+
+  // Now fail almost all of the other directories, leaving one.
+  for (int i = 1; i < kNumDirs - 1; i++) {
+    // Completely change the failed directory and reopen the directory manager.
+    // The previously failed disks should durably failed.
+    FLAGS_env_inject_eio_globs = Substitute("$0,$1", FLAGS_env_inject_eio_globs,
+                                            JoinPathSegments(test_roots_[i], "**"));
+    ASSERT_OK(dd_manager_->Open());
+
+    // The directory manager should still be aware of the previously failed
+    // disk(s), as well as the newly failed on.
+    disks_durably_failed(i + 1);
+  }
+
+  // Ensure that when all data directories have failed, the server will crash.
+  FLAGS_env_inject_eio_globs = JoinStrings(JoinPathSegmentsV(test_roots_, "**"), ",");
+  Status s = dd_manager_->Open();
+  ASSERT_STR_CONTAINS(s.ToString(), "All data directories are marked failed due to disk failure");
+  ASSERT_TRUE(s.IsIOError());
 }
 
 } // namespace fs

@@ -51,6 +51,7 @@
 #include "kudu/util/oid_generator.h"
 #include "kudu/util/path_util.h"
 #include "kudu/util/random_util.h"
+#include "kudu/util/scoped_cleanup.h"
 #include "kudu/util/status.h"
 #include "kudu/util/stopwatch.h"
 #include "kudu/util/test_util_prod.h"
@@ -196,6 +197,7 @@ DataDir::DataDir(Env* env,
       pool_(std::move(pool)),
       is_shutdown_(false),
       is_full_(false) {
+
 }
 
 DataDir::~DataDir() {
@@ -222,7 +224,9 @@ void DataDir::ExecClosure(const Closure& task) {
 }
 
 void DataDir::WaitOnClosures() {
-  pool_->Wait();
+  if (pool_) {
+    pool_->Wait();
+  }
 }
 
 Status DataDir::RefreshIsFull(RefreshMode mode) {
@@ -269,7 +273,10 @@ Status DataDir::RefreshIsFull(RefreshMode mode) {
 }
 
 const char* DataDirManager::kDataDirName = "data";
-const char* kInvalidPath = "";
+
+// A path that has failed to canonicalize will be given an invalid prefix to
+// ensure that accessors will not use it. Those prefixed will fail to sanitize.
+const char* DataDirManager::kInvalidPrefix = "[  FAILED  ]";
 
 DataDirManager::DataDirManager(Env* env,
                                const scoped_refptr<MetricEntity>& metric_entity,
@@ -327,17 +334,27 @@ Status DataDirManager::Init() {
     // Strip the basename when canonicalizing, as it may not exist. The
     // dirname, however, must exist.
     string canonicalized;
-    RETURN_NOT_OK(env_->Canonicalize(DirName(root), &canonicalized));
+    Status s = env_->Canonicalize(DirName(root), &canonicalized);
+    if (PREDICT_FALSE(!s.ok())) {
+      if (s.IsDiskFailure()) {
+        // If we fail to canonicalize due to disk failure, insert an invalid
+        // root so we can still start up.
+        InsertOrDie(&data_root_map, root, Substitute("$0$1", kInvalidPrefix, root));
+        continue;
+      }
+      return s;
+    }
     canonicalized = JoinPathSegments(canonicalized, BaseName(root));
     InsertOrDie(&data_root_map, root, canonicalized);
   }
   data_root_map_.swap(data_root_map);
 
-  // All done, use the map to set the canonicalized state.
+  // All done, use the map to set the canonicalized state, ignoring paths that
+  // failed to canonicalize.
   set<string> data_fs_roots;
   for (const string& data_fs_root : data_fs_roots_) {
     string canonicalized_data_fs_root = FindOrDie(data_root_map_, data_fs_root);
-    if (!canonicalized_data_fs_root.empty()) {
+    if (FsManager::SanitizePath(canonicalized_data_fs_root).ok()) {
       data_fs_roots.insert(std::move(canonicalized_data_fs_root));
     }
   }
@@ -372,7 +389,6 @@ Status DataDirManager::Create() {
     // Ensure the data dirs exist and create the instance files.
     string data_dir = JoinPathSegments(root, kDataDirName);
     bool created;
-    // In test, this is the input path, IRL, this is the paths with kDataDirName
     RETURN_NOT_OK_PREPEND(env_util::CreateDirIfMissing(env_, data_dir, &created),
         Substitute("Could not create directory $0", data_dir));
     if (created) {
@@ -387,8 +403,9 @@ Status DataDirManager::Create() {
     string instance_filename = JoinPathSegments(data_dir, kInstanceMetadataFileName);
     PathInstanceMetadataFile metadata(env_, block_manager_type_,
                                       instance_filename);
-    RETURN_NOT_OK_PREPEND(metadata.Create(all_uuids[idx], all_uuids), instance_filename);
+    RETURN_NOT_OK(metadata.Create(all_uuids[idx], all_uuids, GetDataRootDirs()));
     delete_on_failure.push_front(new ScopedFileDeleter(env_, instance_filename));
+
     idx++;
   }
 
@@ -431,7 +448,7 @@ Status DataDirManager::Open() {
                                      instance_filename));
     RETURN_NOT_OK_PREPEND(instance->LoadFromDisk(),
                           Substitute("Could not open $0", instance_filename));
-    if (lock_mode != LockMode::NONE) {
+    if (instance->healthy() && lock_mode != LockMode::NONE) {
       Status s = instance->Lock();
       if (!s.ok()) {
         Status new_status = s.CloneAndPrepend(Substitute(
@@ -441,7 +458,22 @@ Status DataDirManager::Open() {
           LOG(WARNING) << "Proceeding without lock";
         } else {
           DCHECK(LockMode::MANDATORY == lock_mode);
-          RETURN_NOT_OK(new_status);
+          return new_status;
+        }
+      }
+    }
+
+    // Figure out what filesystem the data directory is on.
+    DataDirFsType fs_type = DataDirFsType::OTHER;
+    if (instance->healthy()) {
+      bool result;
+      RETURN_NOT_OK(env_->IsOnExtFilesystem(data_dir, &result));
+      if (result) {
+        fs_type = DataDirFsType::EXT;
+      } else {
+        RETURN_NOT_OK(env_->IsOnXfsFilesystem(data_dir, &result));
+        if (result) {
+          fs_type = DataDirFsType::XFS;
         }
       }
     }
@@ -453,55 +485,57 @@ Status DataDirManager::Open() {
                   .set_max_threads(1)
                   .Build(&pool));
 
-    // Figure out what filesystem the data directory is on.
-    DataDirFsType fs_type = DataDirFsType::OTHER;
-    bool result;
-    RETURN_NOT_OK(env_->IsOnExtFilesystem(data_dir, &result));
-    if (result) {
-      fs_type = DataDirFsType::EXT;
-    } else {
-      RETURN_NOT_OK(env_->IsOnXfsFilesystem(data_dir, &result));
-      if (result) {
-        fs_type = DataDirFsType::XFS;
-      }
-    }
-
     // Create the data directory in-memory structure itself.
     unique_ptr<DataDir> dd(new DataDir(
         env_, metrics_.get(), fs_type, data_dir,
         unique_ptr<PathInstanceMetadataFile>(instance.release()),
         unique_ptr<ThreadPool>(pool.release())));
 
-    // Initialize the 'fullness' status of the data directory.
-    RETURN_NOT_OK(dd->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
-
     dds.emplace_back(std::move(dd));
     i++;
   }
 
-  RETURN_NOT_OK_PREPEND(PathInstanceMetadataFile::CheckIntegrity(instances),
-      Substitute("Could not verify integrity of files: $0",
-                 JoinStrings(JoinPathSegmentsV(canonicalized_data_fs_roots_, kDataDirName), ",")));
+  // Check integrity and update all healthy instances to agree on a single path set.
+  set<int> updated_indices;
+  PathSetPB path_set;
+  RETURN_NOT_OK_PREPEND(PathInstanceMetadataFile::CheckIntegrity(instances,
+      &path_set, &updated_indices), Substitute("Could not verify integrity of files: $0",
+      JoinStrings(JoinPathSegmentsV(canonicalized_data_fs_roots_, kDataDirName), ",")));
 
   // Use the per-dir thread pools to delete temporary files in parallel.
   for (const auto& dd : dds) {
-    dd->ExecClosure(Bind(&DeleteTmpFilesRecursively, env_, dd->dir()));
+    if (dd->instance()->healthy()) {
+      dd->ExecClosure(Bind(&DeleteTmpFilesRecursively, env_, dd->dir()));
+    }
   }
   for (const auto& dd : dds) {
     dd->WaitOnClosures();
   }
 
-  // Build uuid index and data directory maps.
+  // Build in-memory maps of on-disk state.
+  UuidByRootMap uuid_by_root;
   UuidByUuidIndexMap uuid_by_idx;
   UuidIndexByUuidMap idx_by_uuid;
   UuidIndexMap dd_by_uuid_idx;
   ReverseUuidIndexMap uuid_idx_by_dd;
   TabletsByUuidIndexMap tablets_by_uuid_idx_map;
+  FailedDataDirSet failed_data_dirs;
+
+  // Create the map between UUID and root dirs.
+  for (int i = 0; i < path_set.all_paths_size(); i++) {
+    InsertOrDie(&uuid_by_root, DirName(path_set.all_paths(i).path()),
+        path_set.all_paths(i).uuid());
+  }
+
   for (const auto& dd : dds) {
-    const PathSetPB& path_set = dd->instance()->metadata()->path_set();
+    string uuid = FindOrDie(uuid_by_root, DirName(dd->dir()));
+    if (PREDICT_TRUE(dd->instance()->healthy())) {
+      CHECK_EQ(uuid, dd->instance()->metadata()->path_set().uuid());
+    }
     uint32_t idx = -1;
-    for (int i = 0; i < path_set.all_uuids_size(); i++) {
-      if (path_set.uuid() == path_set.all_uuids(i)) {
+    for (int i = 0; i < path_set.all_paths_size(); i++) {
+      if (uuid == path_set.all_paths(i).uuid()) {
+        CHECK_EQ(path_set.all_paths(i).path(), dd->dir());
         idx = i;
         break;
       }
@@ -511,12 +545,37 @@ Status DataDirManager::Open() {
       return Status::NotSupported(
           Substitute("Block manager supports a maximum of $0 paths", max_data_dirs));
     }
-    InsertOrDie(&uuid_by_idx, idx, path_set.uuid());
-    InsertOrDie(&idx_by_uuid, path_set.uuid(), idx);
+    InsertOrDie(&uuid_by_idx, idx, uuid);
+    InsertOrDie(&idx_by_uuid, uuid, idx);
     InsertOrDie(&dd_by_uuid_idx, idx, dd.get());
     InsertOrDie(&uuid_idx_by_dd, dd.get(), idx);
     InsertOrDie(&tablets_by_uuid_idx_map, idx, {});
+    if (PREDICT_FALSE(path_set.all_paths(idx).health_state() == PathHealthStatePB::DISK_FAILED)) {
+      if (metrics_) {
+        metrics_->data_dirs_failed->IncrementBy(1);
+      }
+      InsertOrDie(&failed_data_dirs, idx);
+    }
   }
+
+  // Update any instances that need to be synced with the main path set.
+  path_set_.Swap(&path_set);
+  auto path_set_reset = MakeScopedCleanup([&] {
+    path_set_.Swap(&path_set);
+  });
+  if (PREDICT_FALSE(!updated_indices.empty())) {
+    LOG(INFO) << Substitute("$0 path instances that need updating", updated_indices.size());
+    if (mode_ == AccessMode::READ_ONLY) {
+      LOG(ERROR) << Substitute("Could not write $0 new instance files; filesystem opened in "
+                               "read-only mode", updated_indices.size());
+    } else {
+      RETURN_NOT_OK_PREPEND(UpdateInstanceFiles(instances, updated_indices),
+          "Could not update instance files when opening directory manager");
+    }
+  }
+  path_set_reset.cancel();
+  LOG(INFO) << pb_util::SecureDebugString(path_set_);
+
   data_dirs_.swap(dds);
   uuid_by_idx_.swap(uuid_by_idx);
   idx_by_uuid_.swap(idx_by_uuid);
@@ -524,6 +583,88 @@ Status DataDirManager::Open() {
   uuid_idx_by_data_dir_.swap(uuid_idx_by_dd);
   tablets_by_uuid_idx_map_.swap(tablets_by_uuid_idx_map);
   group_by_tablet_map_.clear();
+  failed_data_dirs_.swap(failed_data_dirs);
+  uuid_by_root_.swap(uuid_by_root);
+
+  // From this point onwards, the above in-memory maps must be consistent with
+  // the main path set.
+
+  // Use the per-dir thread pools to delete temporary files in parallel.
+  for (const auto& dd : data_dirs_) {
+    uint16_t uuid_idx;
+    DCHECK(FindUuidIndexByDataDir(dd.get(), &uuid_idx));
+    if (ContainsKey(failed_data_dirs_, uuid_idx)) {
+      continue;
+    }
+    // Initialize the 'fullness' status of the data directory.
+    Status refresh_status = dd->RefreshIsFull(DataDir::RefreshMode::ALWAYS);
+    if (PREDICT_FALSE(!refresh_status.ok())) {
+      if (refresh_status.IsDiskFailure()) {
+        MarkDataDirFailed(uuid_idx);
+        continue;
+      }
+      return refresh_status;
+    }
+    if (!IsDataDirFailed(uuid_idx)) {
+      dd->ExecClosure(Bind(&DeleteTmpFilesRecursively, env_, dd->dir()));
+    }
+  }
+  for (const auto& dd : data_dirs_) {
+    dd->WaitOnClosures();
+  }
+
+  return Status::OK();
+}
+
+Status DataDirManager::UpdateInstanceFiles(const vector<PathInstanceMetadataFile*>& instances,
+                                           set<int> updated_indices) {
+  // Determine the initial set of healthy instances, as seen by the path_set.
+  set<int> healthy_indices;
+  for (int uuid_idx = 0; uuid_idx < path_set_.all_paths_size(); uuid_idx++) {
+    if (path_set_.all_paths(uuid_idx).health_state() == PathHealthStatePB::HEALTHY) {
+      string healthy_path = path_set_.all_paths(uuid_idx).path();
+      for (int idx = 0; idx < instances.size(); idx++) {
+        if (instances[idx]->path() == healthy_path) {
+          healthy_indices.insert(idx);
+          break;
+        }
+      }
+    }
+  }
+
+  // Attempt to write the instances that need updating.
+  set<int> indices_to_update(std::move(updated_indices));
+  while (!indices_to_update.empty()) {
+    uint16_t idx_to_update = *indices_to_update.begin();
+    // If the instance is known to be on a failed disk, don't bother updating it.
+    if (!ContainsKey(healthy_indices, idx_to_update)) {
+      indices_to_update.erase(idx_to_update);
+      continue;
+    }
+    // Update the in-memory instance and flush to disk.
+    PathInstanceMetadataFile* instance = instances[idx_to_update];
+    instance->metadata()->mutable_path_set()->mutable_all_paths()->CopyFrom(path_set_.all_paths());
+    const Status& s = instance->UpdateOnDisk();
+    if (PREDICT_FALSE(!s.ok())) {
+      if (s.IsDiskFailure()) {
+        instance->SetInstanceFailed();
+        // Remove the failed instance from the list of healthy instances and
+        // refresh the list of instances that need to be written.
+        path_set_.mutable_all_paths(idx_to_update)->set_health_state(
+            PathHealthStatePB::DISK_FAILED);
+        indices_to_update.erase(idx_to_update);
+        healthy_indices.erase(idx_to_update);
+        // All healthy instances need to be re-written.
+        indices_to_update.insert(healthy_indices.begin(), healthy_indices.end());
+        continue;
+      }
+      return s;
+    }
+    indices_to_update.erase(idx_to_update);
+    if (healthy_indices.empty()) {
+      return Status::IOError("Could not write disk states, all disks failed");
+    }
+  }
   return Status::OK();
 }
 
@@ -563,10 +704,9 @@ Status DataDirManager::CreateDataDirGroup(const string& tablet_id,
     if (PREDICT_FALSE(!failed_data_dirs_.empty())) {
       group_target_size = std::min(group_target_size,
           static_cast<int>(data_dirs_.size()) - static_cast<int>(failed_data_dirs_.size()));
-      DCHECK_GE(group_target_size, 0);
-      if (group_target_size == 0) {
-        return Status::IOError("No healthy data directories available", "", ENODEV);
-      }
+
+      // A size of 0 would indicate no healthy disks, which should crash the server.
+      CHECK_GT(group_target_size, 0);
     }
     RETURN_NOT_OK(GetDirsForGroupUnlocked(group_target_size, &group_indices));
     if (PREDICT_FALSE(group_indices.empty())) {
@@ -589,7 +729,7 @@ Status DataDirManager::CreateDataDirGroup(const string& tablet_id,
 Status DataDirManager::GetNextDataDir(const CreateBlockOptions& opts, DataDir** dir) {
   shared_lock<rw_spinlock> lock(dir_group_lock_.get_lock());
   const vector<uint16_t>* group_uuid_indices;
-  vector<uint16_t> valid_uuid_indices;
+  vector<uint16_t> healthy_uuid_indices;
   if (PREDICT_TRUE(!opts.tablet_id.empty())) {
     // Get the data dir group for the tablet.
     DataDirGroup* group = FindOrNull(group_by_tablet_map_, opts.tablet_id);
@@ -600,9 +740,9 @@ Status DataDirManager::GetNextDataDir(const CreateBlockOptions& opts, DataDir** 
     if (PREDICT_TRUE(failed_data_dirs_.empty())) {
       group_uuid_indices = &group->uuid_indices();
     } else {
-      RemoveUnhealthyDataDirsUnlocked(group->uuid_indices(), &valid_uuid_indices);
-      group_uuid_indices = &valid_uuid_indices;
-      if (valid_uuid_indices.empty()) {
+      RemoveUnhealthyDataDirsUnlocked(group->uuid_indices(), &healthy_uuid_indices);
+      group_uuid_indices = &healthy_uuid_indices;
+      if (healthy_uuid_indices.empty()) {
         return Status::IOError("No healthy directories exist in tablet's "
                                "directory group", opts.tablet_id, ENODEV);
       }
@@ -611,8 +751,8 @@ Status DataDirManager::GetNextDataDir(const CreateBlockOptions& opts, DataDir** 
     // This should only be reached by some tests; in cases where there is no
     // natural tablet_id, select a data dir from any of the directories.
     CHECK(IsGTest());
-    AppendKeysFromMap(data_dir_by_uuid_idx_, &valid_uuid_indices);
-    group_uuid_indices = &valid_uuid_indices;
+    AppendKeysFromMap(data_dir_by_uuid_idx_, &healthy_uuid_indices);
+    group_uuid_indices = &healthy_uuid_indices;
   }
   vector<int> random_indices(group_uuid_indices->size());
   iota(random_indices.begin(), random_indices.end(), 0);
@@ -622,7 +762,14 @@ Status DataDirManager::GetNextDataDir(const CreateBlockOptions& opts, DataDir** 
   for (int i : random_indices) {
     uint16_t uuid_idx = (*group_uuid_indices)[i];
     DataDir* candidate = FindOrDie(data_dir_by_uuid_idx_, uuid_idx);
-    RETURN_NOT_OK(candidate->RefreshIsFull(DataDir::RefreshMode::EXPIRED_ONLY));
+    Status s = candidate->RefreshIsFull(DataDir::RefreshMode::EXPIRED_ONLY);
+    if (PREDICT_FALSE(!s.ok())) {
+      if (s.IsDiskFailure()) {
+        dir_group_lock_.unlock();
+        MarkDataDirFailed(uuid_idx);
+      }
+      return s;
+    }
     if (!candidate->is_full()) {
       *dir = candidate;
       return Status::OK();
@@ -632,10 +779,13 @@ Status DataDirManager::GetNextDataDir(const CreateBlockOptions& opts, DataDir** 
   if (PREDICT_TRUE(!opts.tablet_id.empty())) {
     tablet_id_str = Substitute("$0's ", opts.tablet_id);
   }
-  return Status::IOError(Substitute("No directories available to add to $0directory group ($1 dirs "
-                         "total, $2 full, $3 failed).", tablet_id_str, data_dirs_.size(),
-                         metrics_->data_dirs_full.get(), metrics_->data_dirs_failed.get()), "",
-                         ENOSPC);
+  string dirs_state_str = Substitute("$0 failed", failed_data_dirs_.size());
+  if (metrics_) {
+    dirs_state_str = Substitute("$0 full, $1", metrics_->data_dirs_full.get(), dirs_state_str);
+  }
+  return Status::IOError(Substitute("No directories available to add to $0directory group ($1 "
+                        "dirs total, $2).", tablet_id_str, data_dirs_.size(), dirs_state_str),
+                        "", ENOSPC);
 }
 
 void DataDirManager::DeleteDataDirGroup(const std::string& tablet_id) {
@@ -664,12 +814,21 @@ bool DataDirManager::GetDataDirGroupPB(const std::string& tablet_id,
 
 Status DataDirManager::GetDirsForGroupUnlocked(int target_size,
                                                vector<uint16_t>* group_indices) {
+  DCHECK(dir_group_lock_.is_locked());
   vector<uint16_t> candidate_indices;
   for (auto& e : data_dir_by_uuid_idx_) {
-    RETURN_NOT_OK(e.second->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
+    Status s = e.second->RefreshIsFull(DataDir::RefreshMode::ALWAYS);
     // TODO(awong): If a disk is unhealthy at the time of group creation, the
     // resulting group may be below targeted size. Add functionality to resize
     // groups. See KUDU-2040 for more details.
+    if (PREDICT_FALSE(!s.ok())) {
+      if (s.IsDiskFailure()) {
+        dir_group_lock_.unlock();
+        MarkDataDirFailed(e.first);
+        std::lock_guard<percpu_rwlock> write_lock(dir_group_lock_);
+      }
+      return s;
+    }
     if (!e.second->is_full() && !ContainsKey(failed_data_dirs_, e.first)) {
       candidate_indices.push_back(e.first);
     }
@@ -702,6 +861,10 @@ bool DataDirManager::FindUuidIndexByUuid(const string& uuid, uint16_t* uuid_idx)
   return FindCopy(idx_by_uuid_, uuid, uuid_idx);
 }
 
+bool DataDirManager::FindUuidByRoot(const string& root, string* uuid) const {
+  return FindCopy(uuid_by_root_, root, uuid);
+}
+
 set<string> DataDirManager::FindTabletsByDataDirUuidIdx(uint16_t uuid_idx) {
   DCHECK_LT(uuid_idx, data_dirs_.size());
   shared_lock<rw_spinlock> lock(dir_group_lock_.get_lock());
@@ -713,11 +876,15 @@ set<string> DataDirManager::FindTabletsByDataDirUuidIdx(uint16_t uuid_idx) {
 }
 
 void DataDirManager::MarkDataDirFailed(uint16_t uuid_idx, const string& error_message) {
+  CHECK(AccessMode::READ_WRITE == mode_) << "Cannot handle disk failures; filesystem is "
+                                            "opened in read-only mode";
   DCHECK_LT(uuid_idx, data_dirs_.size());
   std::lock_guard<percpu_rwlock> lock(dir_group_lock_);
   DataDir* dd = FindDataDirByUuidIndex(uuid_idx);
   DCHECK(dd);
+  vector<DataDir*> dirs_to_update;
   if (InsertIfNotPresent(&failed_data_dirs_, uuid_idx)) {
+    CHECK_NE(failed_data_dirs_.size(), data_dirs_.size()) << "All data dirs have failed";
     if (metrics_) {
       metrics_->data_dirs_failed->IncrementBy(1);
     }
@@ -726,6 +893,36 @@ void DataDirManager::MarkDataDirFailed(uint16_t uuid_idx, const string& error_me
       error_prefix = Substitute("$0: ", error_message);
     }
     LOG(ERROR) << error_prefix << Substitute("Directory $0 marked as failed", dd->dir());
+
+    // Set the health in path_set_. Disks should only be marked FAILED once.
+    DCHECK_EQ(path_set_.mutable_all_paths(uuid_idx)->health_state(), PathHealthStatePB::HEALTHY);
+    path_set_.mutable_all_paths(uuid_idx)->set_health_state(PathHealthStatePB::DISK_FAILED);
+    dirs_to_update = UpdatePathHealthStatesUnlocked();
+    WritePathHealthStates(dirs_to_update);
+  }
+}
+
+vector<DataDir*> DataDirManager::UpdatePathHealthStatesUnlocked() {
+  DCHECK(dir_group_lock_.is_locked());
+  vector<DataDir*> to_update;
+  for (auto& e : data_dir_by_uuid_idx_) {
+    if (ContainsKey(failed_data_dirs_, e.first)) {
+      continue;
+    }
+    PathSetPB* instance_path_set = e.second->instance()->metadata()->mutable_path_set();
+    instance_path_set->mutable_all_paths()->CopyFrom(path_set_.all_paths());
+    to_update.emplace_back(e.second);
+  }
+  return to_update;
+}
+
+void DataDirManager::WritePathHealthStates(const vector<DataDir*>& dirs_to_update) {
+  CHECK(AccessMode::READ_WRITE == mode_) << "Cannot write path health states; filesystem opened "
+                                            "in read-only mode";
+  // We ignore the results here with the assumption that disk failures will
+  // surface errors in places with more complete error-handling coverage.
+  for (DataDir* dir : dirs_to_update) {
+    WARN_NOT_OK(dir->instance()->UpdateOnDisk(), "Failed to write new instance");
   }
 }
 

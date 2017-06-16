@@ -156,11 +156,17 @@ class DataDir {
   };
   Status RefreshIsFull(RefreshMode mode);
 
+  void SetFailed();
+
   DataDirFsType fs_type() const { return fs_type_; }
 
   const std::string& dir() const { return dir_; }
 
   const PathInstanceMetadataFile* instance() const {
+    return metadata_file_.get();
+  }
+
+  PathInstanceMetadataFile* mutable_instance() {
     return metadata_file_.get();
   }
 
@@ -196,16 +202,17 @@ class DataDirManager {
   static const int kFlagCreateFsync = 0x2;
 
   static const char* kDataDirName;
-
-  enum AccessMode {
-    READ_ONLY,
-    READ_WRITE
-  };
+  static const char* kInvalidPrefix;
 
   enum class LockMode {
     MANDATORY,
     OPTIONAL,
     NONE,
+  };
+
+  enum class AccessMode {
+    READ_ONLY,
+    READ_WRITE
   };
 
   enum class DirDistributionMode {
@@ -331,8 +338,8 @@ class DataDirManager {
   // Finds a uuid index by UUID, returning false if it can't be found.
   bool FindUuidIndexByUuid(const std::string& uuid, uint16_t* uuid_idx) const;
 
-  // Finds a root directory by its uuid index.
-  bool FindRootByUuidIndex(uint16_t uuid_idx, std::string* root) const;
+  // Finds the UUID for the given canonicalized root directory name.
+  bool FindUuidByRoot(const std::string& root, std::string* uuid) const;
 
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
@@ -360,6 +367,22 @@ class DataDirManager {
   void RemoveUnhealthyDataDirsUnlocked(const std::vector<uint16_t>& uuid_indices,
                                        std::vector<uint16_t>* healthy_indices) const;
 
+  // Writes the disk health states to all healthy instances. Must be called
+  // when dir_group_lock_ is held.
+  void WritePathHealthStates(const std::vector<DataDir*>& dirs_to_update);
+
+  // Synchronizes the in-memory path sets to match the currently failed dirs.
+  std::vector<DataDir*> UpdatePathHealthStatesUnlocked();
+
+  // Writes instances denoted by 'updated_indices' to reflect the failed dirs
+  // as seen by 'path_set_'. If any instance fails in the process, 'path_set_'
+  // will be updated and the remaining healthy disks will be updated.
+  //
+  // Note that this should be used before tablets' directory groups are
+  // registered.
+  Status UpdateInstanceFiles(const std::vector<PathInstanceMetadataFile*>& instances,
+                             std::set<int> updated_indices);
+
   Env* env_;
   const std::string block_manager_type_;
 
@@ -382,6 +405,9 @@ class DataDirManager {
   RootMap data_root_map_;
 
   std::vector<std::unique_ptr<DataDir>> data_dirs_;
+
+  typedef std::unordered_map<std::string, std::string> UuidByRootMap;
+  UuidByRootMap uuid_by_root_;
 
   typedef std::unordered_map<uint16_t, DataDir*> UuidIndexMap;
   UuidIndexMap data_dir_by_uuid_idx_;
@@ -407,6 +433,12 @@ class DataDirManager {
   // attempting to write (e.g. to create a new tablet, thereby creating a new
   // data directory group) block all threads.
   mutable percpu_rwlock dir_group_lock_;
+
+  // Lock protecting writes to all the directories' instance files.
+  Mutex write_instance_mutex_;
+
+  // The DataDirManager's view of what each path set should look like.
+  PathSetPB path_set_;
 
   // RNG used to select directories.
   ThreadSafeRandom rng_;

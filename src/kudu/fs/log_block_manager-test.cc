@@ -32,6 +32,7 @@
 #include "kudu/gutil/strings/strip.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/gutil/strings/util.h"
+#include "kudu/util/env_util.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/path_util.h"
 #include "kudu/util/pb_util.h"
@@ -48,11 +49,14 @@ using strings::Substitute;
 
 DECLARE_int64(block_manager_max_open_files);
 DECLARE_bool(cache_force_single_shard);
+DECLARE_bool(suicide_on_eio);
+DECLARE_double(env_inject_eio);
 DECLARE_double(log_container_excess_space_before_cleanup_fraction);
 DECLARE_double(log_container_live_metadata_before_compact_ratio);
 DECLARE_int64(log_container_max_blocks);
 DECLARE_uint64(log_container_preallocate_bytes);
 DECLARE_uint64(log_container_max_size);
+DECLARE_string(env_inject_eio_globs);
 
 // Log block manager metrics.
 METRIC_DECLARE_gauge_uint64(log_block_manager_bytes_under_management);
@@ -1266,6 +1270,48 @@ TEST_F(LogBlockManagerTest, TestDeleteFromContainerAfterMetadataCompaction) {
   ASSERT_OK(ReopenBlockManager(nullptr, &report));
   ASSERT_EQ(0, report.stats.live_block_count);
   ASSERT_EQ(0, report.stats.live_block_bytes_aligned);
+}
+
+// Test to ensure that if a directory cannot be read from, its startup process
+// will run smoothly. The directory manager will note the failed directories
+// and open only the healthy ones.
+TEST_F(LogBlockManagerTest, TestOpenWithFailedDirectories) {
+  bm_.reset();
+
+  // Initialize a new directory manager with multiple directories.
+  vector<string> test_dirs;
+  int kNumDirs = 5;
+  for (int i = 0; i < kNumDirs; i++) {
+    string dir = GetTestPath(Substitute("test_dir_$0", i));
+    ASSERT_OK(env_util::CreateDirIfMissing(env_, dir));
+    test_dirs.emplace_back(std::move(dir));
+  }
+  dd_manager_.reset(new DataDirManager(env_, nullptr, "log", test_dirs));
+  ASSERT_OK(dd_manager_->Init());
+  ASSERT_OK(dd_manager_->Create());
+
+  // Fail one of the directories, chosen randomly.
+  FLAGS_suicide_on_eio = false;
+  FLAGS_env_inject_eio = 1.0;
+  Random rand(SeedRandom());
+  int failed_idx = rand.Next() % kNumDirs;
+  FLAGS_env_inject_eio_globs = JoinPathSegments(test_dirs[failed_idx], "**");
+  ASSERT_OK(dd_manager_->Open());
+  ASSERT_EQ(1, dd_manager_->GetFailedDataDirs().size());
+
+  // Ensure the proper directory was marked as failed.
+  string uuid;
+  uint16_t uuid_idx;
+  ASSERT_TRUE(dd_manager_->FindUuidByRoot(test_dirs[failed_idx], &uuid));
+  ASSERT_TRUE(dd_manager_->FindUuidIndexByUuid(uuid, &uuid_idx));
+  ASSERT_TRUE(dd_manager_->IsDataDirFailed(uuid_idx));
+
+  // Check the directories were properly reported, with one directory failed.
+  FsReport report;
+  bm_.reset(CreateBlockManager(nullptr));
+  ASSERT_OK(bm_->Open(&report));
+  ASSERT_EQ(kNumDirs - 1, report.data_dirs.size());
+  FLAGS_env_inject_eio = 0;
 }
 
 } // namespace fs

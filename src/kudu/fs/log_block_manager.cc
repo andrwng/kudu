@@ -1533,6 +1533,12 @@ Status LogBlockManager::Open(FsReport* report) {
   // filesystem, and gflags information.
   for (const auto& dd : dd_manager_->data_dirs()) {
     boost::optional<int64_t> limit;
+    uint16_t uuid_idx;
+    dd_manager_->FindUuidIndexByDataDir(dd.get(), &uuid_idx);
+    if (dd_manager_->IsDataDirFailed(uuid_idx)) {
+      // Blocks should not be placed in failed directories.
+      limit = 0;
+    }
     if (FLAGS_log_container_max_blocks == -1) {
       // No limit, unless this is KUDU-1508.
 
@@ -1570,8 +1576,17 @@ Status LogBlockManager::Open(FsReport* report) {
 
   vector<FsReport> reports(dd_manager_->data_dirs().size());
   vector<Status> statuses(dd_manager_->data_dirs().size());
-  int i = 0;
+  vector<uint16_t> uuid_indices(dd_manager_->data_dirs().size());
+  int i = -1;
   for (const auto& dd : dd_manager_->data_dirs()) {
+    i++;
+    uint16_t uuid_idx;
+    DCHECK(dd_manager_->FindUuidIndexByDataDir(dd.get(), &uuid_idx));
+    if (dd_manager_->IsDataDirFailed(uuid_idx)) {
+      statuses[i] = Status::IOError("Data directory failed", "", EIO);
+      continue;
+    }
+    uuid_indices[i] = uuid_idx;
     // Open the data dir asynchronously.
     dd->ExecClosure(
         Bind(&LogBlockManager::OpenDataDir,
@@ -1579,7 +1594,6 @@ Status LogBlockManager::Open(FsReport* report) {
              dd.get(),
              &reports[i],
              &statuses[i]));
-    i++;
   }
 
   // Wait for the opens to complete.
@@ -1604,8 +1618,8 @@ Status LogBlockManager::Open(FsReport* report) {
     if (!s.IsDiskFailure()) {
       return s;
     }
-    LOG(ERROR) << Substitute("Not using report from $0: $1",
-        dd_manager_->data_dirs()[i]->dir(), s.ToString());
+    string dir_name = dd_manager_->FindDataDirByUuidIndex(uuid_indices[i])->dir();
+    LOG(ERROR) << Substitute("Not using report from $0: $1", dir_name, s.ToString());
   }
 
   // Either return or log the report.
