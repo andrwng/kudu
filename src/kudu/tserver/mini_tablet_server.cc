@@ -19,10 +19,12 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <gflags/gflags_declare.h>
 
 #include "kudu/consensus/metadata.pb.h"
+#include "kudu/gutil/strings/join.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/tablet-test-util.h"
 #include "kudu/tserver/tablet_server.h"
@@ -44,15 +46,26 @@ namespace kudu {
 namespace tserver {
 
 MiniTabletServer::MiniTabletServer(const string& fs_root,
-                                   uint16_t rpc_port) {
+                                   uint16_t rpc_port,
+                                   uint32_t num_data_dirs) {
+
   // Disable minidump handler (we allow only one per process).
   FLAGS_enable_minidumps = false;
   // Start RPC server on loopback.
   FLAGS_rpc_server_allow_ephemeral_ports = true;
   opts_.rpc_opts.rpc_bind_addresses = Substitute("127.0.0.1:$0", rpc_port);
   opts_.webserver_opts.port = 0;
-  opts_.fs_opts.wal_path = fs_root;
-  opts_.fs_opts.data_paths = { fs_root };
+  if (num_data_dirs == 1) {
+    opts_.fs_opts.wal_path = fs_root;
+    opts_.fs_opts.data_paths = { fs_root };
+  } else {
+    std::vector<string> fs_data_dirs;
+    for (uint32_t dir = 0; dir < num_data_dirs; dir++) {
+      fs_data_dirs.emplace_back(Substitute("$0_data_dir-$1", fs_root, dir));
+    }
+    opts_.fs_opts.wal_path = Substitute("$0_wal_dir", fs_root);
+    opts_.fs_opts.data_paths = fs_data_dirs;
+  }
 }
 
 MiniTabletServer::~MiniTabletServer() {

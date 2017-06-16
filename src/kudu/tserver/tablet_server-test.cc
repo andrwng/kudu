@@ -2483,5 +2483,18 @@ TEST_F(TabletServerTest, TestDataDirGroupsCreated) {
   ASSERT_TRUE(md.Compare(orig_group, new_group));
 }
 
+TEST_F(TabletServerTest, TestMultiDirServer) {
+  // The default tablet server will place everything in a single directory.
+  ASSERT_STR_NOT_CONTAINS(mini_server_->server()->fs_manager()->GetWalsRootDir(), "wal_dir");
+  ASSERT_EQ(1, mini_server_->server()->fs_manager()->GetDataRootDirs().size());
+  ASSERT_EQ(DirName(mini_server_->server()->fs_manager()->GetDataRootDirs()[0]),
+      DirName(mini_server_->server()->fs_manager()->GetWalsRootDir()));
+
+  const uint32_t kNumDataDirs = 3;
+  StartTabletServer(kNumDataDirs);
+  ASSERT_STR_CONTAINS(mini_server_->server()->fs_manager()->GetWalsRootDir(), "wal_dir");
+  ASSERT_EQ(kNumDataDirs, mini_server_->server()->fs_manager()->GetDataRootDirs().size());
+}
+
 } // namespace tserver
 } // namespace kudu
