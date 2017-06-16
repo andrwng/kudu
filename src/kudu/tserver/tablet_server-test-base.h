@@ -97,10 +97,11 @@ class TabletServerTestBase : public KuduTest {
     ASSERT_OK(bld.Build(&client_messenger_));
   }
 
-  virtual void StartTabletServer() {
+  virtual void StartTabletServer(uint32_t num_data_dirs = 1) {
     // Start server with an invalid master address, so it never successfully
     // heartbeats, even if there happens to be a master running on this machine.
-    mini_server_.reset(new MiniTabletServer(GetTestPath("TabletServerTest-fsroot"), 0));
+    mini_server_.reset(new MiniTabletServer(GetTestPath("TabletServerTest-fsroot"),
+        0, num_data_dirs));
     mini_server_->options()->master_addresses.clear();
     mini_server_->options()->master_addresses.emplace_back("255.255.255.255", 1);
     ASSERT_OK(mini_server_->Start());
