@@ -133,6 +133,9 @@ Status WriteTransaction::Apply(gscoped_ptr<CommitMsg>* commit_msg) {
   Tablet* tablet = state()->tablet_replica()->tablet();
 
   tablet->ApplyRowOperations(state());
+  if (tablet->IsDataInFailedDir()) {
+    return Status::IOError("Data is in failed directory");
+  }
 
   // Add per-row errors to the result, update metrics.
   int i = 0;

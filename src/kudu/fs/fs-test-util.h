@@ -83,6 +83,10 @@ class CountingReadableBlock : public ReadableBlock {
     return block_->memory_footprint();
   }
 
+  void HandleError(const Status& s, DataDir* dir) const override {
+    return;
+  }
+
  private:
   std::unique_ptr<ReadableBlock> block_;
   size_t* bytes_read_;
