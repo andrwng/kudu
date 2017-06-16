@@ -1415,7 +1415,8 @@ LogBlockManager::LogBlockManager(Env* env,
   : mem_tracker_(MemTracker::CreateTracker(-1,
                                            "log_block_manager",
                                            opts.parent_mem_tracker)),
-    dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths),
+    dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths, opts.read_only ?
+        DataDirManager::AccessMode::READ_ONLY : DataDirManager::AccessMode::READ_WRITE),
     error_manager_(DCHECK_NOTNULL(error_manager)),
     file_cache_("lbm", env, GetFileCacheCapacityForBlockManager(env),
                 opts.metric_entity),
@@ -1489,7 +1490,12 @@ Status LogBlockManager::Open(FsReport* report) {
   // filesystem, and gflags information.
   for (const auto& dd : dd_manager_.data_dirs()) {
     boost::optional<int64_t> limit;
-
+    uint16_t uuid_idx;
+    dd_manager_.FindUuidIndexByDataDir(dd.get(), &uuid_idx);
+    if (dd_manager_.IsDataDirFailed(uuid_idx)) {
+      // Blocks should not be placed in failed directories.
+      limit = 0;
+    }
     if (FLAGS_log_container_max_blocks == -1) {
       // No limit, unless this is KUDU-1508.
 
@@ -1527,8 +1533,13 @@ Status LogBlockManager::Open(FsReport* report) {
 
   vector<FsReport> reports(dd_manager_.data_dirs().size());
   vector<Status> statuses(dd_manager_.data_dirs().size());
-  int i = 0;
+  int i = -1;
   for (const auto& dd : dd_manager_.data_dirs()) {
+    i++;
+    if (dd_manager_.IsDataDirFailed(i)) {
+      statuses[i] = Status::IOError("Data directory failed", "", EIO);
+      continue;
+    }
     // Open the data dir asynchronously.
     dd->ExecClosure(
         Bind(&LogBlockManager::OpenDataDir,
@@ -1536,7 +1547,6 @@ Status LogBlockManager::Open(FsReport* report) {
              dd.get(),
              &reports[i],
              &statuses[i]));
-    i++;
   }
 
   // Wait for the opens to complete.

@@ -38,21 +38,49 @@ message InstanceMetadataPB {
   // TODO: add a "node type" (TS/Master?)
 }
 
+// The health state of a path's underlying filesystem.
+enum PathHealthStatePB {
+  HEALTHY = 0;
+  DISK_FAILED = 1;
+}
+
+// Describes the state of a single path.
+message PathPB {
+  // Globally unique identifier for an on-disk path.
+  required bytes uuid = 1;
+
+  // Path that corresponds to the UUID.
+  required bytes path = 2;
+
+  // Health state of the path.
+  required PathHealthStatePB health_state = 3;
+}
+
 // Describes a collection of filesystem path instances and the membership of a
 // particular instance in the collection.
 //
 // In a healthy filesystem (see below), a path instance can be referred to via
-// its UUID's position in all_uuids instead of via the UUID itself. This is
+// its UUID's position in all_paths instead of via the UUID itself. This is
 // useful when there are many such references, as the position is much shorter
 // than the UUID.
 message PathSetPB {
   // Globally unique identifier for this path instance.
   required bytes uuid = 1;
 
-  // All UUIDs in this path instance set. In a healthy filesystem:
-  // 1. There exists an on-disk PathInstanceMetadataPB for each listed UUID, and
-  // 2. Every PathSetPB contains an identical copy of all_uuids.
-  repeated bytes all_uuids = 2;
+  repeated bytes all_uuids = 2; // Deprecated field used before Kudu 1.5.0.
+
+  // All PathPBs corresponding to each path in this path instance set.
+  // In a healthy filesystem,
+  // 1. There is an on-disk PathInstanceMetadataPB for each healthy UUID,
+  // 2. All PathSetPBs' UUIDs exist in the 'all_paths' belonging to the
+  //    PathSetPB with the highest 'timestamp_us',
+  // 3. There is no PathPB whose 'path' and 'uuid' are inconsistent with the
+  //    on-disk location of a PathInstanceMetadataPB and its PathSetPB's UUID.
+  repeated PathPB all_paths = 3;
+
+  // Timestamp indicating when this path set was last written, expressed in
+  // microseconds since the epoch.
+  optional uint64 timestamp_us = 4;
 }
 
 // A filesystem instance can contain multiple paths. One of these structures

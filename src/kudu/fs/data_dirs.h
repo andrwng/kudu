@@ -156,6 +156,8 @@ class DataDir {
   };
   Status RefreshIsFull(RefreshMode mode);
 
+  void SetFailed();
+
   DataDirFsType fs_type() const { return fs_type_; }
 
   const std::string& dir() const { return dir_; }
@@ -164,10 +166,16 @@ class DataDir {
     return metadata_file_.get();
   }
 
+  PathInstanceMetadataFile* mutable_instance() {
+    return metadata_file_.get();
+  }
+
   bool is_full() const {
     std::lock_guard<simple_spinlock> l(lock_);
     return is_full_;
   }
+
+  bool is_failed() const;
 
  private:
   Env* env_;
@@ -178,6 +186,7 @@ class DataDir {
   const std::unique_ptr<ThreadPool> pool_;
 
   bool is_shutdown_;
+  bool is_failed_;
 
   // Protects 'last_check_is_full_' and 'is_full_'.
   mutable simple_spinlock lock_;
@@ -201,6 +210,11 @@ class DataDirManager {
     NONE,
   };
 
+  enum class AccessMode {
+    READ_ONLY,
+    READ_WRITE
+  };
+
   enum class DirDistributionMode {
     ACROSS_ALL_DIRS,
     USE_FLAG_SPEC,
@@ -209,7 +223,8 @@ class DataDirManager {
   DataDirManager(Env* env,
                  scoped_refptr<MetricEntity> metric_entity,
                  std::string block_manager_type,
-                 std::vector<std::string> paths);
+                 std::vector<std::string> paths,
+                 AccessMode mode);
   ~DataDirManager();
 
   // Shuts down all directories' thread pools.
@@ -315,20 +330,37 @@ class DataDirManager {
   // added. Although this function does not itself change DataDirManager state,
   // its expected usage warrants that it is called within the scope of a
   // lock_guard of dir_group_lock_.
-  Status GetDirsForGroupUnlocked(int target_size, vector<uint16_t>* group_indices);
+  Status GetDirsForGroupUnlocked(int target_size, std::vector<uint16_t>* group_indices);
 
   // Goes through the data dirs in 'uuid_indices' and populates
   // 'healthy_indices' with those that haven't failed.
-  void RemoveUnhealthyDataDirsUnlocked(const vector<uint16_t>& uuid_indices,
-                                       vector<uint16_t>* healthy_indices) const;
+  void RemoveUnhealthyDataDirsUnlocked(const std::vector<uint16_t>& uuid_indices,
+                                       std::vector<uint16_t>* healthy_indices) const;
+
+  // Writes the disk health states to all healthy instances. Must be called
+  // when dir_group_lock_ is held.
+  void WritePathHealthStatesUnlocked();
+
+  // Writes instances denoted by 'updated_indices' to reflect the failed dirs
+  // as seen by 'path_set_'. If any instance fails in the process, 'path_set_'
+  // will be updated and the remaining healthy disks will be updated.
+  //
+  // Note that this should be used before tablets' directory groups are
+  // registered.
+  Status UpdateInstanceFiles(const std::vector<PathInstanceMetadataFile*>& instances,
+                             std::set<int> updated_indices);
 
   Env* env_;
   const std::string block_manager_type_;
   const std::vector<std::string> paths_;
+  const AccessMode mode_;
 
   std::unique_ptr<DataDirMetrics> metrics_;
 
   std::vector<std::unique_ptr<DataDir>> data_dirs_;
+
+  typedef std::unordered_map<std::string, std::string> PathUuidMap;
+  PathUuidMap uuid_by_path_;
 
   typedef std::unordered_map<uint16_t, DataDir*> UuidIndexMap;
   UuidIndexMap data_dir_by_uuid_idx_;
@@ -354,6 +386,9 @@ class DataDirManager {
   // attempting to write (e.g. to create a new tablet, thereby creating a new
   // data directory group) block all threads.
   mutable percpu_rwlock dir_group_lock_;
+
+  // The DataDirManager's view of what each path set should look like.
+  PathSetPB path_set_;
 
   // RNG used to select directories.
   ThreadSafeRandom rng_;
