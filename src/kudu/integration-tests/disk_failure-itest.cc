@@ -78,8 +78,8 @@ class DiskFailureITest : public TabletServerIntegrationTestBase {
   // each.
   void SetupDefaultTables(const vector<string>& table_ids,
                           vector<ExternalTabletServer*>* ext_tservers) {
-    FLAGS_num_replicas = 3;
-    FLAGS_num_tablet_servers = 3;
+    FLAGS_num_replicas = 1;
+    FLAGS_num_tablet_servers = 1;
     ext_tservers->clear();
     NO_FATALS(CreateCluster("survivable_cluster", ts_flags, {}, /* num_data_dirs */ 2));
     NO_FATALS(CreateClient(&client_));
@@ -89,7 +89,7 @@ class DiskFailureITest : public TabletServerIntegrationTestBase {
     }
     vector<TServerDetails*> tservers;
     AppendValuesFromMap(tablet_servers_, &tservers);
-    ASSERT_EQ(3, tservers.size());
+    ASSERT_EQ(1, tservers.size());
     for (auto* details : tservers) {
       ext_tservers->push_back(cluster_->tablet_server_by_uuid(details->uuid()));
     }
@@ -225,6 +225,8 @@ TEST_F(DiskFailureITest, TestFailDuringFlushMRS) {
   const string kTableIdB = "table_b";
   vector<ExternalTabletServer*> ext_tservers;
   SetupDefaultTables({ kTableIdA, kTableIdB }, &ext_tservers);
+    SleepFor(MonoDelta::FromSeconds(15));
+
   TestWorkload workload_a(cluster_.get());
   workload_a.set_table_name(kTableIdA);
   workload_a.set_write_pattern(TestWorkload::WritePattern::INSERT_SEQUENTIAL_ROWS);
@@ -237,7 +239,7 @@ TEST_F(DiskFailureITest, TestFailDuringFlushMRS) {
   // tablets unless tablet metadata striping is also implemented.
   vector<string> dirs_with_A_data;
   vector<string> dirs_without_A_data;
-  GetDataDirsWrittenTo(ext_tservers, workload_a, 3, &dirs_with_A_data, &dirs_without_A_data);
+  GetDataDirsWrittenTo(ext_tservers, workload_a, 1, &dirs_with_A_data, &dirs_without_A_data);
   WaitForReplicasAndUpdateLocations(kTableIdA);
   ASSERT_GT(tablet_replicas_.size(), 0);
   string tablet_id_a = (*tablet_replicas_.begin()).first;

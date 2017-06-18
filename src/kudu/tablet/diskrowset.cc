@@ -657,11 +657,7 @@ Status DiskRowSet::CheckRowPresent(const RowSetKeyProbe &probe,
   shared_lock<rw_spinlock> l(component_lock_);
 
   rowid_t row_idx;
-  Status s = base_data_->CheckRowPresent(probe, present, &row_idx, stats);
-  if (PREDICT_FALSE(!s.ok())) {
-    LOG(ERROR) << "Could not check presence of row: " << s.ToString();
-    return s;
-  }
+  RETURN_NOT_OK(base_data_->CheckRowPresent(probe, present, &row_idx, stats));
   if (!*present) {
     // If it wasn't in the base data, then it's definitely not in the rowset.
     return Status::OK();

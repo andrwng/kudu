@@ -76,6 +76,8 @@ TEST_F(TSDiskFailureTest, TestFailDuringWrite) {
   FailSingleTabletDirectory();
 
   InsertTestRowsDirect(1, 100);
+  InsertTestRowsDirect(101, 100);
+  InsertTestRowsDirect(201, 100);
   Status s = tablet_replica_->tablet()->Flush();
   ASSERT_EQ(EIO, s.posix_code());
   ASSERT_STR_CONTAINS(s.ToString(), "INJECTED FAILURE");
