@@ -144,7 +144,7 @@ FsManager::FsManager(Env* env,
 FsManager::~FsManager() {
 }
 
-void FsManager::SetTabletsFailedCallback(Callback<void(const std::set<std::string>&)>* cb) {
+void FsManager::SetTabletsFailedCallback(fs::ErrorNotificationCallback cb) {
   error_manager_->SetTabletsFailedCallback(cb);
 }
 

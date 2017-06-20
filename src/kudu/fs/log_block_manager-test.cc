@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -37,6 +38,7 @@
 #include "kudu/util/test_util.h"
 
 using kudu::pb_util::ReadablePBContainerFile;
+using std::set;
 using std::string;
 using std::unique_ptr;
 using std::unordered_map;
@@ -61,11 +63,15 @@ METRIC_DECLARE_gauge_uint64(log_block_manager_full_containers);
 namespace kudu {
 namespace fs {
 
+void DummyTabletsFailedCb(const set<string>& /* cb */) {}
+
 class LogBlockManagerTest : public KuduTest {
  public:
   LogBlockManagerTest() :
     test_tablet_name_("test_tablet"),
     test_block_opts_({ test_tablet_name_ }),
+    dummy_cb_(Bind(&DummyTabletsFailedCb)),
+    test_error_manager_(new FsErrorManager()),
     bm_(CreateBlockManager(scoped_refptr<MetricEntity>())) {
   }
 
@@ -84,6 +90,7 @@ class LogBlockManagerTest : public KuduTest {
     BlockManagerOptions opts;
     opts.metric_entity = metric_entity;
     opts.root_paths = { test_dir_ };
+    opts.error_manager = test_error_manager_.get();
     return new LogBlockManager(env_, opts);
   }
 
@@ -146,6 +153,8 @@ class LogBlockManagerTest : public KuduTest {
   string test_tablet_name_;
   CreateBlockOptions test_block_opts_;
 
+  Callback<void(const set<string>&)> dummy_cb_;
+  unique_ptr<FsErrorManager> test_error_manager_;
   unique_ptr<LogBlockManager> bm_;
 
  private:
@@ -546,6 +555,7 @@ TEST_F(LogBlockManagerTest, TestMetadataTruncation) {
   // Now try to reopen the container.
   // This should look like a bad checksum, and it's not recoverable.
   s = ReopenBlockManager();
+  LOG(INFO) << "ERROR:" <<  s.ToString();
   ASSERT_TRUE(s.IsCorruption());
   ASSERT_STR_CONTAINS(s.ToString(), "Incorrect checksum");
 

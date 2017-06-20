@@ -726,8 +726,6 @@ Status Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
     keys[i] = keys_and_indexes[i].first;
   }
 
-  bool failure_detected = false;
-
   // Actually perform the presence checks. We use the "bulk query" functionality
   // provided by RowSetTree::ForEachRowSetContainingKeys(), which yields results
   // via a callback, with grouping guarantees that callbacks for the same RowSet
@@ -738,8 +736,9 @@ Status Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   // 'pending_group' and then calls 'ProcessPendingGroup' when the next group
   // begins.
   vector<pair<RowSet*, int>> pending_group;
+  bool failure_detected = false;
   const auto& ProcessPendingGroup = [&]() {
-    if (pending_group.empty()) return Status::OK();
+    if (pending_group.empty() || failure_detected) return;
     // Check invariant of the batch RowSetTree query: within each output group
     // we should have fully-sorted keys.
     DCHECK(std::is_sorted(pending_group.begin(), pending_group.end(),
@@ -764,7 +763,7 @@ Status Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
       bool present = false;
       if (!rs->CheckRowPresent(*op->key_probe, &present, tx_state->mutable_op_stats(op_idx)).ok()) {
         failure_detected = true;
-        break;
+        return;
       }
       if (present) {
         op->present_in_rowset = rs;
@@ -785,7 +784,7 @@ Status Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   // Process the last group.
   ProcessPendingGroup();
   if (failure_detected) {
-    return Status::IOError("Failure checking row presence");
+    return Status::IOError("Failure bulk checking row presence");
   }
 
   // Mark all of the ops as having been checked.
@@ -798,6 +797,9 @@ Status Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
 }
 
 Status Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
+  if (IsDataInFailedDir()) {
+    return Status::IOError("Disk failure");
+  }
   int num_ops = tx_state->row_ops().size();
 
   StartApplying(tx_state);
@@ -818,6 +820,9 @@ Status Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
     if (row_op->has_result()) continue;
 
     ApplyRowOperation(tx_state, row_op, tx_state->mutable_op_stats(op_idx));
+    if (IsDataInFailedDir()) {
+      return Status::IOError("Disk failed");
+    }
     DCHECK(row_op->has_result());
   }
 
@@ -836,7 +841,7 @@ void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
   DCHECK(tx_state->op_id().IsInitialized()) << "TransactionState OpId needed for anchoring";
   DCHECK_EQ(tx_state->schema_at_decode_time(), schema());
 
-  if (!ValidateOpOrMarkFailed(row_op)) {
+  if (!ValidateOpOrMarkFailed(row_op) || IsDataInFailedDir()) {
     return;
   }
 

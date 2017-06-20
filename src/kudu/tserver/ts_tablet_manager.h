@@ -116,6 +116,13 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
                          consensus::RaftConfigPB config,
                          scoped_refptr<tablet::TabletReplica>* replica);
 
+  // Updates the tablet state after performing checks ensuring tablet presence, etc.
+  inline Status TransitionTabletState(const std::string& tablet_id,
+                               const std::string& reason,
+                               scoped_refptr<tablet::TabletReplica>* replica,
+                               scoped_refptr<TransitionInProgressDeleter>* deleter,
+                               boost::optional<TabletServerErrorPB::Code>* error_code);
+
   // Delete the specified tablet.
   // 'delete_type' must be one of TABLET_DATA_DELETED or TABLET_DATA_TOMBSTONED
   // or else returns Status::IllegalArgument.
@@ -127,8 +134,7 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   Status DeleteTablet(const std::string& tablet_id,
                       tablet::TabletDataState delete_type,
                       const boost::optional<int64_t>& cas_config_opid_index_less_or_equal,
-                      boost::optional<TabletServerErrorPB::Code>* error_code,
-                      bool delete_tablet_data = true);
+                      boost::optional<TabletServerErrorPB::Code>* error_code);
 
   // Lookup the given tablet replica by its ID.
   // Returns true if the tablet is found successfully.
@@ -187,10 +193,8 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
                                  tablet::TabletDataState delete_type,
                                  const boost::optional<consensus::OpId>& last_logged_opid);
 
-  // Asynchronously shut down a tablet replica by deleting the tablet.
-  // TODO(awong): rather than deleting the tablet, don't do anything to the
-  // tablet metadata and just store disk failure state instead.
-  void FailTabletReplicas(const std::set<std::string>& tablet_ids);
+  // Asynchronously shut down a tablet replica without deleting its data.
+  void ShutdownTabletReplicasAsync(const std::set<std::string>& tablet_ids);
 
  private:
   FRIEND_TEST(TsTabletManagerTest, TestPersistBlocks);
@@ -290,8 +294,6 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   void InitLocalRaftPeerPB();
 
   FsManager* fs_manager_;
-
-  Callback<void(const std::set<std::string>&)> shutdown_replicas_cb_;
 
   TabletServer* server_;
 

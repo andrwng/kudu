@@ -159,8 +159,8 @@ class Tablet {
   // Apply a single row operation, which must already be prepared.
   // The result is set back into row_op->result
   void ApplyRowOperation(WriteTransactionState* tx_state,
-                         RowOp* row_op,
-                         ProbeStats* stats);
+                           RowOp* row_op,
+                           ProbeStats* stats);
 
   // Create a new row iterator which yields the rows as of the current MVCC
   // state of this tablet.
@@ -402,10 +402,6 @@ class Tablet {
 
   bool IsDataInFailedDir() const {
     return data_in_failed_dir_.Load();
-  }
-
-  void MarkDataMoved() {
-    data_in_failed_dir_.Store(false);
   }
 
  private:

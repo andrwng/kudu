@@ -94,7 +94,6 @@ class BlockManagerTest : public KuduTest {
   BlockManagerTest() :
     test_tablet_name_("test_tablet"),
     test_block_opts_(CreateBlockOptions({ test_tablet_name_ })),
-    dummy_cb_(Bind(&DummyTabletsFailedCb)),
     test_error_manager_(new FsErrorManager()),
     bm_(CreateBlockManager(scoped_refptr<MetricEntity>(),
                            shared_ptr<MemTracker>(),
@@ -110,7 +109,7 @@ class BlockManagerTest : public KuduTest {
     CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(test_tablet_name_));
     CHECK(bm_->dd_manager()->GetDataDirGroupPB(test_tablet_name_, &test_group_pb_));
     test_error_manager_->SetDataDirManager(bm_->dd_manager());
-    test_error_manager_->SetTabletsFailedCallback(&dummy_cb_);
+    test_error_manager_->SetTabletsFailedCallback(Callback<void(const set<string>&)>());
   }
 
   void DistributeBlocksAcrossDirs(int num_dirs, int num_blocks_per_dir) {
@@ -194,7 +193,6 @@ class BlockManagerTest : public KuduTest {
   DataDirGroupPB test_group_pb_;
   string test_tablet_name_;
   CreateBlockOptions test_block_opts_;
-  Callback<void(const set<string>&)> dummy_cb_;
   unique_ptr<FsErrorManager> test_error_manager_;
   gscoped_ptr<T> bm_;
 };

@@ -697,9 +697,7 @@ Status FileBlockManager::DeleteBlock(const BlockId& block_id) {
   string path;
   uint16_t uuid_idx = internal::FileBlockLocation::GetDataDirIdx(block_id);
   if (PREDICT_FALSE(dd_manager_.IsDataDirFailed(uuid_idx))) {
-    LOG(WARNING) << Substitute("Block $0 is on a disk that has failed: $1",
-                               block_id.ToString(),
-                               dd_manager_.FindDataDirByUuidIndex(uuid_idx)->dir());
+    // TODO(awong): add a DCHECK here?
     return Status::OK();
   }
   if (!FindBlockPath(block_id, &path)) {

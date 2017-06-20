@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "kudu/fs/error_manager.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/util/env.h"
 #include "kudu/util/path_util.h"
@@ -45,6 +46,9 @@ class MemTracker;
 class MetricEntity;
 
 namespace fs {
+
+typedef Callback<void(const std::set<std::string>&)> ErrorNotificationCallback;
+
 class BlockManager;
 class DataDirManager;
 class FsErrorManager;
@@ -118,7 +122,7 @@ class FsManager {
   // on-disk structures.
   Status Open(fs::FsReport* report = nullptr);
 
-  void SetTabletsFailedCallback(Callback<void(const std::set<std::string>&)>* cb);
+  void SetTabletsFailedCallback(fs::ErrorNotificationCallback cb);
 
   // Create the initial filesystem layout. If 'uuid' is provided, uses it as
   // uuid of the filesystem. Otherwise generates one at random.

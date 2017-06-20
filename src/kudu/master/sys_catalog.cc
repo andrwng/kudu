@@ -326,7 +326,7 @@ Status SysCatalogTable::SetupTablet(const scoped_refptr<tablet::TabletMetadata>&
                                 tablet_replica_->log_anchor_registry(),
                                 &consensus_info));
   // TODO(awong): register a callback for the master to kill the tablet peers
-  master_->fs_manager()->SetTabletsFailedCallback(nullptr);
+  master_->fs_manager()->SetTabletsFailedCallback(Callback<void(const set<string>&)>());
 
   RETURN_NOT_OK_PREPEND(tablet_replica_->Init(tablet,
                                            scoped_refptr<server::Clock>(master_->clock()),

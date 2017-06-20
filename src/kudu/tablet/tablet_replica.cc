@@ -258,6 +258,7 @@ void TabletReplica::Shutdown() {
   }
 
   // Only mark the peer as SHUTDOWN when all other components have shut down.
+  LOG(INFO) << "SHUTDOWN OF ALL COMPONENTS COMPLETE";
   {
     std::lock_guard<simple_spinlock> lock(lock_);
     // Release mem tracker resources.
@@ -265,6 +266,7 @@ void TabletReplica::Shutdown() {
     tablet_.reset();
     state_ = SHUTDOWN;
   }
+  LOG(INFO) << "SHUTDOWN OF ALL TABLET";
 }
 
 void TabletReplica::WaitUntilShutdown() {

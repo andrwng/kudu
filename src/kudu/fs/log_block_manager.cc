@@ -583,8 +583,7 @@ Status LogBlockContainer::Open(LogBlockManager* block_manager,
       uint16_t uuid_idx;
       CHECK(block_manager->dd_manager()->FindUuidIndexByDataDir(dir, &uuid_idx));
       block_manager->dd_manager()->MarkDataDirFailed(uuid_idx);
-    }
-    if (!s.IsNotFound()) {
+    } else if (!s.IsNotFound()) {
       RETURN_NOT_OK_PREPEND(s, "unable to determine metadata file size");
     }
     s = env->GetFileSize(data_path, &data_size);
@@ -592,8 +591,7 @@ Status LogBlockContainer::Open(LogBlockManager* block_manager,
       uint16_t uuid_idx;
       CHECK(block_manager->dd_manager()->FindUuidIndexByDataDir(dir, &uuid_idx));
       block_manager->dd_manager()->MarkDataDirFailed(uuid_idx);
-    }
-    if (!s.IsNotFound()) {
+    } else if (!s.IsNotFound()) {
       RETURN_NOT_OK_PREPEND(s, "unable to determine data file size");
     }
 
@@ -1563,7 +1561,7 @@ Status LogBlockManager::Open(FsReport* report) {
 
   // Ensure that no open failed without being handled.
   for (const auto& s : statuses) {
-    if (!s.ok() && IsDiskFailure(s)) {
+    if (!s.ok() && !IsDiskFailure(s)) {
       return s;
     }
   }

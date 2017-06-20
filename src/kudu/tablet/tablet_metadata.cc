@@ -439,6 +439,7 @@ void TabletMetadata::DeleteOrphanedBlocks(const vector<BlockId>& blocks) {
         << "--enable_tablet_orphaned_block_deletion=false";
     return;
   }
+  // TODO(awong): add a warning here that not all blocks are deleted if the tablet is failed.
 
   vector<BlockId> deleted;
   for (const BlockId& b : blocks) {

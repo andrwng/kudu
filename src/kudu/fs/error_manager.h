@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <map>
 #include <set>
 #include <string>
 
@@ -27,6 +28,8 @@
 
 namespace kudu {
 namespace fs {
+
+typedef Callback<void(const std::set<std::string>&)> ErrorNotificationCallback;
 
 // Evaluates the expression and handles it if it results in an error.
 // Returns if the status is an error.
@@ -61,11 +64,10 @@ namespace fs {
 
 inline bool IsDiskFailure(const Status& s) {
   switch (s.posix_code()) {
-    case EIO: // Fallthrough intended
-    case ENODEV: // Fallthrough intended
-    case ENOSPC: // Fallthrough intended
-    case ENXIO: // Fallthrough intended
-    case EROFS: // Fallthrough intended
+    case EIO:
+    case ENODEV:
+    case ENXIO:
+    case EROFS:
       return true;
   }
   return false;
@@ -75,14 +77,14 @@ inline bool IsDiskFailure(const Status& s) {
 // multiple layers, many of which we prefer to keep separate. To avoid breaking
 // the layering, the FsErrorManager is owned by the FsManager and is used by
 // components of other layers (e.g. TSTabletManager, BlockManager). For
-// instance, the TSTabletManager registers a callback that blocks known to the
-// BlockManager can call.
+// instance, the TSTabletManager registers a callback that blocks can call
+// without knowing about ths TSTabletManager.
 class FsErrorManager {
  public:
-  FsErrorManager() : dd_manager_(nullptr), shutdown_replicas_cb_(nullptr) {}
+  FsErrorManager() : dd_manager_(nullptr), notify_cb_(ErrorNotificationCallback()) {}
 
-  void SetTabletsFailedCallback(Callback<void(const std::set<std::string>&)>* cb) {
-    shutdown_replicas_cb_ = cb;
+  void SetTabletsFailedCallback(ErrorNotificationCallback cb) {
+    notify_cb_ = std::move(cb);
   }
 
   void SetDataDirManager(DataDirManager* dd_manager) {
@@ -98,9 +100,6 @@ class FsErrorManager {
   void FailTabletsInDataDir(DataDir* dir) {
     // The callback may be null if the TSTabletManager has been deleted during
     // server shutdown or if the TSTabletManager has not yet been initialized.
-    if (!shutdown_replicas_cb_) {
-      return;
-    }
     CHECK(dir);
     uint16_t uuid_idx;
     if (dd_manager_->FindUuidIndexByDataDir(dir, &uuid_idx)) {
@@ -112,7 +111,7 @@ class FsErrorManager {
       const std::set<std::string>& tablets_on_dir =
           dd_manager_->FindTabletsByDataDirUuidIdx(uuid_idx);
       if (!tablets_on_dir.empty()) {
-        shutdown_replicas_cb_->Run(tablets_on_dir);
+        notify_cb_.Run(tablets_on_dir);
         return;
       }
     }
@@ -125,7 +124,7 @@ class FsErrorManager {
   // Callback that fails the TSTabletManager's tablet peers.
   // The referenced TSTabletManager may be deleted before the FsErrorManager,
   // so this may be null.
-  Callback<void(const std::set<std::string>&)>* shutdown_replicas_cb_;
+  ErrorNotificationCallback notify_cb_;
 };
 
 }  // namespace fs

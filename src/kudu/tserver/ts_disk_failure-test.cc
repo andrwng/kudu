@@ -86,7 +86,8 @@ TEST_F(TSDiskFailureTest, TestFailDuringWrite) {
 // Test disk failure during a read.
 TEST_F(TSDiskFailureTest, TestFailDuringRead) {
   InsertTestRowsDirect(0, 100);
-  ASSERT_OK(tablet_replica_->tablet()->Flush());
+  Status s = tablet_replica_->tablet()->Flush();
+  ASSERT_OK(s);
   FailSingleTabletDirectory();
 
   // TODO(awong): it would be nice to avoid getting an UNKNOWN_ERROR here.
@@ -129,6 +130,7 @@ TEST_F(TSDiskFailureTest, TestFailureDuringTabletStartup) {
   mini_server_->options()->master_addresses.clear();
   mini_server_->options()->master_addresses.emplace_back("255.255.255.255", 1);
   Status s = mini_server_->Start();
+  LOG(INFO) << s.ToString();
   ASSERT_OK(s);
 }
 

@@ -74,30 +74,33 @@ const vector<string> ts_flags = {
 
 class DiskFailureITest : public TabletServerIntegrationTestBase {
  public:
-  // Sets up a cluster and creates a tablet with three servers with two disks
-  // each.
-  void SetupDefaultTables(const vector<string>& table_ids,
-                          vector<ExternalTabletServer*>* ext_tservers) {
-    FLAGS_num_replicas = 1;
-    FLAGS_num_tablet_servers = 1;
-    ext_tservers->clear();
-    NO_FATALS(CreateCluster("survivable_cluster", ts_flags, {}, /* num_data_dirs */ 2));
-    NO_FATALS(CreateClient(&client_));
+   // Creates tables for the given tables.
+  void SetupDefaultTables(const vector<string>& table_ids = { kTableId }) {
+    FLAGS_num_replicas = 3;
     for (const string& table_id : table_ids) {
       NO_FATALS(CreateTable(table_id));
       WaitForTSAndReplicas(table_id);
     }
+  }
+
+  // Sets up a cluster with three servers with two disks each.
+  vector<ExternalTabletServer*> SetupDefaultCluster() {
+    FLAGS_num_tablet_servers = 3;
+    CreateCluster("survivable_cluster", ts_flags, {}, /* num_data_dirs */ 2);
+    CreateClient(&client_);
     vector<TServerDetails*> tservers;
     AppendValuesFromMap(tablet_servers_, &tservers);
-    ASSERT_EQ(1, tservers.size());
+    CHECK_EQ(3, tservers.size());
+    vector<ExternalTabletServer*> ext_tservers;
     for (auto* details : tservers) {
-      ext_tservers->push_back(cluster_->tablet_server_by_uuid(details->uuid()));
+      ext_tservers.push_back(cluster_->tablet_server_by_uuid(details->uuid()));
     }
+    return ext_tservers;
   }
 
   void SetServerSurvivalFlags(vector<ExternalTabletServer*>& ext_tservers) {
     for (auto& ext_tserver : ext_tservers) {
-      ASSERT_OK(cluster_->SetFlag(ext_tserver, "follower_unavailable_considered_failed_sec", "10"));
+      ASSERT_OK(cluster_->SetFlag(ext_tserver, "follower_unavailable_considered_failed_sec", "5"));
       ASSERT_OK(cluster_->SetFlag(ext_tserver, "suicide_on_eio", "false"));
     }
   }
@@ -159,11 +162,11 @@ class DiskFailureITest : public TabletServerIntegrationTestBase {
   // Runs a workload and returns a list of data dir paths written to and not
   // written to during the workload. After iterating through all ext_tservers,
   // exactly 'target_written_dirs' must have been written.
-  void GetDataDirsWrittenTo(const vector<ExternalTabletServer*> ext_tservers,
-                            TestWorkload& workload,
-                            int target_written_dirs,
-                            vector<string>* dirs_written,
-                            vector<string>* dirs_not_written = nullptr) {
+  void GetDataDirsWrittenToByWorkload(const vector<ExternalTabletServer*> ext_tservers,
+                                      TestWorkload& workload,
+                                      int target_written_dirs,
+                                      vector<string>* dirs_written,
+                                      vector<string>* dirs_not_written = nullptr) {
     std::function<void(void)> f = [&] {
       workload.Setup();
       workload.Start();
@@ -223,9 +226,7 @@ class DiskFailureITest : public TabletServerIntegrationTestBase {
 TEST_F(DiskFailureITest, TestFailDuringFlushMRS) {
   const string kTableIdA = "table_a";
   const string kTableIdB = "table_b";
-  vector<ExternalTabletServer*> ext_tservers;
-  SetupDefaultTables({ kTableIdA, kTableIdB }, &ext_tservers);
-    SleepFor(MonoDelta::FromSeconds(15));
+  vector<ExternalTabletServer*> ext_tservers = SetupDefaultCluster();
 
   TestWorkload workload_a(cluster_.get());
   workload_a.set_table_name(kTableIdA);
@@ -239,18 +240,19 @@ TEST_F(DiskFailureITest, TestFailDuringFlushMRS) {
   // tablets unless tablet metadata striping is also implemented.
   vector<string> dirs_with_A_data;
   vector<string> dirs_without_A_data;
-  GetDataDirsWrittenTo(ext_tservers, workload_a, 1, &dirs_with_A_data, &dirs_without_A_data);
-  WaitForReplicasAndUpdateLocations(kTableIdA);
-  ASSERT_GT(tablet_replicas_.size(), 0);
+  GetDataDirsWrittenToByWorkload(ext_tservers, workload_a, 3, &dirs_with_A_data, &dirs_without_A_data);
+  NO_FATALS(WaitForTSAndReplicas(kTableIdA));
   string tablet_id_a = (*tablet_replicas_.begin()).first;
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id_a, 0));
 
   // Create a second table.
   TestWorkload workload_b(cluster_.get());
   workload_b.set_table_name(kTableIdB);
   workload_b.set_write_pattern(TestWorkload::WritePattern::INSERT_SEQUENTIAL_ROWS);
   workload_b.Setup();
-  WaitForReplicasAndUpdateLocations(kTableIdB);
+  NO_FATALS(WaitForTSAndReplicas(kTableIdB));
   string tablet_id_b = (*(++tablet_replicas_.begin())).first;
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id_b, 0));
 
   // Set flags to fail the appropriate directories.
   SetServerSurvivalFlags(ext_tservers);
@@ -278,7 +280,6 @@ TEST_F(DiskFailureITest, TestFailDuringFlushMRS) {
   // Check that the tablet servers agree.
   ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id_a, 0));
   ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id_b, 0));
-  SleepFor(MonoDelta::FromSeconds(10));
 }
 
 // This test is set up so a single tablet occupies one of two disks on each
@@ -299,14 +300,17 @@ TEST_F(DiskFailureITest, TestFailDuringFlushMRS) {
 //    ts-0       ts-1      ts-2
 // [ X | a ] [ a | X ] [ X | a ]
 TEST_F(DiskFailureITest, TestFailDuringFlushDMS) {
-  vector<ExternalTabletServer*> ext_tservers;
-  SetupDefaultTables({ kTableId }, &ext_tservers);
+  vector<ExternalTabletServer*> ext_tservers = SetupDefaultCluster();
+  SetupDefaultTables();
+
   std::function<void(void)> f = [&] {
     UpsertPayload(kTableId, 0, 100);
   };
   vector<string> paths_with_data;
   GetDataDirsWrittenToByFunction(ext_tservers, f, 3, &paths_with_data);
+  WaitForTSAndReplicas(kTableId);
   string tablet_id = (*tablet_replicas_.begin()).first;
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
 
   // Iterate through the disks and crash the dir with data on each.
   SetServerSurvivalFlags(ext_tservers);
@@ -321,16 +325,17 @@ TEST_F(DiskFailureITest, TestFailDuringFlushDMS) {
 }
 
 TEST_F(DiskFailureITest, TestFailDuringScan) {
+  vector<ExternalTabletServer*> ext_tservers = SetupDefaultCluster();
+  SetupDefaultTables();
+
   // Write some data to a table.
-  vector<ExternalTabletServer*> ext_tservers;
-  SetupDefaultTables({ kTableId }, &ext_tservers);
   TestWorkload write_workload(cluster_.get());
   write_workload.set_write_pattern(TestWorkload::WritePattern::INSERT_SEQUENTIAL_ROWS);
   vector<string> paths_with_data;
-  GetDataDirsWrittenTo(ext_tservers, write_workload, 3, &paths_with_data);
+  GetDataDirsWrittenToByWorkload(ext_tservers, write_workload, 3, &paths_with_data);
+  WaitForTSAndReplicas(kTableId);
   string tablet_id = (*tablet_replicas_.begin()).first;
   ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(120), tablet_servers_, tablet_id, 0));
-  SleepFor(MonoDelta::FromSeconds(5));
 
   // Create a read workload before any failures can happen.
   TestWorkload read_workload(cluster_.get());
