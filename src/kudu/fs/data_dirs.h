@@ -265,7 +265,7 @@ class DataDirManager {
   //
   // More information on uuid indexes and their relation to data directories
   // can be found next to PathSetPB in fs.proto.
-  DataDir* FindDataDirByUuidIndex(uint16_t uuid_idx) const;
+  DataDir* FindDataDirByUuidIndex(uint16_t uuid_idx)const;
 
   // Finds a uuid index by data directory, returning false if it can't be found.
   bool FindUuidIndexByDataDir(DataDir* dir,
