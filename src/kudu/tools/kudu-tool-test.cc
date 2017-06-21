@@ -732,7 +732,7 @@ TEST_F(ToolTest, TestPbcTools) {
     Status s = DoEdit("/bin/false", &stdout, &stderr);
     ASSERT_FALSE(s.ok());
     ASSERT_EQ("", stdout);
-    ASSERT_EQ("Aborted: editor returned non-zero exit code", stderr);
+    ASSERT_STR_CONTAINS(stderr, "Aborted: editor returned non-zero exit code");
   }
 
   // Test 'edit' with an edit which tries to write some invalid JSON (missing required fields).

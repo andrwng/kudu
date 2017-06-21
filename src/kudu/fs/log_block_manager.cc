@@ -21,6 +21,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "kudu/fs/block_manager_metrics.h"
 #include "kudu/fs/block_manager_util.h"
 #include "kudu/fs/data_dirs.h"
+#include "kudu/fs/error_manager.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_report.h"
 #include "kudu/gutil/callback.h"
@@ -378,6 +380,9 @@ class LogBlockContainer {
   // Produces a debug-friendly string representation of this container.
   string ToString() const;
 
+  // Handles errors if the input status is not OK.
+  void HandleError(const Status& s) const;
+
   // Simple accessors.
   LogBlockManager* block_manager() const { return block_manager_; }
   int64_t next_block_offset() const { return next_block_offset_; }
@@ -487,6 +492,11 @@ LogBlockContainer::LogBlockContainer(
       metrics_(block_manager->metrics()) {
 }
 
+void LogBlockContainer::HandleError(const Status& s) const {
+  HANDLE_DISK_FAILURE(
+      s, block_manager()->error_manager()->RunErrorNotificationCb(mutable_data_dir()));
+}
+
 Status LogBlockContainer::Create(LogBlockManager* block_manager,
                                  DataDir* dir,
                                  unique_ptr<LogBlockContainer>* container) {
@@ -570,11 +580,19 @@ Status LogBlockContainer::Open(LogBlockManager* block_manager,
     uint64_t metadata_size = 0;
     uint64_t data_size = 0;
     Status s = env->GetFileSize(metadata_path, &metadata_size);
-    if (!s.IsNotFound()) {
+    if (PREDICT_FALSE(IsDiskFailure(s))) {
+      uint16_t uuid_idx;
+      CHECK(block_manager->dd_manager()->FindUuidIndexByDataDir(dir, &uuid_idx));
+      block_manager->dd_manager()->MarkDataDirFailed(uuid_idx);
+    } else if (!s.IsNotFound()) {
       RETURN_NOT_OK_PREPEND(s, "unable to determine metadata file size");
     }
     s = env->GetFileSize(data_path, &data_size);
-    if (!s.IsNotFound()) {
+    if (PREDICT_FALSE(IsDiskFailure(s))) {
+      uint16_t uuid_idx;
+      CHECK(block_manager->dd_manager()->FindUuidIndexByDataDir(dir, &uuid_idx));
+      block_manager->dd_manager()->MarkDataDirFailed(uuid_idx);
+    } else if (!s.IsNotFound()) {
       RETURN_NOT_OK_PREPEND(s, "unable to determine data file size");
     }
 
@@ -585,6 +603,7 @@ Status LogBlockContainer::Open(LogBlockManager* block_manager,
     }
   }
 
+  // TODO(awong): handle here
   // Open the existing metadata and data files for writing.
   shared_ptr<RWFile> metadata_file;
   RETURN_NOT_OK(block_manager->file_cache_.OpenExistingFile(
@@ -616,7 +635,7 @@ Status LogBlockContainer::TruncateDataToNextBlockOffset() {
   if (full()) {
     VLOG(2) << Substitute("Truncating container $0 to offset $1",
                           ToString(), next_block_offset_);
-    RETURN_NOT_OK(data_file_->Truncate(next_block_offset_));
+    RETURN_NOT_OK_HANDLE_ERROR(data_file_->Truncate(next_block_offset_));
   }
   return Status::OK();
 }
@@ -629,9 +648,10 @@ Status LogBlockContainer::ProcessRecords(
     uint64_t* max_block_id) {
   string metadata_path = metadata_file_->filename();
   unique_ptr<RandomAccessFile> metadata_reader;
-  RETURN_NOT_OK(block_manager()->env()->NewRandomAccessFile(metadata_path, &metadata_reader));
+  RETURN_NOT_OK_HANDLE_ERROR(block_manager()->env()->NewRandomAccessFile(
+      metadata_path, &metadata_reader));
   ReadablePBContainerFile pb_reader(std::move(metadata_reader));
-  RETURN_NOT_OK(pb_reader.Open());
+  RETURN_NOT_OK_HANDLE_ERROR(pb_reader.Open());
 
   uint64_t data_file_size = 0;
   Status read_status;
@@ -659,6 +679,8 @@ Status LogBlockContainer::ProcessRecords(
                                                        pb_reader.offset());
     return Status::OK();
   }
+  // Handle any other errors, e.g. disk failures.
+  HandleError(read_status);
   // If we've made it here, we've found (and are returning) an unrecoverable error.
   return read_status;
 }
@@ -692,7 +714,7 @@ Status LogBlockContainer::ProcessRecord(
       // file size is expensive, so we only do it when the metadata indicates
       // that additional data has been written to the file.
       if (PREDICT_FALSE(record->offset() + record->length() > *data_file_size)) {
-        RETURN_NOT_OK(data_file_->Size(data_file_size));
+        RETURN_NOT_OK_HANDLE_ERROR(data_file_->Size(data_file_size));
       }
 
       // If the record still extends beyond the end of the file, it is malformed.
@@ -799,7 +821,7 @@ Status LogBlockContainer::PunchHole(int64_t offset, int64_t length) {
   if (length) {
     // It's OK if we exceed the file's total size; the kernel will truncate
     // our request.
-    return data_file_->PunchHole(offset, length);
+    RETURN_NOT_OK_HANDLE_ERROR(data_file_->PunchHole(offset, length));
   }
   return Status::OK();
 }
@@ -811,7 +833,7 @@ Status LogBlockContainer::WriteData(int64_t offset, const Slice& data) {
 Status LogBlockContainer::WriteVData(int64_t offset, const vector<Slice>& data) {
   DCHECK_GE(offset, next_block_offset_);
 
-  RETURN_NOT_OK(data_file_->WriteV(offset, data));
+  RETURN_NOT_OK_HANDLE_ERROR(data_file_->WriteV(offset, data));
 
   // This append may have changed the container size if:
   // 1. It was large enough that it blew out the preallocated space.
@@ -821,62 +843,64 @@ Status LogBlockContainer::WriteVData(int64_t offset, const vector<Slice>& data) 
                                   return sum + curr.size();
                                 });
   if (offset + data_size > preallocated_offset_) {
-    RETURN_NOT_OK(data_dir_->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
+    RETURN_NOT_OK_HANDLE_ERROR(data_dir_->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
   }
   return Status::OK();
 }
 
 Status LogBlockContainer::ReadData(int64_t offset, Slice* result) const {
   DCHECK_GE(offset, 0);
-
-  return data_file_->Read(offset, result);
+  RETURN_NOT_OK_HANDLE_ERROR(data_file_->Read(offset, result));
+  return Status::OK();
 }
-
 Status LogBlockContainer::ReadVData(int64_t offset, vector<Slice>* results) const {
   DCHECK_GE(offset, 0);
-
-  return data_file_->ReadV(offset, results);
+  RETURN_NOT_OK_HANDLE_ERROR(data_file_->ReadV(offset, results));
+  return Status::OK();
 }
 
 Status LogBlockContainer::AppendMetadata(const BlockRecordPB& pb) {
   // Note: We don't check for sufficient disk space for metadata writes in
   // order to allow for block deletion on full disks.
-  return metadata_file_->Append(pb);
+  RETURN_NOT_OK_HANDLE_ERROR(metadata_file_->Append(pb));
+  return Status::OK();
 }
 
 Status LogBlockContainer::FlushData(int64_t offset, int64_t length) {
   DCHECK_GE(offset, 0);
   DCHECK_GE(length, 0);
-  return data_file_->Flush(RWFile::FLUSH_ASYNC, offset, length);
+  RETURN_NOT_OK_HANDLE_ERROR(data_file_->Flush(RWFile::FLUSH_ASYNC, offset, length));
+  return Status::OK();
 }
 
 Status LogBlockContainer::FlushMetadata() {
-  return metadata_file_->Flush();
+  RETURN_NOT_OK_HANDLE_ERROR(metadata_file_->Flush());
+  return Status::OK();
 }
 
 Status LogBlockContainer::SyncData() {
   if (FLAGS_enable_data_block_fsync) {
-    return data_file_->Sync();
+    RETURN_NOT_OK_HANDLE_ERROR(data_file_->Sync());
   }
   return Status::OK();
 }
 
 Status LogBlockContainer::SyncMetadata() {
   if (FLAGS_enable_data_block_fsync) {
-    return metadata_file_->Sync();
+    RETURN_NOT_OK_HANDLE_ERROR(metadata_file_->Sync());
   }
   return Status::OK();
 }
 
 Status LogBlockContainer::ReopenMetadataWriter() {
   shared_ptr<RWFile> f;
-  RETURN_NOT_OK(block_manager_->file_cache_.OpenExistingFile(
+  RETURN_NOT_OK_HANDLE_ERROR(block_manager_->file_cache_.OpenExistingFile(
       metadata_file_->filename(), &f));
   unique_ptr<WritablePBContainerFile> w;
   w.reset(new WritablePBContainerFile(std::move(f)));
-  RETURN_NOT_OK(w->OpenExisting());
+  RETURN_NOT_OK_HANDLE_ERROR(w->OpenExisting());
 
-  RETURN_NOT_OK(metadata_file_->Close());
+  RETURN_NOT_OK_HANDLE_ERROR(metadata_file_->Close());
   metadata_file_.swap(w);
   return Status::OK();
 }
@@ -895,8 +919,8 @@ Status LogBlockContainer::EnsurePreallocated(int64_t block_start_offset,
       next_append_length > preallocated_offset_ - block_start_offset) {
     int64_t off = std::max(preallocated_offset_, block_start_offset);
     int64_t len = FLAGS_log_container_preallocate_bytes;
-    RETURN_NOT_OK(data_file_->PreAllocate(off, len, RWFile::CHANGE_FILE_SIZE));
-    RETURN_NOT_OK(data_dir_->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
+    RETURN_NOT_OK_HANDLE_ERROR(data_file_->PreAllocate(off, len, RWFile::CHANGE_FILE_SIZE));
+    RETURN_NOT_OK_HANDLE_ERROR(data_dir_->RefreshIsFull(DataDir::RefreshMode::ALWAYS));
     VLOG(2) << Substitute("Preallocated $0 bytes at offset $1 in container $2",
                           len, off, ToString());
 
@@ -1068,6 +1092,14 @@ class LogWritableBlock : public WritableBlock {
   // Does not synchronize the written data; that takes place in Close().
   Status AppendMetadata();
 
+  virtual void HandleError(const Status& s) const {
+    container_->HandleError(s);
+  }
+
+  DataDir* mutable_data_dir() {
+    return container_->mutable_data_dir();
+  }
+
  private:
   // The owning container. Must outlive the block.
   LogBlockContainer* container_;
@@ -1218,8 +1250,7 @@ Status LogWritableBlock::DoClose(SyncMode mode) {
       });
     // FlushDataAsync() was not called; append the metadata now.
     if (state_ == CLEAN || state_ == DIRTY) {
-      s = AppendMetadata();
-      RETURN_NOT_OK_PREPEND(s, "Unable to flush block during close");
+      RETURN_NOT_OK_PREPEND(AppendMetadata(), "Unable to flush block during close");
     }
 
     if (mode == SYNC &&
@@ -1274,6 +1305,14 @@ class LogReadableBlock : public ReadableBlock {
   virtual Status ReadV(uint64_t offset, vector<Slice>* results) const OVERRIDE;
 
   virtual size_t memory_footprint() const OVERRIDE;
+
+  virtual void HandleError(const Status& s) const {
+    container_->HandleError(s);
+  }
+
+  DataDir* mutable_data_dir() {
+    return container_->mutable_data_dir();
+  }
 
  private:
   // The owning container. Must outlive this block.
@@ -1475,7 +1514,19 @@ Status LogBlockManager::Open(FsReport* report) {
       // The log block manager requires hole punching and, of the ext
       // filesystems, only ext4 supports it. Thus, if this is an ext
       // filesystem, it's ext4 by definition.
-      if (buggy_el6_kernel_ && dd->fs_type() == DataDirFsType::EXT) {
+      bool is_on_ext4;
+      Status s = env_->IsOnExtFilesystem(dd->dir(), &is_on_ext4);
+      if (PREDICT_FALSE(!s.ok())) {
+        if (IsDiskFailure(s)) {
+          uint16_t uuid_idx;
+          if (dd_manager_.FindUuidIndexByDataDir(dd.get(), &uuid_idx)) {
+            dd_manager_.MarkDataDirFailed(uuid_idx, s.ToString());
+          }
+          continue;
+        }
+        return s;
+      }
+      if (buggy_el6_kernel_ && is_on_ext4) {
         uint64_t fs_block_size =
             dd->instance()->metadata()->filesystem_block_size_bytes();
         bool untested_block_size =
@@ -1522,10 +1573,13 @@ Status LogBlockManager::Open(FsReport* report) {
   for (const auto& dd : dd_manager_.data_dirs()) {
     dd->WaitOnClosures();
   }
+  if (dd_manager_.GetFailedDataDirs().size() == dd_manager_.data_dirs().size()) {
+    return Status::IOError("Couldn't open any data dirs");
+  }
 
-  // Ensure that no open failed.
+  // Ensure that no open failed without being handled.
   for (const auto& s : statuses) {
-    if (!s.ok()) {
+    if (!s.ok() && !IsDiskFailure(s)) {
       return s;
     }
   }
@@ -1686,10 +1740,9 @@ Status LogBlockManager::GetOrCreateContainer(const CreateBlockOptions& opts,
 
   // All containers are in use; create a new one.
   unique_ptr<LogBlockContainer> new_container;
-  RETURN_NOT_OK_PREPEND(LogBlockContainer::Create(this,
-                                                  dir,
-                                                  &new_container),
-                        "Could not create new log block container at " + dir->dir());
+  Status s = LogBlockContainer::Create(this, dir, &new_container);
+  HANDLE_DISK_FAILURE(s, error_manager_->RunErrorNotificationCb(dir));
+  RETURN_NOT_OK_PREPEND(s, "Could not create new log block container at " + dir->dir());
   {
     std::lock_guard<simple_spinlock> l(lock_);
     dirty_dirs_.insert(dir->dir());

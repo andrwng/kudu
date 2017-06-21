@@ -229,6 +229,7 @@ ScanRpcStatus KuduScanner::Data::AnalyzeResponse(const Status& rpc_status,
   switch (error.code()) {
     case tserver::TabletServerErrorPB::SCANNER_EXPIRED:
       return ScanRpcStatus{ScanRpcStatus::SCANNER_EXPIRED, server_status};
+    case tserver::TabletServerErrorPB::TABLET_FAILED: // fall-through
     case tserver::TabletServerErrorPB::TABLET_NOT_RUNNING:
       return ScanRpcStatus{ScanRpcStatus::TABLET_NOT_RUNNING, server_status};
     case tserver::TabletServerErrorPB::TABLET_NOT_FOUND:

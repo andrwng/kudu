@@ -693,13 +693,11 @@ Status DeltaTracker::Flush(MetadataFlushType flush_type) {
   // TODO(todd): need another lock to prevent concurrent flushers
   // at some point.
   shared_ptr<DeltaFileReader> dfr;
+  // TODO(unknown): need to figure out what to do with error handling if this
+  // isn't a disk failure -- we end up with a DeltaMemStore permanently in the
+  // store list. For now, this is caught by the MaintenanceManager.
   Status s = FlushDMS(old_dms.get(), &dfr, flush_type);
-  CHECK(s.ok())
-    << "Failed to flush DMS: " << s.ToString()
-    << "\nTODO: need to figure out what to do with error handling "
-    << "if this fails -- we end up with a DeltaMemStore permanently "
-    << "in the store list. For now, abort.";
-
+  RETURN_NOT_OK_PREPEND(s, Substitute("Failed to flush DMS: $0", s.ToString()));
 
   // Now, re-take the lock and swap in the DeltaFileReader in place of
   // of the DeltaMemStore

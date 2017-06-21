@@ -20,10 +20,12 @@
 #include <map>
 #include <string>
 
+#include "kudu/fs/block_manager_util.h"
 #include "kudu/fs/data_dirs.h"
 #include "kudu/gutil/callback_forward.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/fault_injection.h"
+#include "kudu/util/status.h"
 
 namespace kudu {
 namespace fs {
@@ -31,6 +33,37 @@ namespace fs {
 // Callback to error-handling code.
 typedef Callback<void(const std::string&)> ErrorNotificationCb;
 static void DoNothingErrorNotification(const std::string& /* uuid */) {}
+
+// Evaluates the expression and handles it if it results in an error.
+// Returns if the status is an error.
+#define RETURN_NOT_OK_HANDLE_ERROR(status_expr) do { \
+  const Status& s_ = (status_expr); \
+  if (PREDICT_TRUE(s_.ok())) { \
+    break; \
+  } \
+  HandleError(s_); \
+  return s_; \
+} while (0);
+
+// Evaluates the expression and runs 'err_handler' if it results in a disk
+// failure. Returns if the status is an error.
+#define RETURN_NOT_OK_HANDLE_DISK_FAILURE(status_expr, err_handler) do { \
+  const Status& s_ = (status_expr); \
+  if (PREDICT_TRUE(s_.ok())) { \
+    break; \
+  } \
+  (err_handler); \
+  RETURN_NOT_OK(s_); \
+} while (0);
+
+// Evaluates the expression and runs 'err_handler' if it results in a disk
+// failure.
+#define HANDLE_DISK_FAILURE(status_expr, err_handler) do { \
+  const Status& s_ = (status_expr); \
+  if (PREDICT_FALSE(IsDiskFailure(s_))) { \
+    (err_handler); \
+  } \
+} while (0);
 
 // When certain operations fail, the side effects of the error can span
 // multiple layers, many of which we prefer to keep separate. The FsErrorManager
@@ -54,6 +87,10 @@ class FsErrorManager {
 
   void RunErrorNotificationCb(const std::string& uuid) const {
     notify_cb_.Run(uuid);
+  }
+
+  void RunErrorNotificationCb(const DataDir* dir) const {
+    RunErrorNotificationCb(dir->instance()->metadata()->path_set().uuid());
   }
 
  private:

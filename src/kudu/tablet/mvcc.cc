@@ -456,29 +456,40 @@ void MvccSnapshot::AddCommittedTimestamp(Timestamp timestamp) {
 ////////////////////////////////////////////////////////////
 ScopedTransaction::ScopedTransaction(MvccManager* manager, Timestamp timestamp)
   : done_(false),
+    canceled_(false),
     manager_(DCHECK_NOTNULL(manager)),
     timestamp_(timestamp) {
   manager_->StartTransaction(timestamp);
 }
 
 ScopedTransaction::~ScopedTransaction() {
-  if (!done_) {
+  if (!done_ && !canceled_) {
     Abort();
   }
 }
 
 void ScopedTransaction::StartApplying() {
-  manager_->StartApplyingTransaction(timestamp_);
+  if (!canceled_) {
+    manager_->StartApplyingTransaction(timestamp_);
+  }
 }
 
 void ScopedTransaction::Commit() {
-  manager_->CommitTransaction(timestamp_);
+  if (!canceled_) {
+    manager_->CommitTransaction(timestamp_);
+  }
   done_ = true;
 }
 
 void ScopedTransaction::Abort() {
-  manager_->AbortTransaction(timestamp_);
+  if (!canceled_) {
+    manager_->AbortTransaction(timestamp_);
+  }
   done_ = true;
+}
+
+void ScopedTransaction::Cancel() {
+  canceled_ = true;
 }
 
 } // namespace tablet

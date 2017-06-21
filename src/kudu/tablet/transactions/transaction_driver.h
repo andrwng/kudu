@@ -267,6 +267,10 @@ class TransactionDriver : public RefCountedThreadSafe<TransactionDriver> {
   // Returns the state of the transaction being executed by this driver.
   const TransactionState* state() const;
 
+  // Returns the mutable state of the transaction being executed by
+  // this driver.
+  TransactionState* mutable_state();
+
   const MonoTime& start_time() const { return start_time_; }
 
   Trace* trace() { return trace_.get(); }
@@ -323,10 +327,6 @@ class TransactionDriver : public RefCountedThreadSafe<TransactionDriver> {
   // Called on Transaction::Apply() after the CommitMsg has been successfully
   // appended to the WAL.
   void Finalize();
-
-  // Returns the mutable state of the transaction being executed by
-  // this driver.
-  TransactionState* mutable_state();
 
   // Return a short string indicating where the transaction currently is in the
   // state machine.

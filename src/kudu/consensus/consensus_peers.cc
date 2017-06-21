@@ -280,7 +280,8 @@ void Peer::ProcessResponse() {
   // Pass through errors we can respond to, like not found, since in that case
   // we will need to start a Tablet Copy. TODO: Handle DELETED response once implemented.
   if ((response_.has_error() &&
-      response_.error().code() != TabletServerErrorPB::TABLET_NOT_FOUND) ||
+      (response_.error().code() != TabletServerErrorPB::TABLET_NOT_FOUND &&
+          response_.error().code() != TabletServerErrorPB::TABLET_FAILED)) ||
       (response_.status().has_error() &&
           response_.status().error().code() == consensus::ConsensusErrorPB::CANNOT_PREPARE)) {
     // Again, let the queue know that the remote is still responsive, since we
