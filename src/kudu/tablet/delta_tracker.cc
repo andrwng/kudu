@@ -694,6 +694,10 @@ Status DeltaTracker::Flush(MetadataFlushType flush_type) {
   // at some point.
   shared_ptr<DeltaFileReader> dfr;
   Status s = FlushDMS(old_dms.get(), &dfr, flush_type);
+  if (PREDICT_FALSE(IsDiskFailure(s))) {
+    LOG(ERROR) << "Failed to flush DMS, handled disk failure : " << s.ToString();
+    return Status::OK();
+  }
   CHECK(s.ok())
     << "Failed to flush DMS: " << s.ToString()
     << "\nTODO: need to figure out what to do with error handling "

@@ -256,6 +256,8 @@ class TransactionState {
     return request_id_;
   }
 
+  virtual void Cancel() = 0;
+
  protected:
   explicit TransactionState(TabletReplica* tablet_replica);
   virtual ~TransactionState();

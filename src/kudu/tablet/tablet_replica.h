@@ -60,6 +60,13 @@ class TabletReplica;
 class TabletStatusPB;
 class TransactionDriver;
 
+// If a replica is forced to shutdown, it should not wait on pending txns and
+// should be replicated elsewhere, as the state indicates a disk failure.
+enum ReplicaShutdownType {
+  NORMAL_SHUTDOWN,
+  FORCED_SHUTDOWN
+};
+
 // A replica in a tablet consensus configuration, which coordinates writes to tablets.
 // Each time Write() is called this class appends a new entry to a replicated
 // state machine through a consensus algorithm, which makes sure that other
@@ -88,7 +95,7 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
 
   // Shutdown this tablet replica.
   // If a shutdown is already in progress, blocks until that shutdown is complete.
-  void Shutdown();
+  void Shutdown(ReplicaShutdownType shutdown_type = NORMAL_SHUTDOWN);
 
   // Check that the tablet is in a RUNNING state.
   Status CheckRunning() const;

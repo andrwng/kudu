@@ -428,6 +428,17 @@ inline Status& Status::operator=(Status&& s) {
 }
 #endif
 
+inline bool IsDiskFailure(const Status& s) {
+  switch (s.posix_code()) {
+    case EIO:
+    case ENODEV:
+    case ENXIO:
+    case EROFS:
+      return true;
+  }
+  return false;
+}
+
 }  // namespace kudu
 
 #endif  // KUDU_UTIL_STATUS_H_

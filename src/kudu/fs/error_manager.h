@@ -25,11 +25,14 @@
 #include "kudu/gutil/callback_forward.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/fault_injection.h"
+#include "kudu/util/status.h"
 
 namespace kudu {
 namespace fs {
 
 typedef Callback<void(const std::set<std::string>&)> ErrorNotificationCallback;
+
+static void DoNothingErrorNotification(const std::set<std::string>& /* s */) {};
 
 // Evaluates the expression and handles it if it results in an error.
 // Returns if the status is an error.
@@ -53,6 +56,15 @@ typedef Callback<void(const std::set<std::string>&)> ErrorNotificationCallback;
   RETURN_NOT_OK(s_); \
 } while (0);
 
+// Evaluates the expression and runs 'err_handler' if it results in a disk
+// failure.
+#define HANDLE_DISK_FAILURE(status_expr, err_handler) do { \
+  const Status& s_ = (status_expr); \
+  if (PREDICT_FALSE(IsDiskFailure(s_))) { \
+      (err_handler); \
+  } \
+} while (0);
+
 // When certain operations fail, the side effects of the failure span
 // multiple layers, many of which we prefer to keep separate. To avoid breaking
 // the layering, the FsErrorManager is owned by the FsManager and is used by
@@ -61,7 +73,7 @@ typedef Callback<void(const std::set<std::string>&)> ErrorNotificationCallback;
 // without themselves knowing about ths TSTabletManager.
 class FsErrorManager {
  public:
-  FsErrorManager() : dd_manager_(nullptr), notify_cb_(ErrorNotificationCallback()) {}
+  FsErrorManager() : dd_manager_(nullptr), notify_cb_(Bind(&DoNothingErrorNotification)) {}
 
   void SetNotificationCallback(ErrorNotificationCallback cb) {
     notify_cb_ = std::move(cb);

@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "kudu/fs/error_manager.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/util/env.h"
 #include "kudu/util/path_util.h"

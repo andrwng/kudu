@@ -172,8 +172,9 @@ TSTabletManager::TSTabletManager(FsManager* fs_manager,
 }
 
 TSTabletManager::~TSTabletManager() {
-  // Since the FsManager is an external entity, revoke its access.
-  fs_manager_->SetNotificationCallback(Callback<void(const set<string>&)>());
+  // Since the FsManager and FsErrorManager are external entities, revoke their
+  // access to TSTabletManager callbacks.
+  fs_manager_->SetNotificationCallback(Bind(&fs::DoNothingErrorNotification));
 }
 
 Status TSTabletManager::Init() {
@@ -809,7 +810,12 @@ void TSTabletManager::OpenTablet(const scoped_refptr<TabletMetadata>& meta,
     if (!s.ok()) {
       LOG(ERROR) << LogPrefix(tablet_id) << "Tablet failed to bootstrap: "
                  << s.ToString();
-      replica->SetFailed(s);
+      // Disk failures should already be handled.
+      if (IsDiskFailure(s)) {
+        DCHECK(replica->tablet()->IsDataInFailedDir());
+      } else {
+        replica->SetFailed(s);
+      }
       return;
     }
   }
@@ -1115,7 +1121,19 @@ Status TSTabletManager::DeleteTabletData(const scoped_refptr<TabletMetadata>& me
 
 void TSTabletManager::ShutdownTabletReplicasAsync(const set<string>& tablet_ids) {
   for (const string& tablet_id : tablet_ids) {
-    LOG(INFO) << "Shutting down tablet (not implemented): " << tablet_id;
+    LOG(WARNING) << Substitute("Tablet $0 is located on an unhealthy data dir.", tablet_id);
+    scoped_refptr<TabletReplica> replica;
+    if (LookupTablet(tablet_id, &replica)) {
+      replica->SetFailed(Status::IOError("Disk failed", "", EIO));
+      replica->tablet()->MarkDataInFailedDir();
+      CHECK_OK(apply_pool_->SubmitFunc([tablet_id, this]() {
+          scoped_refptr<TabletReplica> replica;
+          scoped_refptr<TransitionInProgressDeleter> deleter;
+          boost::optional<TabletServerErrorPB::Code> error;
+          TransitionTabletState(tablet_id, "shutting down tablet", &replica, &deleter, &error);
+          replica->Shutdown(tablet::FORCED_SHUTDOWN);
+      }));
+    }
   }
 }
 

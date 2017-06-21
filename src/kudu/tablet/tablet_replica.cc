@@ -211,13 +211,14 @@ const consensus::RaftConfigPB TabletReplica::RaftConfig() const {
   return consensus_->CommittedConfig();
 }
 
-void TabletReplica::Shutdown() {
+void TabletReplica::Shutdown(ReplicaShutdownType shutdown_type) {
+  DCHECK(shutdown_type == NORMAL_SHUTDOWN || shutdown_type == FORCED_SHUTDOWN);
 
   LOG(INFO) << "Initiating TabletReplica shutdown for tablet: " << tablet_id_;
 
   {
     std::unique_lock<simple_spinlock> lock(lock_);
-    if (state_ == QUIESCING || state_ == SHUTDOWN) {
+    if (state_ == QUIESCING || state_ == SHUTDOWN || state_ == FAILED_AND_SHUTDOWN) {
       lock.unlock();
       WaitUntilShutdown();
       return;
@@ -236,9 +237,15 @@ void TabletReplica::Shutdown() {
   if (consensus_) consensus_->Shutdown();
 
   // TODO: KUDU-183: Keep track of the pending tasks and send an "abort" message.
-  LOG_SLOW_EXECUTION(WARNING, 1000,
-      Substitute("TabletReplica: tablet $0: Waiting for Transactions to complete", tablet_id())) {
-    txn_tracker_.WaitForAllToFinish();
+  if (PREDICT_TRUE(shutdown_type == NORMAL_SHUTDOWN)) {
+    LOG_SLOW_EXECUTION(WARNING, 1000,
+        Substitute("TabletReplica: tablet $0: Waiting for Transactions to complete", tablet_id())) {
+      txn_tracker_.WaitForAllToFinish();
+    }
+  } else {
+    // Cancel all pending transactions.
+    DCHECK_EQ(FORCED_SHUTDOWN, shutdown_type);
+    txn_tracker_.CancelAllPendingTransactions();
   }
 
   if (prepare_pool_) {
@@ -263,7 +270,7 @@ void TabletReplica::Shutdown() {
     // Release mem tracker resources.
     consensus_.reset();
     tablet_.reset();
-    state_ = SHUTDOWN;
+    state_ = shutdown_type == NORMAL_SHUTDOWN ? SHUTDOWN : FAILED_AND_SHUTDOWN;
   }
 }
 
@@ -271,7 +278,7 @@ void TabletReplica::WaitUntilShutdown() {
   while (true) {
     {
       std::lock_guard<simple_spinlock> lock(lock_);
-      if (state_ == SHUTDOWN) {
+      if (state_ == SHUTDOWN || state_ == FAILED_AND_SHUTDOWN) {
         return;
       }
     }

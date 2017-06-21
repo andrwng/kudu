@@ -325,10 +325,6 @@ Status SysCatalogTable::SetupTablet(const scoped_refptr<tablet::TabletMetadata>&
                                 &log,
                                 tablet_replica_->log_anchor_registry(),
                                 &consensus_info));
-
-  // TODO: Do we have a setSplittable(false) or something from the outside is
-  // handling split in the TS?
-
   RETURN_NOT_OK_PREPEND(tablet_replica_->Init(tablet,
                                            scoped_refptr<server::Clock>(master_->clock()),
                                            master_->messenger(),

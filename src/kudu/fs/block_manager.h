@@ -42,6 +42,7 @@ class Slice;
 namespace fs {
 
 class BlockManager;
+class DataDir;
 class DataDirManager;
 class FsErrorManager;
 struct FsReport;
@@ -136,6 +137,8 @@ class WritableBlock : public Block {
   virtual size_t BytesAppended() const = 0;
 
   virtual State state() const = 0;
+
+  virtual void HandleError(const Status& s, DataDir* dir) const = 0;
 };
 
 // A block that has been opened for reading. Multiple in-memory blocks may
@@ -165,6 +168,8 @@ class ReadableBlock : public Block {
 
   // Returns the memory usage of this object including the object itself.
   virtual size_t memory_footprint() const = 0;
+
+  virtual void HandleError(const Status& s, DataDir* dir) const = 0;
 };
 
 // Provides options and hints for block placement. This is used for identifying

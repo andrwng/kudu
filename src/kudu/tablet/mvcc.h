@@ -265,6 +265,8 @@ class MvccManager {
   // never Abort().
   void GetApplyingTransactionsTimestamps(std::vector<Timestamp>* timestamps) const;
 
+  void CancelAllTransactions();
+
   ~MvccManager();
 
  private:
@@ -397,8 +399,15 @@ class ScopedTransaction {
   // Requires that StartApplying() has NOT been called.
   void Abort();
 
+  // Cancels the in-flight transaction, regardless of state.
+  //
+  // Calls to this are unsafe and should only be used in rare situations (e.g.
+  // in case of disk failure).
+  void Cancel();
+
  private:
   bool done_;
+  bool canceled_;
   MvccManager * const manager_;
   const Timestamp timestamp_;
 
