@@ -94,6 +94,7 @@ class FsErrorManager {
     // server shutdown or if the TSTabletManager has not yet been initialized.
     CHECK(dir);
     uint16_t uuid_idx;
+    LOG(INFO) << "DATA DIR FAILED " << dir->dir();
     if (dd_manager_->FindUuidIndexByDataDir(dir, &uuid_idx)) {
       if (dd_manager_->IsDataDirFailed(uuid_idx)) {
         return;

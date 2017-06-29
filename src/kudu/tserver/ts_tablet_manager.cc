@@ -811,11 +811,7 @@ void TSTabletManager::OpenTablet(const scoped_refptr<TabletMetadata>& meta,
       LOG(ERROR) << LogPrefix(tablet_id) << "Tablet failed to bootstrap: "
                  << s.ToString();
       // Disk failures should already be handled.
-      if (IsDiskFailure(s)) {
-        DCHECK(replica->tablet()->IsDataInFailedDir());
-      } else {
-        replica->SetFailed(s);
-      }
+      replica->SetFailed(s);
       return;
     }
   }

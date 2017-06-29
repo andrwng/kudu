@@ -481,7 +481,8 @@ const BlockId& FileReadableBlock::id() const {
 Status FileReadableBlock::Size(uint64_t* sz) const {
   DCHECK(!closed_.Load());
 
-  return reader_->Size(sz);
+  RETURN_NOT_OK_HANDLE_ERROR(reader_->Size(sz));
+  return Status::OK();
 }
 
 Status FileReadableBlock::Read(uint64_t offset, Slice* result) const {
@@ -688,7 +689,14 @@ Status FileBlockManager::OpenBlock(const BlockId& block_id,
   VLOG(1) << "Opening block with id " << block_id.ToString() << " at " << path;
 
   shared_ptr<RandomAccessFile> reader;
-  RETURN_NOT_OK(file_cache_.OpenExistingFile(path, &reader));
+  Status s = file_cache_.OpenExistingFile(path, &reader);
+  if (PREDICT_FALSE(!s.ok())) {
+    if (IsDiskFailure(s)) {
+      uint16_t uuid_idx = internal::FileBlockLocation::GetDataDirIdx(block_id);
+      error_manager_->FailTabletsInDataDir(dd_manager_.FindDataDirByUuidIndex(uuid_idx));
+    }
+    return s;
+  }
   block->reset(new internal::FileReadableBlock(this, block_id, reader));
   return Status::OK();
 }
@@ -705,7 +713,13 @@ Status FileBlockManager::DeleteBlock(const BlockId& block_id) {
     return Status::NotFound(
         Substitute("Block $0 not found", block_id.ToString()));
   }
-  RETURN_NOT_OK(file_cache_.DeleteFile(path));
+  Status s = file_cache_.DeleteFile(path);
+  if (PREDICT_FALSE(!s.ok())) {
+    if (IsDiskFailure(s)) {
+      error_manager_->FailTabletsInDataDir(dd_manager_.FindDataDirByUuidIndex(uuid_idx));
+    }
+    return s;
+  }
 
   // We don't bother fsyncing the parent directory as there's nothing to be
   // gained by ensuring that the deletion is made durable. Even if we did
