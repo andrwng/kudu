@@ -76,6 +76,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // Load existing metadata from disk.
   static Status Load(FsManager* fs_manager,
                      const std::string& tablet_id,
+                     const std::string& metadata_dir,
                      scoped_refptr<TabletMetadata>* metadata);
 
   // Try to load an existing tablet. If it does not exist, create it.
@@ -218,7 +219,8 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   consensus::OpId tombstone_last_logged_opid() const { return tombstone_last_logged_opid_; }
 
   // Loads the currently-flushed superblock from disk into the given protobuf.
-  Status ReadSuperBlockFromDisk(TabletSuperBlockPB* superblock) const;
+  Status ReadSuperBlockFromDisk(const std::string& metadata_dir,
+                                TabletSuperBlockPB* superblock) const;
 
   // Sets *super_block to the serialized form of the current metadata.
   Status ToSuperBlock(TabletSuperBlockPB* super_block) const;
@@ -259,7 +261,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
 
   void SetSchemaUnlocked(gscoped_ptr<Schema> schema, uint32_t version);
 
-  Status LoadFromDisk();
+  Status LoadFromDisk(const string& metadata_dir);
 
   // Update state of metadata to that of the given superblock PB.
   Status LoadFromSuperBlock(const TabletSuperBlockPB& superblock);

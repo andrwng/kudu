@@ -245,6 +245,7 @@ Status TabletCopyClient::Start(const HostPort& copy_source_addr,
         TSTabletManager::DeleteTabletData(meta_, tablet::TABLET_DATA_COPYING, boost::none),
         "Could not replace superblock with COPYING data state");
     CHECK_OK(fs_manager_->dd_manager()->CreateDataDirGroup(tablet_id_));
+    // TODO(awong): assign a new metadata dir.
   } else {
     Partition partition;
     Partition::FromPB(superblock_->partition(), &partition);

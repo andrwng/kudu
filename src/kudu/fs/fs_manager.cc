@@ -79,6 +79,11 @@ DEFINE_string(fs_data_dirs, "",
               "block directory.");
 TAG_FLAG(fs_data_dirs, stable);
 
+DEFINE_bool(fs_stripe_metadata, false, "Whether or not to spread tablet "
+            "metadata across data dirs. If false, metadata will be stored in "
+            "the WAL dir.");
+TAG_FLAG(fs_stripe_metadata, experimental);
+
 using kudu::env_util::ScopedFileDeleter;
 using kudu::fs::BlockManagerOptions;
 using kudu::fs::CreateBlockOptions;
@@ -203,23 +208,30 @@ Status FsManager::Init() {
   // All done, use the map to set the canonicalized state.
   canonicalized_wal_fs_root_ = FindOrDie(canonicalized_roots, wal_fs_root_);
   if (!data_fs_roots_.empty()) {
-    canonicalized_metadata_fs_root_ = FindOrDie(canonicalized_roots, data_fs_roots_[0]);
     for (const string& data_fs_root : data_fs_roots_) {
       canonicalized_data_fs_roots_.insert(FindOrDie(canonicalized_roots, data_fs_root));
     }
   } else {
     LOG(INFO) << "Data directories (fs_data_dirs) not provided";
     LOG(INFO) << "Using write-ahead log directory (fs_wal_dir) as data directory";
-    canonicalized_metadata_fs_root_ = canonicalized_wal_fs_root_;
     canonicalized_data_fs_roots_.insert(canonicalized_wal_fs_root_);
   }
   for (const RootMap::value_type& e : canonicalized_roots) {
     canonicalized_all_fs_roots_.insert(e.second);
   }
+  if (FLAGS_fs_stripe_metadata) {
+    canonicalized_metadata_fs_root_ = "";
+  } else {
+    canonicalized_metadata_fs_root_ = canonicalized_wal_fs_root_;
+  }
 
   if (VLOG_IS_ON(1)) {
     VLOG(1) << "WAL root: " << canonicalized_wal_fs_root_;
-    VLOG(1) << "Metadata root: " << canonicalized_metadata_fs_root_;
+    if (!canonicalized_metadata_fs_root_.empty()) {
+      VLOG(1) << "Metadata root: " << canonicalized_metadata_fs_root_;
+    } else {
+      VLOG(1) << "Metadata will be striped accross data roots.";
+    }
     VLOG(1) << "Data roots: " << canonicalized_data_fs_roots_;
     VLOG(1) << "All roots: " << canonicalized_all_fs_roots_;
   }
@@ -234,6 +246,7 @@ Status FsManager::Init() {
   return Status::OK();
 }
 
+// TODO(awong): consider renaming to InitStorageManagers() and reusing the FsManagerOpts.
 void FsManager::InitBlockManager() {
   BlockManagerOptions opts;
   opts.metric_entity = metric_entity_;
@@ -349,8 +362,10 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
 
   // Initialize ancillary directories.
   vector<string> ancillary_dirs = { GetWalsRootDir(),
-                                    GetTabletMetadataDir(),
                                     GetConsensusMetadataDir() };
+  if (!FLAGS_fs_stripe_metadata) {
+    ancillary_dirs.emplace_back(GetTabletMetadataDir());
+  }
   for (const string& dir : ancillary_dirs) {
     bool created;
     RETURN_NOT_OK_PREPEND(CreateDirIfMissing(dir, &created),
@@ -459,11 +474,23 @@ vector<string> FsManager::GetDataRootDirs() const {
 
 string FsManager::GetTabletMetadataDir() const {
   DCHECK(initted_);
+  if (FLAGS_fs_stripe_metadata) {
+    return "";
+  }
+  CHECK(!canonicalized_metadata_fs_root_.empty());
   return JoinPathSegments(canonicalized_metadata_fs_root_, kTabletMetadataDirName);
 }
 
 string FsManager::GetTabletMetadataPath(const string& tablet_id) const {
-  return JoinPathSegments(GetTabletMetadataDir(), tablet_id);
+  string metadata_dir;
+  if (FLAGS_fs_stripe_metadata) {
+    metadata_dir = JoinPathSegments(dd_manager_->GetTabletMetadataDir(tablet_id),
+                                    kTabletMetadataDirName);
+  } else {
+    metadata_dir = GetTabletMetadataDir();
+    CHECK(!metadata_dir.empty());
+  }
+  return JoinPathSegments(metadata_dir, tablet_id);
 }
 
 namespace {
@@ -485,7 +512,42 @@ bool IsValidTabletId(const string& fname) {
 }
 } // anonymous namespace
 
-Status FsManager::ListTabletIds(vector<string>* tablet_ids) {
+TabletsByDirMap FsManager::ListTabletIdsPerDir() const {
+  TabletsByDirMap tablet_ids_per_dir;
+  for (const string& dir : canonicalized_all_fs_roots_) {
+    vector<string> tablet_ids;
+    string metadata_path = JoinPathSegments(dir, kTabletMetadataDirName);
+    bool is_dir = false;
+    Status s = env_->IsDirectory(metadata_path, &is_dir);
+    if (!is_dir || !s.ok()) {
+      continue;
+    }
+    vector<string> children;
+    s = ListDir(metadata_path, &children);
+    if (!s.ok()) {
+      LOG(WARNING) << Substitute("Couldn't list files in $0", metadata_path);
+    }
+    for (string& child : children) {
+      if (!IsValidTabletId(child)) {
+        continue;
+      }
+      tablet_ids.emplace_back(std::move(child));
+    }
+    if (!tablet_ids.empty()) {
+      InsertOrDie(&tablet_ids_per_dir, metadata_path, tablet_ids);
+    }
+  }
+  return tablet_ids_per_dir;
+}
+
+Status FsManager::ListTabletIds(vector<string>* tablet_ids) const {
+  // TODO(awong): Change to search every directory for a tablet metadata.
+  //
+  // /data-0/kTabletMetadataDirName
+  // /data-1/kTabletMetadataDirName
+  // /data-2/kTabletMetadataDirName
+  //
+  // Flag to specify the metadata dirs.
   string dir = GetTabletMetadataDir();
   vector<string> children;
   RETURN_NOT_OK_PREPEND(ListDir(dir, &children),

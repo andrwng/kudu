@@ -163,7 +163,8 @@ Status TSTabletManager::Init() {
 
   // Search for tablets in the metadata dir.
   vector<string> tablet_ids;
-  RETURN_NOT_OK(fs_manager_->ListTabletIds(&tablet_ids));
+  //RETURN_NOT_OK(fs_manager_->ListTabletIds(&tablet_ids));
+  TabletsByDirMap tablet_ids_per_dir = fs_manager_->ListTabletIdsPerDir();
 
   InitLocalRaftPeerPB();
 
@@ -173,18 +174,38 @@ Status TSTabletManager::Init() {
   // submitting the actual OpenTablet() tasks so that we don't have to compete
   // for disk resources, etc, with bootstrap processes and running tablets.
   int loaded_count = 0;
-  for (const string& tablet_id : tablet_ids) {
-    KLOG_EVERY_N_SECS(INFO, 1) << Substitute("Loading tablet metadata ($0/$1 complete)",
-                                             loaded_count, tablet_ids.size());
-    scoped_refptr<TabletMetadata> meta;
-    RETURN_NOT_OK_PREPEND(OpenTabletMeta(tablet_id, &meta),
-                          "Failed to open tablet metadata for tablet: " + tablet_id);
-    loaded_count++;
-    if (PREDICT_FALSE(meta->tablet_data_state() != TABLET_DATA_READY)) {
-      RETURN_NOT_OK(HandleNonReadyTabletOnStartup(meta));
-      continue;
+  for (const auto& e : tablet_ids_per_dir) {
+    for (const string& tablet_id : e.second) {
+      KLOG_EVERY_N_SECS(INFO, 1) << Substitute("Loading tablet metadata ($0/$1 complete)",
+                                              loaded_count, tablet_ids.size());
+      scoped_refptr<TabletMetadata> meta;
+      RETURN_NOT_OK_PREPEND(OpenTabletMeta(tablet_id, e.first, &meta),
+                            "Failed to open tablet metadata for tablet: " + tablet_id);
+      if (fs_manager_->GetTabletMetadataDir().empty()) {
+        if (DirName(e.first) != fs_manager_->GetTabletMetadataDir()) {
+          RETURN_NOT_OK_PREPEND(fs_manager_->env()->RenameFile(JoinPathSegments(e.first, tablet_id),
+              JoinPathSegments(fs_manager_->GetTabletMetadataDir(), tablet_id)),
+              Substitute("Failed to move tablet metadata from $0 to $1", "", ""));
+        }
+      } else {
+        DataDirGroupPB pb;
+        fs_manager_->dd_manager()->GetDataDirGroupPB(tablet_id, &pb);
+        set<string> group(pb.uuids().begin(), pb.uuids().end());
+        string uuid_with_metadata;
+        RETURN_NOT_OK(fs_manager_->dd_manager()->FindUuidByPath(e.first, &uuid_with_metadata));
+        if (group.find(uuid_with_metadata) != group.end()) {
+          RETURN_NOT_OK_PREPEND(fs_manager_->env()->RenameFile(JoinPathSegments(e.first, tablet_id),
+              JoinPathSegments(fs_manager_->GetTabletMetadataDir(), tablet_id)),
+              Substitute("Failed to move tablet metadata from $0 to $1", "", ""));
+        }
+      }
+      loaded_count++;
+      if (PREDICT_FALSE(meta->tablet_data_state() != TABLET_DATA_READY)) {
+        RETURN_NOT_OK(HandleNonReadyTabletOnStartup(meta));
+        continue;
+      }
+      metas.push_back(meta);
     }
-    metas.push_back(meta);
   }
   LOG(INFO) << Substitute("Loaded tablet metadata ($0 live tablets)", metas.size());
 
@@ -720,11 +741,12 @@ Status TSTabletManager::StartTabletStateTransitionUnlocked(
 }
 
 Status TSTabletManager::OpenTabletMeta(const string& tablet_id,
+                                       const string& metadata_dir,
                                        scoped_refptr<TabletMetadata>* metadata) {
   LOG(INFO) << LogPrefix(tablet_id) << "Loading tablet metadata";
   TRACE("Loading metadata...");
   scoped_refptr<TabletMetadata> meta;
-  RETURN_NOT_OK_PREPEND(TabletMetadata::Load(fs_manager_, tablet_id, &meta),
+  RETURN_NOT_OK_PREPEND(TabletMetadata::Load(fs_manager_, tablet_id, metadata_dir, &meta),
                         strings::Substitute("Failed to load tablet metadata for tablet id $0",
                                             tablet_id));
   TRACE("Metadata loaded");
