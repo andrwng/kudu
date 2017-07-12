@@ -44,6 +44,8 @@
 #include "kudu/util/status.h"
 #include "kudu/util/trace.h"
 
+DECLARE_bool(fs_stripe_metadata);
+
 DEFINE_bool(enable_tablet_orphaned_block_deletion, true,
             "Whether to enable deletion of orphaned blocks from disk. "
             "Note: This is only exposed for debugging purposes!");
@@ -61,6 +63,7 @@ namespace kudu {
 
 using consensus::MinimumOpId;
 using consensus::OpId;
+using fs::DataDir;
 
 namespace tablet {
 
@@ -87,6 +90,13 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
 
   RETURN_NOT_OK_PREPEND(fs_manager->dd_manager()->CreateDataDirGroup(tablet_id),
       "Failed to create TabletMetadata");
+  if (FLAGS_fs_stripe_metadata) {
+    DataDir* metadata_dir;
+    RETURN_NOT_OK_PREPEND(fs_manager->dd_manager()->GetNextDataDir({ tablet_id }, &metadata_dir),
+        Substitute("Failed to select a metadata directory for tablet $0", tablet_id));
+    fs_manager->dd_manager()->SetTabletMetadataDir(tablet_id, metadata_dir);
+  }
+
   auto dir_group_cleanup = MakeScopedCleanup([&]() {
     fs_manager->dd_manager()->DeleteDataDirGroup(tablet_id);
   });
@@ -107,9 +117,10 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
 
 Status TabletMetadata::Load(FsManager* fs_manager,
                             const string& tablet_id,
+                            const string& metadata_dir,
                             scoped_refptr<TabletMetadata>* metadata) {
   scoped_refptr<TabletMetadata> ret(new TabletMetadata(fs_manager, tablet_id));
-  RETURN_NOT_OK(ret->LoadFromDisk());
+  RETURN_NOT_OK(ret->LoadFromDisk(metadata_dir));
   metadata->swap(ret);
   return Status::OK();
 }
@@ -123,7 +134,7 @@ Status TabletMetadata::LoadOrCreate(FsManager* fs_manager,
                                     const Partition& partition,
                                     const TabletDataState& initial_tablet_data_state,
                                     scoped_refptr<TabletMetadata>* metadata) {
-  Status s = Load(fs_manager, tablet_id, metadata);
+  Status s = Load(fs_manager, tablet_id, "", metadata);
   if (s.ok()) {
     if (!(*metadata)->schema().Equals(schema)) {
       return Status::Corruption(Substitute("Schema on disk ($0) does not "
@@ -247,6 +258,7 @@ Status TabletMetadata::DeleteSuperBlock() {
                    tablet_data_state_));
   }
 
+  // TODO(awong) store this in the metadata itself
   string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
   RETURN_NOT_OK_PREPEND(fs_manager_->env()->DeleteFile(path),
                         "Unable to delete superblock for tablet " + tablet_id_);
@@ -294,14 +306,14 @@ TabletMetadata::TabletMetadata(FsManager* fs_manager, string tablet_id)
       needs_flush_(false),
       pre_flush_callback_(Bind(DoNothingStatusClosure)) {}
 
-Status TabletMetadata::LoadFromDisk() {
+Status TabletMetadata::LoadFromDisk(const string& metadata_dir) {
   TRACE_EVENT1("tablet", "TabletMetadata::LoadFromDisk",
                "tablet_id", tablet_id_);
 
   CHECK_EQ(state_, kNotLoadedYet);
 
   TabletSuperBlockPB superblock;
-  RETURN_NOT_OK(ReadSuperBlockFromDisk(&superblock));
+  RETURN_NOT_OK(ReadSuperBlockFromDisk(metadata_dir, &superblock));
   RETURN_NOT_OK_PREPEND(LoadFromSuperBlock(superblock),
                         "Failed to load data from superblock protobuf");
   state_ = kInitialized;
@@ -570,6 +582,10 @@ Status TabletMetadata::ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb) {
   flush_lock_.AssertAcquired();
 
   string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
+  // TODO(awong): if this is called with a brand new DataDirGroup, move the path.
+  // This may happen if there's a tablet copy.
+  //
+  // This path may not reflect any existing metadata.
   RETURN_NOT_OK_PREPEND(pb_util::WritePBContainerToPath(
                             fs_manager_->env(), path, pb,
                             pb_util::OVERWRITE, pb_util::SYNC),
@@ -579,8 +595,11 @@ Status TabletMetadata::ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb) {
   return Status::OK();
 }
 
-Status TabletMetadata::ReadSuperBlockFromDisk(TabletSuperBlockPB* superblock) const {
-  string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
+Status TabletMetadata::ReadSuperBlockFromDisk(const string& metadata_dir,
+                                              TabletSuperBlockPB* superblock) const {
+  string path = JoinPathSegments(metadata_dir, tablet_id_);
+  // TODO(awong): handle failures here by making the DataDirManager aware of
+  // which directories contain tablet metadata.
   RETURN_NOT_OK_PREPEND(
       pb_util::ReadPBContainerFromPath(fs_manager_->env(), path, superblock),
       Substitute("Could not load tablet metadata from $0", path));

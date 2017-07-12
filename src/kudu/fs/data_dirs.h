@@ -259,6 +259,11 @@ class DataDirManager {
   // the max allowed, or if 'mode' is MANDATORY and locks could not be taken.
   Status Open();
 
+  void SetTabletMetadataDir(const std::string& tablet_id, DataDir* dir);
+
+  // Returns the directory that the input tablet_id is storing its metadata.
+  std::string GetTabletMetadataDir(const std::string& tablet_id) const;
+
   // Deserializes a DataDirGroupPB and associates the resulting DataDirGroup
   // with a tablet_id.
   //
@@ -330,6 +335,8 @@ class DataDirManager {
   }
 
   std::vector<std::string> GetDataRootDirs() const;
+
+  Status FindUuidByPath(const std::string& path, std::string* uuid) const;
 
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
@@ -412,6 +419,12 @@ class DataDirManager {
 
   typedef std::unordered_map<uint16_t, std::set<std::string>> TabletsByUuidIndexMap;
   TabletsByUuidIndexMap tablets_by_uuid_idx_map_;
+
+  // Optional mapping of tablet id to the UUID index of the directory
+  // containing the tablet's metadata. If 'metadata_uuid_idx_' is specified,
+  // this should be boost::None.
+  typedef std::unordered_map<std::string, uint16_t> UuidIndexByTabletMap;
+  boost::optional<UuidIndexByTabletMap> metadata_uuid_idx_by_tablet_map_;
 
   UuidByUuidIndexMap uuid_by_idx_;
   UuidIndexByUuidMap idx_by_uuid_;

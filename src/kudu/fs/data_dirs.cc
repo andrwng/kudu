@@ -90,6 +90,8 @@ DEFINE_bool(fs_lock_data_dirs, true,
             "Note that read-only concurrent usage is still allowed.");
 TAG_FLAG(fs_lock_data_dirs, unsafe);
 
+DECLARE_bool(fs_stripe_metadata);
+
 METRIC_DEFINE_gauge_uint64(server, data_dirs_failed,
                            "Data Directories Failed",
                            kudu::MetricUnit::kDataDirectories,
@@ -603,6 +605,10 @@ Status DataDirManager::Open() {
   uuid_idx_by_data_dir_.swap(uuid_idx_by_dd);
   failed_data_dirs_.swap(failed_data_dirs);
   tablets_by_uuid_idx_map_.swap(tablets_by_uuid_idx_map);
+  // TODO(awong): use an input arg instead.
+  if (FLAGS_fs_stripe_metadata) {
+    metadata_uuid_idx_by_tablet_map_ = UuidIndexByTabletMap();
+  }
   return Status::OK();
 }
 
@@ -650,6 +656,20 @@ Status DataDirManager::UpdateInstanceFiles(const vector<PathInstanceMetadataFile
     }
   }
   return Status::OK();
+}
+
+void DataDirManager::SetTabletMetadataDir(const string& tablet_id, DataDir* dir) {
+  CHECK(metadata_uuid_idx_by_tablet_map_);
+  uint16_t uuid_idx;
+  if (FindUuidIndexByDataDir(dir, &uuid_idx)) {
+    InsertOrDie(&(*metadata_uuid_idx_by_tablet_map_), tablet_id, uuid_idx);
+  }
+}
+
+string DataDirManager::GetTabletMetadataDir(const string& tablet_id) const {
+  CHECK(metadata_uuid_idx_by_tablet_map_);
+  uint16_t metadata_uuid_idx = FindOrDie(*metadata_uuid_idx_by_tablet_map_, tablet_id);
+  return FindDataDirByUuidIndex(metadata_uuid_idx)->dir();
 }
 
 Status DataDirManager::LoadDataDirGroupFromPB(const std::string& tablet_id,
@@ -880,6 +900,15 @@ void DataDirManager::WritePathHealthStatesUnlocked() {
     // coverage.
     WARN_NOT_OK(e.second->mutable_instance()->UpdateOnDisk(), "Failed to write new instance");
   }
+}
+
+Status DataDirManager::FindUuidByPath(const string& path, string* uuid) const {
+  const string* uuid_ptr = FindOrNull(uuid_by_path_, path);
+  if (uuid_ptr) {
+    *uuid = *uuid_ptr;
+    return Status::OK();
+  }
+  return Status::NotFound(Substitute("Directory $0 not registered.", path));
 }
 
 bool DataDirManager::IsDataDirFailed(uint16_t uuid_idx) const {
