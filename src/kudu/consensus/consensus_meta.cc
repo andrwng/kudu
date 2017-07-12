@@ -271,9 +271,15 @@ Status ConsensusMetadata::Flush(FlushMode mode) {
                           "Unable to fsync consensus parent dir " + parent_dir);
   }
 
-  string meta_file_path = fs_manager_->GetConsensusMetadataPath(tablet_id_);
+  string metadata_path;
+  string existing_path;
+  Status s = fs_manager_->GetConsensusMetadataPath(tablet_id_, &metadata_path, &existing_path);
+  if (s.IsNotFound()) {
+    // If the tablet is not found, don't bother moving the cmeta.
+    metadata_path = fs_manager_->GetConsensusMetadataPath(tablet_id_);
+  }
   RETURN_NOT_OK_PREPEND(pb_util::WritePBContainerToPath(
-      fs_manager_->env(), meta_file_path, pb_,
+      fs_manager_->env(), metadata_path, pb_,
       mode == OVERWRITE ? pb_util::OVERWRITE : pb_util::NO_OVERWRITE,
       // We use FLAGS_log_force_fsync_all here because the consensus metadata is
       // essentially an extension of the primary durability mechanism of the
@@ -281,7 +287,19 @@ Status ConsensusMetadata::Flush(FlushMode mode) {
       // and the consensus metadata get the same durability guarantees.
       FLAGS_log_force_fsync_all ? pb_util::SYNC : pb_util::NO_SYNC),
           Substitute("Unable to write consensus meta file for tablet $0 to path $1",
-                     tablet_id_, meta_file_path));
+                    tablet_id_, metadata_path));
+  if (PREDICT_FALSE(!existing_path.empty())) {
+    // Duplicate the cmeta file before deleting it to ensure that if we crash before
+    // deleting, either copy will be valid.
+    RETURN_NOT_OK_PREPEND(pb_util::WritePBContainerToPath(
+        fs_manager_->env(), existing_path, pb_,
+        mode == OVERWRITE ? pb_util::OVERWRITE : pb_util::NO_OVERWRITE,
+        FLAGS_log_force_fsync_all ? pb_util::SYNC : pb_util::NO_SYNC),
+            Substitute("Unable to write consensus meta file for tablet $0 to path $1",
+                      tablet_id_, metadata_path));
+    fs_manager_->env()->DeleteFile(existing_path);
+    RETURN_NOT_OK(fs_manager_->MoveConsensusMetadataDir(tablet_id_, metadata_path));
+  }
   return Status::OK();
 }
 

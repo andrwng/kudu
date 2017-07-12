@@ -91,6 +91,8 @@ DEFINE_bool(fs_lock_data_dirs, true,
             "Note that read-only concurrent usage is still allowed.");
 TAG_FLAG(fs_lock_data_dirs, unsafe);
 
+DECLARE_bool(fs_stripe_metadata);
+
 METRIC_DEFINE_gauge_uint64(server, data_dirs_failed,
                            "Data Directories Failed",
                            kudu::MetricUnit::kDataDirectories,
@@ -337,8 +339,8 @@ Status DataDirManager::Init() {
     Status s = env_->Canonicalize(DirName(root), &canonicalized);
     if (PREDICT_FALSE(!s.ok())) {
       LOG(ERROR) << Substitute("Failed to canonicalize $0: $1", DirName(root), s.ToString());
-      // Allow disk failures to pass through to allow startup even in the
-      // presence of disk failure, but record the failure.
+      // Allow disk failures to pass through to allow startup in the presence
+      // of disk failure, but note the failure by recording an invalid path.
       if (!s.IsDiskFailure()) {
         InsertOrDie(&data_root_map, root, kInvalidPath);
         continue;
@@ -450,9 +452,13 @@ Status DataDirManager::Open() {
 
   int i = 0;
   for (const auto& e : data_root_map_) {
-    string d = e.second == kInvalidPath ?
-      kInvalidPath : JoinPathSegments(e.second, kDataDirName);
-    string instance_filename = d == kInvalidPath ? kInvalidPath : JoinPathSegments(d, kInstanceMetadataFileName);
+    string d = kInvalidPath;
+    string instance_filename = kInvalidPath;
+    if (e.second != kInvalidPath) {
+      d = JoinPathSegments(e.second, kDataDirName);
+      instance_filename = JoinPathSegments(d, kInstanceMetadataFileName);
+    }
+
     gscoped_ptr<PathInstanceMetadataFile> instance(
         new PathInstanceMetadataFile(env_, block_manager_type_,
                                      instance_filename));
@@ -471,8 +477,8 @@ Status DataDirManager::Open() {
           return new_status;
         }
       }
-      instances.push_back(instance.get());
     }
+    instances.push_back(instance.get());
 
     // Figure out what filesystem the data directory is on.
     DataDirFsType fs_type = DataDirFsType::OTHER;
@@ -836,6 +842,78 @@ set<string> DataDirManager::FindTabletsByDataDirUuidIdx(uint16_t uuid_idx) {
   return {};
 }
 
+void DataDirManager::SetConsensusMetadataDir(const string& tablet_id, DataDir* dir) {
+  uint16_t uuid_idx;
+  CHECK(FindUuidIndexByDataDir(dir, &uuid_idx));
+  InsertOrUpdate(&cmetadata_uuid_idx_by_tablet_map_, tablet_id, uuid_idx);
+}
+
+void DataDirManager::SetConsensusMetadataDir(const string& tablet_id, const string& uuid) {
+  uint16_t uuid_idx;
+  CHECK(FindUuidIndexByUuid(uuid, &uuid_idx));
+  InsertOrUpdate(&cmetadata_uuid_idx_by_tablet_map_, tablet_id, uuid_idx);
+}
+
+void DataDirManager::SetTabletMetadataDir(const string& tablet_id, DataDir* dir) {
+  uint16_t uuid_idx;
+  CHECK(FindUuidIndexByDataDir(dir, &uuid_idx));
+  InsertOrUpdate(&metadata_uuid_idx_by_tablet_map_, tablet_id, uuid_idx);
+}
+
+void DataDirManager::SetTabletMetadataDir(const string& tablet_id, const string& uuid) {
+  uint16_t uuid_idx;
+  CHECK(FindUuidIndexByUuid(uuid, &uuid_idx));
+  InsertOrUpdate(&metadata_uuid_idx_by_tablet_map_, tablet_id, uuid_idx);
+}
+
+Status DataDirManager::GetTabletMetadataDir(const string& tablet_id,
+                                            string* metadata_dir, string* existing_dir) {
+  return GetMetadataDir(metadata_uuid_idx_by_tablet_map_, tablet_id, metadata_dir, existing_dir);
+}
+
+Status DataDirManager::GetConsensusMetadataDir(const string& tablet_id,
+                                               string* cmetadata_dir, string* existing_dir) {
+  return GetMetadataDir(cmetadata_uuid_idx_by_tablet_map_, tablet_id, cmetadata_dir, existing_dir);
+}
+
+Status DataDirManager::GetMetadataDir(const UuidIndexByTabletMap& meta_map, const string& tablet_id,
+                                      string* metadata_path, string* existing_path) {
+  uint16_t metadata_uuid_idx = FindOrDie(meta_map, tablet_id);
+  if (existing_path) {
+    if (!FLAGS_fs_stripe_metadata && metadata_uuid_idx != 0) {
+      // If not striping, metadata outside of the first directory needs to be moved.
+      *existing_path = FindDataDirByUuidIndex(metadata_uuid_idx)->dir();
+      *metadata_path = FindDataDirByUuidIndex(0)->dir();
+    } else {
+      // If striping, ensure the metadata are within the directory group.
+      // Get the directory group for the tablet and check if the metadata dir
+      // exists within group.
+      const DataDirGroup* group = FindOrNull(group_by_tablet_map_, tablet_id);
+      if (group == nullptr) {
+        return Status::NotFound(Substitute("Tablet $0 is not registered with "
+                                          "directory manager", tablet_id));
+      }
+      const vector<uint16_t>* group_uuid_indices = &group->uuid_indices();
+      bool meta_dir_in_group = false;
+      for (const uint16_t group_uuid_idx : *group_uuid_indices) {
+        if (metadata_uuid_idx == group_uuid_idx) {
+          meta_dir_in_group = true;
+          continue;
+        }
+      }
+      // If the metadata dir is not in the group, select a new directory for it.
+      if (!meta_dir_in_group) {
+        DataDir* dir;
+        RETURN_NOT_OK(GetNextDataDir({ tablet_id }, &dir));
+        *existing_path = FindDataDirByUuidIndex(metadata_uuid_idx)->dir();
+        *metadata_path = dir->dir();
+      }
+    }
+  }
+  *metadata_path = FindDataDirByUuidIndex(metadata_uuid_idx)->dir();
+  return Status::OK();
+}
+
 void DataDirManager::MarkDataDirFailed(uint16_t uuid_idx, const string& error_message) {
   CHECK(AccessMode::READ_WRITE == mode_) << "Cannot handle disk failures; filesystem is "
                                             "opened in read-only mode";
@@ -879,6 +957,15 @@ void DataDirManager::WritePathHealthStatesUnlocked() {
   }
 }
 
+Status DataDirManager::FindUuidByPath(const string& path, string* uuid) const {
+  const string* uuid_ptr = FindOrNull(uuid_by_path_, path);
+  if (uuid_ptr) {
+    *uuid = *uuid_ptr;
+    return Status::OK();
+  }
+  return Status::NotFound(Substitute("Directory $0 not registered.", path));
+}
+
 bool DataDirManager::IsDataDirFailed(uint16_t uuid_idx) const {
   DCHECK_LT(uuid_idx, data_dirs_.size());
   shared_lock<rw_spinlock> lock(dir_group_lock_.get_lock());
@@ -898,6 +985,7 @@ void DataDirManager::RemoveUnhealthyDataDirsUnlocked(const vector<uint16_t>& uui
     }
   }
 }
+
 vector<string> DataDirManager::GetDataRootDirs() const {
   vector<string> data_paths;
   for (const string& data_root : canonicalized_data_fs_roots_) {

@@ -317,9 +317,34 @@ class DataDirManager {
     return data_dirs_;
   }
 
+  // ==========================================================================
+  // Tablet Placement
+  // ==========================================================================
+
   // Finds the set of tablet_ids in the data dir specified by 'uuid_idx' and
   // returns a copy, returning an empty set if none are found.
   std::set<std::string> FindTabletsByDataDirUuidIdx(uint16_t uuid_idx);
+
+  void SetConsensusMetadataDir(const std::string& tablet_id, const std::string& uuid);
+  void SetConsensusMetadataDir(const std::string& tablet_id, DataDir* dir);
+
+  void SetTabletMetadataDir(const std::string& tablet_id, const std::string& uuid);
+  void SetTabletMetadataDir(const std::string& tablet_id, DataDir* dir);
+
+  // Returns the directory that the input tablet_id should store its metadata.
+  //
+  // 'metadata_path' is set to a directory in which tablet metadata for
+  // 'tablet_id' should be placed. 'existing_path' is set to the directory the
+  // tablet metadata is currently stored, if it needs to be moved.
+  Status GetTabletMetadataDir(const std::string& tablet_id,
+                              string* metadata_dir, string* existing_dir);
+
+  Status GetConsensusMetadataDir(const std::string& tablet_id,
+                                 string* cmetadata_dir, string* existing_dir);
+
+  // ==========================================================================
+  // Directory Health
+  // ==========================================================================
 
   // Adds 'uuid_idx' to the set of failed data directories. This directory will
   // no longer be used. Logs an error message prefixed with 'error_message'
@@ -334,7 +359,13 @@ class DataDirManager {
     return failed_data_dirs_;
   }
 
+  // ==========================================================================
+  // Directory Paths
+  // ==========================================================================
   std::vector<std::string> GetDataRootDirs() const;
+
+  // Map from canonicalized dir name without the 'data' suffix to its UUID.
+  Status FindUuidByPath(const std::string& path, std::string* uuid) const;
 
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
@@ -374,6 +405,10 @@ class DataDirManager {
   // registered.
   Status UpdateInstanceFiles(const std::vector<PathInstanceMetadataFile*>& instances,
                              std::set<int> updated_indices);
+
+  typedef std::unordered_map<std::string, uint16_t> UuidIndexByTabletMap;
+  Status GetMetadataDir(const UuidIndexByTabletMap& meta_map, const std::string& tablet_id,
+                              string* metadata_path, string* existing_path);
 
   static const char* kDataDirName;
 
@@ -417,6 +452,11 @@ class DataDirManager {
 
   typedef std::unordered_map<uint16_t, std::set<std::string>> TabletsByUuidIndexMap;
   TabletsByUuidIndexMap tablets_by_uuid_idx_map_;
+
+  // Mappings of tablet id to the UUID index of the directory containing the
+  // tablet's metadata and consensus metadata.
+  UuidIndexByTabletMap metadata_uuid_idx_by_tablet_map_;
+  UuidIndexByTabletMap cmetadata_uuid_idx_by_tablet_map_;
 
   UuidByUuidIndexMap uuid_by_idx_;
   UuidIndexByUuidMap idx_by_uuid_;

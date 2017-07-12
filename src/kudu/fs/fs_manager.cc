@@ -79,6 +79,11 @@ DEFINE_string(fs_data_dirs, "",
               "block directory.");
 TAG_FLAG(fs_data_dirs, stable);
 
+DEFINE_bool(fs_stripe_metadata, false, "Whether or not to spread tablet "
+            "metadata across data dirs. If false, metadata will be stored in "
+            "the WAL dir.");
+TAG_FLAG(fs_stripe_metadata, experimental);
+
 using kudu::env_util::ScopedFileDeleter;
 using kudu::fs::BlockManagerOptions;
 using kudu::fs::CreateBlockOptions;
@@ -191,7 +196,6 @@ Status FsManager::Init() {
     canonicalized_wal_fs_root_ = DirName(dd_manager_->GetDataRootDirs()[0]);
   }
   canonicalized_all_fs_roots_.insert(canonicalized_wal_fs_root_);
-  canonicalized_metadata_fs_root_ = DirName(dd_manager_->GetDataRootDirs()[0]);
   for (const string& data_root : dd_manager_->GetDataRootDirs()) {
     canonicalized_data_fs_roots_.insert(DirName(data_root));
     canonicalized_all_fs_roots_.insert(DirName(data_root));
@@ -199,7 +203,11 @@ Status FsManager::Init() {
 
   if (VLOG_IS_ON(1)) {
     VLOG(1) << "WAL root: " << canonicalized_wal_fs_root_;
-    VLOG(1) << "Metadata root: " << canonicalized_metadata_fs_root_;
+    if (!FLAGS_fs_stripe_metadata) {
+      VLOG(1) << "Metadata root: " << dd_manager_->GetDataRootDirs()[0];
+    } else {
+      VLOG(1) << "Metadata will be striped accross data roots.";
+    }
     VLOG(1) << "Data roots: " << canonicalized_data_fs_roots_;
     VLOG(1) << "All roots: " << canonicalized_all_fs_roots_;
   }
@@ -283,6 +291,25 @@ Status FsManager::Open(FsReport* report) {
   }
   LOG(INFO) << "Opened local filesystem: " << JoinStrings(canonicalized_all_fs_roots_, ",")
             << std::endl << SecureDebugString(*metadata_);
+
+  // Read the tablet metadata and consensus metadata files in each directory.
+  TabletsByDirMap tablet_meta_map = ListTabletMetadataIdsPerRootDir();
+  for (const auto& e : tablet_meta_map) {
+    string dir_uuid;
+    CHECK_OK(dd_manager_->FindUuidByPath(JoinPathSegments(e.first, kDataDirName), &dir_uuid));
+    for (const string& tablet_id : e.second) {
+      dd_manager_->SetTabletMetadataDir(tablet_id, dir_uuid);
+    }
+  }
+  TabletsByDirMap tablet_cmeta_map = ListConsensusMetadataIdsPerRootDir();
+  for (const auto& e : tablet_meta_map) {
+    string dir_uuid;
+    CHECK_OK(dd_manager_->FindUuidByPath(JoinPathSegments(e.first, kDataDirName), &dir_uuid));
+    for (const string& tablet_id : e.second) {
+      dd_manager_->SetConsensusMetadataDir(tablet_id, dir_uuid);
+    }
+  }
+
   return Status::OK();
 }
 
@@ -341,9 +368,10 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
   }
 
   // Initialize ancillary directories.
-  vector<string> ancillary_dirs = { GetWalsRootDir(),
-                                    GetTabletMetadataDir(),
-                                    GetConsensusMetadataDir() };
+  vector<string> ancillary_dirs = { GetWalsRootDir() };
+  if (!FLAGS_fs_stripe_metadata) {
+    ancillary_dirs.emplace_back(GetTabletMetadataDir());
+  }
   for (const string& dir : ancillary_dirs) {
     bool created;
     RETURN_NOT_OK_PREPEND(CreateDirIfMissing(dir, &created),
@@ -445,13 +473,72 @@ vector<string> FsManager::GetDataRootDirs() const {
   return dd_manager_->GetDataRootDirs();
 }
 
+string FsManager::GetConsensusMetadataPath(const std::string& tablet_id) const {
+  string cmetadata_path;
+  CHECK_OK(GetConsensusMetadataPath(tablet_id, &cmetadata_path, nullptr));
+  return cmetadata_path;
+}
+
+Status FsManager::GetConsensusMetadataPath(const string& tablet_id, string* cmetadata_path,
+                                           string* existing_path) const {
+  string cmetadata_dir;
+  string existing_dir;
+  RETURN_NOT_OK(dd_manager_->GetConsensusMetadataDir(tablet_id, &cmetadata_dir, &existing_dir));
+  cmetadata_dir = JoinPathSegments(cmetadata_dir, kConsensusMetadataDirName);
+  *cmetadata_path = JoinPathSegments(cmetadata_dir, tablet_id);
+  if (!existing_dir.empty()) {
+    existing_dir = JoinPathSegments(existing_dir, kConsensusMetadataDirName);
+    *existing_path = JoinPathSegments(existing_dir, tablet_id);
+  }
+  return Status::OK();
+}
+
 string FsManager::GetTabletMetadataDir() const {
   DCHECK(initted_);
+  CHECK(!canonicalized_metadata_fs_root_.empty());
   return JoinPathSegments(canonicalized_metadata_fs_root_, kTabletMetadataDirName);
 }
 
+Status FsManager::MoveTabletMetadataDir(const string& tablet_id, const string& path) {
+  DCHECK_EQ(tablet_id, BaseName(path));
+  string metadata_dir = DirName(path);
+  DCHECK_EQ(kTabletMetadataDirName, BaseName(metadata_dir));
+
+  string uuid;
+  RETURN_NOT_OK(dd_manager_->FindUuidByPath(DirName(metadata_dir), &uuid));
+  dd_manager_->SetTabletMetadataDir(tablet_id, uuid);
+  return Status::OK();
+}
+
+Status FsManager::MoveConsensusMetadataDir(const string& tablet_id, const string& path) {
+  DCHECK_EQ(tablet_id, BaseName(path));
+  string metadata_dir = DirName(path);
+  DCHECK_EQ(kConsensusMetadataDirName, BaseName(metadata_dir));
+
+  string uuid;
+  RETURN_NOT_OK(dd_manager_->FindUuidByPath(DirName(metadata_dir), &uuid));
+  dd_manager_->SetTabletMetadataDir(tablet_id, uuid);
+  return Status::OK();
+}
+
+Status FsManager::GetTabletMetadataPath(const string& tablet_id, string* metadata_path,
+                                        string* existing_path) const {
+  string metadata_dir;
+  string existing_dir;
+  RETURN_NOT_OK(dd_manager_->GetTabletMetadataDir(tablet_id, &metadata_dir, &existing_dir));
+  metadata_dir = JoinPathSegments(metadata_dir, kTabletMetadataDirName);
+  *metadata_path = JoinPathSegments(metadata_dir, tablet_id);
+  if (!existing_dir.empty()) {
+    existing_dir = JoinPathSegments(existing_dir, kTabletMetadataDirName);
+    *existing_path = JoinPathSegments(existing_dir, tablet_id);
+  }
+  return Status::OK();
+}
+
 string FsManager::GetTabletMetadataPath(const string& tablet_id) const {
-  return JoinPathSegments(GetTabletMetadataDir(), tablet_id);
+  string metadata_path;
+  CHECK_OK(GetTabletMetadataPath(tablet_id, &metadata_path, nullptr));
+  return metadata_path;
 }
 
 namespace {
@@ -473,18 +560,60 @@ bool IsValidTabletId(const string& fname) {
 }
 } // anonymous namespace
 
-Status FsManager::ListTabletIds(vector<string>* tablet_ids) {
-  string dir = GetTabletMetadataDir();
-  vector<string> children;
-  RETURN_NOT_OK_PREPEND(ListDir(dir, &children),
-                        Substitute("Couldn't list tablets in metadata directory $0", dir));
+TabletsByDirMap FsManager::ListTabletMetadataIdsPerRootDir() const {
+  return ListTabletIdsPerRootDir(kTabletMetadataDirName);
+}
 
-  vector<string> tablets;
-  for (const string& child : children) {
-    if (!IsValidTabletId(child)) {
+TabletsByDirMap FsManager::ListConsensusMetadataIdsPerRootDir() const {
+  return ListTabletIdsPerRootDir(kConsensusMetadataDirName);
+}
+
+TabletsByDirMap FsManager::ListTabletIdsPerRootDir(const string& metadata_dir_name) const {
+  TabletsByDirMap tablet_ids_per_dir;
+  for (const string& dir : GetDataRootDirs()) {
+    vector<string> tablet_ids;
+    string metadata_dir = JoinPathSegments(dir, metadata_dir_name);
+    bool is_dir = false;
+    Status s = env_->IsDirectory(metadata_dir, &is_dir);
+    if (!is_dir || !s.ok()) {
       continue;
     }
-    tablet_ids->push_back(child);
+    vector<string> children;
+    s = ListDir(metadata_dir, &children);
+    if (!s.ok()) {
+      LOG(WARNING) << Substitute("Couldn't list files in $0", metadata_dir);
+    }
+    for (string& child : children) {
+      if (!IsValidTabletId(child)) {
+        continue;
+      }
+      tablet_ids.emplace_back(std::move(child));
+    }
+    if (!tablet_ids.empty()) {
+      InsertOrDie(&tablet_ids_per_dir, metadata_dir, tablet_ids);
+    }
+  }
+  return tablet_ids_per_dir;
+}
+
+Status FsManager::ListTabletIds(vector<string>* tablet_ids) const {
+  // TODO(awong): Change to search every directory for a tablet metadata.
+  //
+  // /data-0/kTabletMetadataDirName
+  // /data-1/kTabletMetadataDirName
+  // /data-2/kTabletMetadataDirName
+  //
+  // Flag to specify the metadata dirs.
+  TabletsByDirMap tablet_metadata_map = ListTabletMetadataIdsPerRootDir();
+  set<string> tablet_id_set;
+  for (auto& e : tablet_metadata_map) {
+    for (string& tablet_id : e.second) {
+      tablet_id_set.emplace(std::move(tablet_id));
+    }
+  }
+
+  for (const string& tablet_id : tablet_id_set) {
+    tablet_ids->push_back(std::move(tablet_id));
   }
   return Status::OK();
 }
@@ -510,7 +639,7 @@ string FsManager::GetWalSegmentFileName(const string& tablet_id,
 void FsManager::CleanTmpFiles() {
   DCHECK(!read_only_);
   for (const auto& s : { GetWalsRootDir(),
-                         GetTabletMetadataDir(),
+                         GetTabletMetadataDirs(),
                          GetConsensusMetadataDir() }) {
     WARN_NOT_OK(env_util::DeleteTmpFilesRecursively(env_, s),
                 Substitute("Error deleting tmp files in $0", s));

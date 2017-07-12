@@ -32,6 +32,8 @@
 #include "kudu/util/env.h"
 #include "kudu/util/path_util.h"
 
+DECLARE_bool(fs_stripe_metadata);
+
 namespace google {
 namespace protobuf {
 class Message;
@@ -60,6 +62,8 @@ namespace itest {
 class ExternalMiniClusterFsInspector;
 } // namespace itest
 
+typedef std::unordered_map<std::string, std::vector<std::string>> TabletsByDirMap;
+
 struct FsManagerOpts {
   FsManagerOpts();
   ~FsManagerOpts();
@@ -79,6 +83,10 @@ struct FsManagerOpts {
 
   // The paths where data blocks will be stored. Cannot be empty.
   std::vector<std::string> data_paths;
+
+  // The paths where tablet metadata files will be stored. If empty, will
+  // default to striping metadata across all disks.
+  std::string metadata_path;
 
   // Whether or not read-write operations should be allowed. Defaults to false.
   bool read_only;
@@ -182,14 +190,27 @@ class FsManager {
   std::string GetWalSegmentFileName(const std::string& tablet_id,
                                     uint64_t sequence_number) const;
 
+  // Reassigns the tablet metadata directory to that used by path.
+  Status MoveTabletMetadataDir(const std::string& tablet_id, const std::string& path);
+  Status MoveConsensusMetadataDir(const std::string& tablet_id, const std::string& path);
+
+  Status GetTabletMetadataPath(const std::string& tablet_id,
+                               std::string* metadata_path,
+                               std::string* existing_path) const;
+
+  std::string GetTabletMetadataPath(const std::string& tablet_id) const;
+
   // Return the directory where tablet superblocks should be stored.
   std::string GetTabletMetadataDir() const;
 
-  // Return the path for a specific tablet's superblock.
-  std::string GetTabletMetadataPath(const std::string& tablet_id) const;
+  // Will search through all data roots for files in the subdirectory specified
+  // by 'metadata_dir_name'.
+  TabletsByDirMap ListTabletIdsPerRootDir(const std::string& metadata_dir_name) const;
+  TabletsByDirMap ListTabletMetadataIdsPerRootDir() const;
+  TabletsByDirMap ListConsensusMetadataIdsPerRootDir() const;
 
   // List the tablet IDs in the metadata directory.
-  Status ListTabletIds(std::vector<std::string>* tablet_ids);
+  Status ListTabletIds(std::vector<std::string>* tablet_ids) const;
 
   // Return the path where InstanceMetadataPB is stored.
   std::string GetInstanceMetadataPath(const std::string& root) const;
@@ -197,13 +218,20 @@ class FsManager {
   // Return the directory where the consensus metadata is stored.
   std::string GetConsensusMetadataDir() const {
     DCHECK(initted_);
+    DCHECK(!FLAGS_fs_stripe_metadata);
     return JoinPathSegments(canonicalized_metadata_fs_root_, kConsensusMetadataDirName);
   }
 
   // Return the path where ConsensusMetadataPB is stored.
-  std::string GetConsensusMetadataPath(const std::string& tablet_id) const {
-    return JoinPathSegments(GetConsensusMetadataDir(), tablet_id);
-  }
+  std::string GetConsensusMetadataPath(const std::string& tablet_id) const;
+
+  // Sets 'cmetadata_path' to the path where ConsensusMetadataPB should be
+  // stored. 'existing_path' is set to the current location of
+  // ConsensusMetadataPB if it differs from 'cemtadata_path'.
+  //
+  // Returns an error if the 'tablet_id' is not registered.
+  Status GetConsensusMetadataPath(const std::string& tablet_id,
+      std::string* cmetadata_path, std::string* existing_path) const;
 
   Env* env() { return env_; }
 
@@ -302,12 +330,13 @@ class FsManager {
   // as-is; they are first canonicalized during Init().
   const std::string wal_fs_root_;
   const std::vector<std::string> data_fs_roots_;
+  const std::string metadata_fs_root_;
 
   scoped_refptr<MetricEntity> metric_entity_;
 
   std::shared_ptr<MemTracker> parent_mem_tracker_;
 
-  // Canonicalized forms of 'wal_fs_root_ and 'data_fs_roots_'. Constructed
+  // Canonicalized forms of 'wal_fs_root_' and 'data_fs_roots_'. Constructed
   // during Init().
   //
   // - The first data root is used as the metadata root.

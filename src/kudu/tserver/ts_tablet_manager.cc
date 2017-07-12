@@ -23,6 +23,7 @@
 #include <glog/logging.h>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -114,6 +115,7 @@ using fs::DataDirManager;
 using log::Log;
 using master::ReportedTabletPB;
 using master::TabletReportPB;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::vector;
@@ -176,7 +178,7 @@ Status TSTabletManager::Init() {
   int loaded_count = 0;
   for (const string& tablet_id : tablet_ids) {
     KLOG_EVERY_N_SECS(INFO, 1) << Substitute("Loading tablet metadata ($0/$1 complete)",
-                                             loaded_count, tablet_ids.size());
+                                              loaded_count, tablet_ids.size());
     scoped_refptr<TabletMetadata> meta;
     RETURN_NOT_OK_PREPEND(OpenTabletMeta(tablet_id, &meta),
                           "Failed to open tablet metadata for tablet: " + tablet_id);
@@ -719,6 +721,7 @@ Status TSTabletManager::OpenTabletMeta(const string& tablet_id,
   LOG(INFO) << LogPrefix(tablet_id) << "Loading tablet metadata";
   TRACE("Loading metadata...");
   scoped_refptr<TabletMetadata> meta;
+  string metadata_dir = fs_manager_->GetTabletMetadataPath(tablet_id);
   RETURN_NOT_OK_PREPEND(TabletMetadata::Load(fs_manager_, tablet_id, &meta),
                         strings::Substitute("Failed to load tablet metadata for tablet id $0",
                                             tablet_id));

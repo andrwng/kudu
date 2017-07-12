@@ -74,6 +74,10 @@ PathInstanceMetadataFile::~PathInstanceMetadataFile() {
 
 Status PathInstanceMetadataFile::Create(const string& uuid, const vector<string>& all_uuids,
     const vector<string>& all_paths) {
+  if (filename_.empty()) {
+    health_status_ = Status::IOError("Instances failed to canonicalize", "", EIO);
+    return Status::OK();
+  }
   DCHECK(!lock_) << "Creating a metadata file that's already locked would release the lock";
   DCHECK(ContainsKey(set<string>(all_uuids.begin(), all_uuids.end()), uuid));
   DCHECK_EQ(all_paths.size(), all_uuids.size());

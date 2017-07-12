@@ -266,7 +266,10 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
 
   Status ReadSuperBlock(TabletSuperBlockPB *pb);
 
-  // Fully replace superblock.
+  // Fully replace superblock. If the superblock is in an inappropriate
+  // directory (e.g. outside the tablet's disk group if striping), writes a
+  // copy to a more appropriate location.
+  //
   // Requires 'flush_lock_'.
   Status ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb);
 

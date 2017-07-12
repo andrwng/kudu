@@ -219,6 +219,9 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
                                             scoped_refptr<TransitionInProgressDeleter>* deleter);
 
   // Open a tablet meta from the local file system by loading its superblock.
+  //
+  // If the metadata_dir is not an appropriate directory for tablet, the
+  // metadata file is moved.
   Status OpenTabletMeta(const std::string& tablet_id,
                         scoped_refptr<tablet::TabletMetadata>* metadata);
 
