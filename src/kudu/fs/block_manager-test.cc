@@ -94,14 +94,16 @@ class BlockManagerTest : public KuduTest {
     test_error_manager_(new FsErrorManager()),
     bm_(CreateBlockManager(scoped_refptr<MetricEntity>(),
                            shared_ptr<MemTracker>(),
-                           { test_dir_ })) {
+                           { test_dir_ })),
+    dd_manager_(bm_->dd_manager()) {
   }
 
-  virtual void SetUp() OVERRIDE {
-    CHECK_OK(bm_->Create());
+  virtual void SetUp() override {
     // Pass in a report to prevent the block manager from logging
     // unnecessarily.
     FsReport report;
+    CHECK_OK(dd_manager_->Create());
+    CHECK_OK(dd_manager_->Open());
     CHECK_OK(bm_->Open(&report));
     CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(test_tablet_name_));
     CHECK(bm_->dd_manager()->GetDataDirGroupPB(test_tablet_name_, &test_group_pb_));
@@ -130,11 +132,12 @@ class BlockManagerTest : public KuduTest {
   T* CreateBlockManager(const scoped_refptr<MetricEntity>& metric_entity,
                         const shared_ptr<MemTracker>& parent_mem_tracker,
                         const vector<string>& paths) {
+    this->dd_manager_.reset(new DataDirManager(env_, metric_entity, T::BlockManagerType(), paths,
+        DataDirManager::AccessMode::READ_WRITE));
     BlockManagerOptions opts;
     opts.metric_entity = metric_entity;
     opts.parent_mem_tracker = parent_mem_tracker;
-    opts.root_paths = paths;
-    return new T(env_, test_error_manager_.get(), opts);
+    return new T(env_, this->dd_manager_.get(), test_error_manager_.get(), opts);
   }
 
   Status ReopenBlockManager(const scoped_refptr<MetricEntity>& metric_entity,
@@ -144,8 +147,9 @@ class BlockManagerTest : public KuduTest {
                             bool load_test_group = true) {
     bm_.reset(CreateBlockManager(metric_entity, parent_mem_tracker, paths));
     if (create) {
-      RETURN_NOT_OK(bm_->Create());
+      RETURN_NOT_OK(dd_manager_->Create());
     }
+    RETURN_NOT_OK(dd_manager_->Open());
     RETURN_NOT_OK(bm_->Open(nullptr));
 
     // Certain tests may maintain their own directory groups, in which case
@@ -188,13 +192,13 @@ class BlockManagerTest : public KuduTest {
   string test_tablet_name_;
   CreateBlockOptions test_block_opts_;
   unique_ptr<FsErrorManager> test_error_manager_;
-  gscoped_ptr<T> bm_;
+  unique_ptr<T> bm_;
+  unique_ptr<DataDirManager> dd_manager_;
 };
 
 template <>
 void BlockManagerTest<LogBlockManager>::SetUp() {
   RETURN_NOT_LOG_BLOCK_MANAGER();
-  CHECK_OK(bm_->Create());
   // Pass in a report to prevent the block manager from logging
   // unnecessarily.
   FsReport report;
@@ -652,6 +656,7 @@ TYPED_TEST(BlockManagerTest, PersistenceTest) {
       scoped_refptr<MetricEntity>(),
       MemTracker::CreateTracker(-1, "other tracker"),
       { this->test_dir_ }));
+  ASSERT_OK(this->dd_manager_->Open());
   ASSERT_OK(new_bm->Open(nullptr));
 
   // Test that the state of all three blocks is properly reflected.

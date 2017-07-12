@@ -83,6 +83,7 @@ using kudu::env_util::ScopedFileDeleter;
 using kudu::fs::BlockManagerOptions;
 using kudu::fs::CreateBlockOptions;
 using kudu::fs::DataDirManager;
+using kudu::fs::DataDirManagerOptions;
 using kudu::fs::FsErrorManager;
 using kudu::fs::FileBlockManager;
 using kudu::fs::FsReport;
@@ -223,7 +224,10 @@ Status FsManager::Init() {
     VLOG(1) << "All roots: " << canonicalized_all_fs_roots_;
   }
 
-  // With the data roots canonicalized, we can initialize the block manager.
+  // With the data roots canonicalized, we can initialize the data dir manager.
+  InitDataDirManager();
+
+  // With the data dir manager initialized, we can initialize the block manager.
   InitBlockManager();
 
   initted_ = true;
@@ -234,15 +238,19 @@ void FsManager::InitBlockManager() {
   BlockManagerOptions opts;
   opts.metric_entity = metric_entity_;
   opts.parent_mem_tracker = parent_mem_tracker_;
-  opts.root_paths = GetDataRootDirs();
   opts.read_only = read_only_;
   if (FLAGS_block_manager == "file") {
-    block_manager_.reset(new FileBlockManager(env_, error_manager_.get(), opts));
+    block_manager_.reset(new FileBlockManager(env_, dd_manager_.get(), error_manager_.get(), opts));
   } else if (FLAGS_block_manager == "log") {
-    block_manager_.reset(new LogBlockManager(env_, error_manager_.get(), opts));
+    block_manager_.reset(new LogBlockManager(env_, dd_manager_.get(), error_manager_.get(), opts));
   } else {
     LOG(FATAL) << "Invalid block manager: " << FLAGS_block_manager;
   }
+}
+
+void FsManager::InitDataDirManager() {
+  dd_manager_.reset(new DataDirManager(env_, metric_entity_, FLAGS_block_manager, GetDataRootDirs(),
+      read_only_ ? DataDirManager::AccessMode::READ_ONLY : DataDirManager::AccessMode::READ_WRITE));
 }
 
 Status FsManager::Open(FsReport* report) {
@@ -274,6 +282,9 @@ Status FsManager::Open(FsReport* report) {
     CheckAndFixPermissions();
   }
 
+  LOG_TIMING(INFO, "opening directory manager") {
+    RETURN_NOT_OK(dd_manager_->Open());
+  }
   LOG_TIMING(INFO, "opening block manager") {
     RETURN_NOT_OK(block_manager_->Open(report));
   }
@@ -366,8 +377,9 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
     }
   }
 
-  // And lastly, the block manager.
-  RETURN_NOT_OK_PREPEND(block_manager_->Create(), "Unable to create block manager");
+  // And lastly, the directory manager.
+  RETURN_NOT_OK_PREPEND(dd_manager_->Create(),
+      "Unable to create directory manager");
 
   // Success: don't delete any files.
   for (ScopedFileDeleter* deleter : delete_on_failure) {
@@ -443,10 +455,6 @@ vector<string> FsManager::GetDataRootDirs() const {
     data_paths.push_back(JoinPathSegments(data_fs_root, kDataDirName));
   }
   return data_paths;
-}
-
-DataDirManager* FsManager::dd_manager() const {
-  return block_manager_->dd_manager();
 }
 
 string FsManager::GetTabletMetadataDir() const {

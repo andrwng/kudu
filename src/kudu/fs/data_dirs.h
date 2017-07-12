@@ -191,6 +191,26 @@ class DataDir {
   DISALLOW_COPY_AND_ASSIGN(DataDir);
 };
 
+struct DataDirManagerOptions {
+  DataDirManagerOptions();
+
+  // The type of block manager the DataDirManager should support.
+  std::string block_manager_type;
+
+  // The entity under which all metrics should be grouped. If nullptr, metrics
+  // will not be produced.
+  //
+  // Defaults to nullptr.
+  scoped_refptr<MetricEntity> metric_entity;
+
+  // The memory tracker under which all new memory trackers will be parented.
+  // If nullptr, new memory trackers will be parented to the root tracker.
+  std::vector<std::string> root_paths;
+
+  // Whether the directory manager should only allow reading. Defaults to false.
+  bool read_only;
+};
+
 // Encapsulates knowledge of data directory management on behalf of block
 // managers.
 class DataDirManager {
@@ -228,13 +248,13 @@ class DataDirManager {
   // Initializes the data directories on disk.
   //
   // Returns an error if initialized directories already exist.
-  Status Create(int flags);
+  Status Create();
 
   // Opens existing data directories from disk.
   //
   // Returns an error if the number of on-disk data directories found exceeds
-  // 'max_data_dirs', or if 'mode' is MANDATORY and locks could not be taken.
-  Status Open(int max_data_dirs, LockMode mode);
+  // the max allowed, or if 'mode' is MANDATORY and locks could not be taken.
+  Status Open();
 
   // Deserializes a DataDirGroupPB and associates the resulting DataDirGroup
   // with a tablet_id.

@@ -134,7 +134,6 @@ class BlockManagerStressTest : public KuduTest {
   }
 
   virtual void SetUp() OVERRIDE {
-    CHECK_OK(bm_->Create());
     CHECK_OK(bm_->Open(nullptr));
     CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(test_tablet_name_));
     CHECK(bm_->dd_manager()->GetDataDirGroupPB(test_tablet_name_, &test_group_pb_));
@@ -153,8 +152,11 @@ class BlockManagerStressTest : public KuduTest {
 
   BlockManager* CreateBlockManager() {
     BlockManagerOptions opts;
-    opts.root_paths = data_dirs_;
-    return new T(env_, test_error_manager_.get(), opts);
+    dd_manager_.reset(new DataDirManager(env_, opts.metric_entity, T::BlockManagerType(), data_dirs_,
+        DataDirManager::AccessMode::READ_WRITE));
+    dd_manager_->Create();
+    dd_manager_->Open();
+    return new T(env_, dd_manager_.get(), test_error_manager_.get(), opts);
   }
 
   void RunTest(double secs) {
@@ -237,8 +239,11 @@ class BlockManagerStressTest : public KuduTest {
   // The block manager.
   gscoped_ptr<BlockManager> bm_;
 
+  // The directory manager.
+  unique_ptr<DataDirManager> dd_manager_;
+
   // The error manager.
-  std::unique_ptr<FsErrorManager> test_error_manager_;
+  unique_ptr<FsErrorManager> test_error_manager_;
 
   // Test group of disk to spread data across.
   DataDirGroupPB test_group_pb_;

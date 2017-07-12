@@ -72,8 +72,6 @@ class LogBlockManagerTest : public KuduTest {
   }
 
   void SetUp() override {
-    CHECK_OK(bm_->Create());
-
     // Pass in a report to prevent the block manager from logging unnecessarily.
     FsReport report;
     CHECK_OK(bm_->Open(&report));
@@ -85,8 +83,11 @@ class LogBlockManagerTest : public KuduTest {
   LogBlockManager* CreateBlockManager(const scoped_refptr<MetricEntity>& metric_entity) {
     BlockManagerOptions opts;
     opts.metric_entity = metric_entity;
-    opts.root_paths = { test_dir_ };
-    return new LogBlockManager(env_, test_error_manager_.get(), opts);
+    dd_manager_.reset(new DataDirManager(env_, opts.metric_entity, "log", { test_dir_ },
+        DataDirManager::AccessMode::READ_WRITE));
+    dd_manager_->Create();
+    dd_manager_->Open();
+    return new LogBlockManager(env_, dd_manager_.get(), test_error_manager_.get(), opts);
   }
 
   Status ReopenBlockManager(FsReport* report = nullptr) {
@@ -148,6 +149,7 @@ class LogBlockManagerTest : public KuduTest {
   string test_tablet_name_;
   CreateBlockOptions test_block_opts_;
 
+  unique_ptr<DataDirManager> dd_manager_;
   unique_ptr<FsErrorManager> test_error_manager_;
   unique_ptr<LogBlockManager> bm_;
 

@@ -63,8 +63,8 @@ class DataDirGroupTest : public KuduTest {
   virtual void SetUp() override {
     KuduTest::SetUp();
     FLAGS_fs_target_data_dirs_per_tablet = kNumDirs / 2 + 1;
-    ASSERT_OK(dd_manager_->Create(0));
-    ASSERT_OK(dd_manager_->Open(kMaxPaths, DataDirManager::LockMode::NONE));
+    ASSERT_OK(dd_manager_->Create());
+    ASSERT_OK(dd_manager_->Open());
   }
 
  protected:

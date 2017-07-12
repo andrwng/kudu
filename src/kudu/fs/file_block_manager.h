@@ -69,16 +69,18 @@ struct BlockManagerMetrics;
 // The file-backed block manager.
 class FileBlockManager : public BlockManager {
  public:
+  static std::string BlockManagerType();
 
   // Creates a new in-memory instance of a FileBlockManager.
   //
-  // 'env' and 'error_manager' should remain alive for the lifetime of the
-  // block manager.
-  FileBlockManager(Env* env, FsErrorManager* error_manager, const BlockManagerOptions& opts);
+  // 'env', 'dd_manager', and 'error_manager' should remain alive for the
+  // lifetime of the block manager.
+  FileBlockManager(Env* env,
+                   DataDirManager* dd_manager,
+                   FsErrorManager* error_manager,
+                   const BlockManagerOptions& opts);
 
   virtual ~FileBlockManager();
-
-  Status Create() override;
 
   Status Open(FsReport* report) override;
 
@@ -94,7 +96,7 @@ class FileBlockManager : public BlockManager {
 
   Status GetAllBlockIds(std::vector<BlockId>* block_ids) override;
 
-  DataDirManager* dd_manager() override { return &dd_manager_; }
+  DataDirManager* dd_manager() override { return dd_manager_; }
 
   FsErrorManager* error_manager() override { return error_manager_; }
 
@@ -120,7 +122,7 @@ class FileBlockManager : public BlockManager {
   const bool read_only_;
 
   // Manages and owns all of the block manager's data directories.
-  DataDirManager dd_manager_;
+  DataDirManager* dd_manager_;
 
   // Manages callbacks used to handle disk failure.
   FsErrorManager* error_manager_;

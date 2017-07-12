@@ -84,6 +84,11 @@ DEFINE_int32(fs_data_dirs_full_disk_cache_seconds, 30,
 TAG_FLAG(fs_data_dirs_full_disk_cache_seconds, advanced);
 TAG_FLAG(fs_data_dirs_full_disk_cache_seconds, evolving);
 
+DEFINE_bool(fs_lock_data_dirs, true,
+            "Lock the data directories to prevent concurrent usage. "
+            "Note that read-only concurrent usage is still allowed.");
+TAG_FLAG(fs_lock_data_dirs, unsafe);
+
 METRIC_DEFINE_gauge_uint64(server, data_dirs_failed,
                            "Data Directories Failed",
                            kudu::MetricUnit::kDataDirectories,
@@ -302,7 +307,11 @@ void DataDirManager::Shutdown() {
   }
 }
 
-Status DataDirManager::Create(int flags) {
+Status DataDirManager::Create() {
+  CHECK(mode_ == AccessMode::READ_WRITE);
+  int flags = block_manager_type_ == "file" ? 0 : FLAG_CREATE_TEST_HOLE_PUNCH;
+  flags |= FLAG_CREATE_FSYNC;
+
   deque<ScopedFileDeleter*> delete_on_failure;
   ElementDeleter d(&delete_on_failure);
 
@@ -377,11 +386,18 @@ Status DataDirManager::Create(int flags) {
   return Status::OK();
 }
 
-Status DataDirManager::Open(int max_data_dirs, LockMode mode) {
-  // The issue is that if we don't Create() the DataDirManager, we'll need some
-  // way of determining which UUIDs are on each disk.
+Status DataDirManager::Open() {
   vector<PathInstanceMetadataFile*> instances;
   vector<unique_ptr<DataDir>> dds;
+  LockMode lock_mode;
+  if (!FLAGS_fs_lock_data_dirs) {
+    lock_mode = LockMode::NONE;
+  } else if (mode_ == AccessMode::READ_ONLY) {
+    lock_mode = LockMode::OPTIONAL;
+  } else {
+    lock_mode = LockMode::MANDATORY;
+  }
+  int max_data_dirs = block_manager_type_ == "file" ? (1 << 16) - 1 : kuint32max;
 
   int i = 0;
   for (const auto& p : paths_) {
@@ -392,15 +408,15 @@ Status DataDirManager::Open(int max_data_dirs, LockMode mode) {
                                      instance_filename));
     RETURN_NOT_OK_PREPEND(instance->LoadFromDisk(),
         Substitute("Could not open $0", instance_filename));
-    if (instance->valid_instance() && mode != LockMode::NONE) {
+    if (instance->valid_instance() && lock_mode != LockMode::NONE) {
       Status s = instance->Lock();
       if (PREDICT_FALSE(!s.ok())) {
         Status new_status = s.CloneAndPrepend(Substitute("Could not lock $0", instance_filename));
-        if (mode == LockMode::OPTIONAL) {
+        if (lock_mode == LockMode::OPTIONAL) {
           LOG(WARNING) << new_status.ToString();
           LOG(WARNING) << "Proceeding without lock";
         } else {
-          DCHECK(LockMode::MANDATORY == mode);
+          DCHECK(LockMode::MANDATORY == lock_mode);
           if (!IsDiskFailure(new_status)) {
             return new_status;
           }
