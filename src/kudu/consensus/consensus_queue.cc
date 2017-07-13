@@ -638,7 +638,8 @@ void PeerMessageQueue::ResponseFromPeer(const std::string& peer_uuid,
     // Initiate Tablet Copy on the peer if the tablet is not found or deleted.
     if (response.has_error()) {
       // We only let special types of errors through to this point from the peer.
-      CHECK_EQ(tserver::TabletServerErrorPB::TABLET_NOT_FOUND, response.error().code())
+      CHECK(tserver::TabletServerErrorPB::TABLET_NOT_FOUND == response.error().code() ||
+            tserver::TabletServerErrorPB::TABLET_FAILED == response.error().code())
           << SecureShortDebugString(response);
 
       peer->needs_tablet_copy = true;

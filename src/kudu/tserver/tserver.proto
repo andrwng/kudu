@@ -93,6 +93,9 @@ message TabletServerErrorPB {
 
     // The request is throttled.
     THROTTLED = 19;
+
+    // The tablet is in a failed state.
+    TABLET_FAILED = 20;
   }
 
   // The error code.

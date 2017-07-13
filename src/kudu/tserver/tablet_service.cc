@@ -169,11 +169,14 @@ bool LookupTabletReplicaOrRespond(TabletReplicaLookupIf* tablet_manager,
   if (PREDICT_FALSE(state != tablet::RUNNING)) {
     Status s = Status::IllegalState("Tablet not RUNNING",
                                     tablet::TabletStatePB_Name(state));
-    if (state == tablet::FAILED) {
+    TabletServerErrorPB tablet_state;
+    if (state == tablet::FAILED || state == tablet::FAILED_AND_SHUTDOWN) {
       s = s.CloneAndAppend((*replica)->error().ToString());
+      SetupErrorAndRespond(resp->mutable_error(), s, TabletServerErrorPB::TABLET_FAILED, context);
+    } else {
+      SetupErrorAndRespond(resp->mutable_error(), s, TabletServerErrorPB::TABLET_NOT_RUNNING,
+                           context);
     }
-    SetupErrorAndRespond(resp->mutable_error(), s,
-                         TabletServerErrorPB::TABLET_NOT_RUNNING, context);
     return false;
   }
   return true;
@@ -1635,7 +1638,11 @@ Status TabletServiceImpl::HandleNewScanRequest(TabletReplica* replica,
     return s;
   } else if (PREDICT_FALSE(!s.ok())) {
     LOG(WARNING) << "Error setting up scanner with request " << SecureShortDebugString(*req);
-    *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
+    if (IsDiskFailure(s)) {
+      *error_code = TabletServerErrorPB::TABLET_FAILED;
+    } else {
+      *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
+    }
     return s;
   }
 
@@ -1769,7 +1776,11 @@ Status TabletServiceImpl::HandleContinueScanRequest(const ScanRequestPB* req,
     if (PREDICT_FALSE(!s.ok())) {
       LOG(WARNING) << "Copying rows from internal iterator for request "
                    << SecureShortDebugString(*req);
-      *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
+      if (IsDiskFailure(s)) {
+        *error_code = TabletServerErrorPB::TABLET_FAILED;
+      } else {
+        *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
+      }
       return s;
     }
 
