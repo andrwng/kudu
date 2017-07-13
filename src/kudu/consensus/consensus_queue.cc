@@ -635,17 +635,22 @@ void PeerMessageQueue::ResponseFromPeer(const std::string& peer_uuid,
       return;
     }
 
-    // Initiate Tablet Copy on the peer if the tablet is not found or deleted.
+    // We only let special types of errors through to this point from the peer.
     if (response.has_error()) {
-      // We only let special types of errors through to this point from the peer.
-      CHECK_EQ(tserver::TabletServerErrorPB::TABLET_NOT_FOUND, response.error().code())
+      // Initiate Tablet Copy on the peer if the tablet is not found.
+      if (tserver::TabletServerErrorPB::TABLET_NOT_FOUND == response.error().code()) {
+        peer->needs_tablet_copy = true;
+        VLOG_WITH_PREFIX_UNLOCKED(1) << "Marked peer as needing tablet copy: "
+                                     << peer->ToString();
+        *more_pending = true;
+      } else {
+        // Ignore the response from the peer if it is failed.
+        CHECK(tserver::TabletServerErrorPB::TABLET_FAILED == response.error().code())
           << SecureShortDebugString(response);
-
-      peer->needs_tablet_copy = true;
-      VLOG_WITH_PREFIX_UNLOCKED(1) << "Marked peer as needing tablet copy: "
-                                   << peer->ToString();
-
-      *more_pending = true;
+        VLOG_WITH_PREFIX_UNLOCKED(1) << "Ignoring response from tablet to promote eviction: "
+                                    << peer->ToString();
+        *more_pending = false;
+      }
       return;
     }
 

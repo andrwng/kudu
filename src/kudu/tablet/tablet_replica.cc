@@ -224,12 +224,16 @@ void TabletReplica::Shutdown() {
 
   LOG(INFO) << "Initiating TabletReplica shutdown for tablet: " << tablet_id_;
 
+  TabletStatePB shutdown_type = SHUTDOWN;
   {
     std::unique_lock<simple_spinlock> lock(lock_);
-    if (state_ == QUIESCING || state_ == SHUTDOWN) {
+    if (state_ == QUIESCING || state_ == SHUTDOWN || state_ == FAILED_AND_SHUTDOWN) {
       lock.unlock();
       WaitUntilShutdown();
       return;
+    }
+    if (state_ == FAILED) {
+      shutdown_type = FAILED_AND_SHUTDOWN;
     }
     state_ = QUIESCING;
   }
@@ -244,7 +248,7 @@ void TabletReplica::Shutdown() {
 
   if (consensus_) consensus_->Shutdown();
 
-  // TODO: KUDU-183: Keep track of the pending tasks and send an "abort" message.
+  // TODO(KUDU-183): Keep track of the pending tasks and send an "abort" message.
   LOG_SLOW_EXECUTION(WARNING, 1000,
       Substitute("TabletReplica: tablet $0: Waiting for Transactions to complete", tablet_id())) {
     txn_tracker_.WaitForAllToFinish();
@@ -272,7 +276,7 @@ void TabletReplica::Shutdown() {
     // Release mem tracker resources.
     consensus_.reset();
     tablet_.reset();
-    state_ = SHUTDOWN;
+    state_ = shutdown_type;
   }
 }
 
@@ -280,7 +284,7 @@ void TabletReplica::WaitUntilShutdown() {
   while (true) {
     {
       std::lock_guard<simple_spinlock> lock(lock_);
-      if (state_ == SHUTDOWN) {
+      if (state_ == SHUTDOWN || state_ == FAILED_AND_SHUTDOWN) {
         return;
       }
     }

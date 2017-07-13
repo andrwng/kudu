@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#ifndef KUDU_TABLET_TABLET_REPLICA_H_
-#define KUDU_TABLET_TABLET_REPLICA_H_
+#pragma once
 
 #include <map>
 #include <memory>
@@ -90,8 +89,11 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
                ThreadPool* raft_pool,
                ThreadPool* prepare_pool);
 
-  // Shutdown this tablet replica.
-  // If a shutdown is already in progress, blocks until that shutdown is complete.
+  // Shutdown this tablet replica. If a shutdown is already in progress,
+  // blocks until that shutdown is complete.
+  //
+  // If the tablet is in a FAILED state when first called, the tablet's final
+  // state will be FAILED_AND_SHUTDOWN, and SHUTDOWN otherwise.
   void Shutdown();
 
   // Check that the tablet is in a RUNNING state.
@@ -245,7 +247,7 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
   // Tablet::RegisterMaintenanceOps().
   void RegisterMaintenanceOps(MaintenanceManager* maintenance_manager);
 
-  // Unregister the maintenance ops associated with this peer's tablet.
+  // Unregister the maintenance ops associated with this replica's tablet.
   // This method is not thread safe.
   void UnregisterMaintenanceOps();
 
@@ -362,4 +364,3 @@ class FlushInflightsToLogCallback : public RefCountedThreadSafe<FlushInflightsTo
 }  // namespace tablet
 }  // namespace kudu
 
-#endif /* KUDU_TABLET_TABLET_REPLICA_H_ */
