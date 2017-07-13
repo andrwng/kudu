@@ -13,7 +13,9 @@
 #ifndef KUDU_UTIL_STATUS_H_
 #define KUDU_UTIL_STATUS_H_
 
+#include <errno.h>
 #include <stdint.h>
+
 #include <string>
 
 #ifdef KUDU_HEADERS_NO_STUBS
@@ -460,6 +462,20 @@ inline Status& Status::operator=(Status&& s) {
   return *this;
 }
 #endif
+
+// We associate certain posix codes with (handleable) disk failures. As to not
+// break ABI-compatability of the Status class, rather than changing the Status
+// class, we use this function to determine disk failures.
+inline bool IsDiskFailure(const Status& s) {
+  switch (s.posix_code()) {
+    case EIO:
+    case ENODEV:
+    case ENXIO:
+    case EROFS:
+      return true;
+  }
+  return false;
+}
 
 }  // namespace kudu
 

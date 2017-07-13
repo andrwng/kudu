@@ -66,6 +66,7 @@
 #include "kudu/util/mem_tracker.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/scoped_cleanup.h"
+#include "kudu/util/status.h"
 #include "kudu/util/stopwatch.h"
 #include "kudu/util/trace.h"
 #include "kudu/util/url-coding.h"
@@ -189,7 +190,8 @@ Tablet::Tablet(const scoped_refptr<TabletMetadata>& metadata,
     next_mrs_id_(0),
     clock_(clock),
     rowsets_flush_sem_(1),
-    state_(kInitialized) {
+    state_(kInitialized),
+    data_in_failed_dir_(false) {
       CHECK(schema()->has_column_ids());
   compaction_policy_.reset(CreateCompactionPolicy());
 
@@ -674,7 +676,7 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   int num_ops = tx_state->row_ops().size();
 
   // TODO(todd) determine why we sometimes get empty writes!
-  if (PREDICT_FALSE(num_ops == 0)) return;
+  if (PREDICT_FALSE(num_ops == 0 || IsDataInFailedDir())) return;
 
   // The compiler seems to be bad at hoisting this load out of the loops,
   // so load it up top.
@@ -735,8 +737,9 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   // 'pending_group' and then calls 'ProcessPendingGroup' when the next group
   // begins.
   vector<pair<RowSet*, int>> pending_group;
+  bool failure_detected = false;
   const auto& ProcessPendingGroup = [&]() {
-    if (pending_group.empty()) return;
+    if (pending_group.empty() || failure_detected) return;
     // Check invariant of the batch RowSetTree query: within each output group
     // we should have fully-sorted keys.
     DCHECK(std::is_sorted(pending_group.begin(), pending_group.end(),
@@ -758,10 +761,14 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
         continue;
       }
 
-      // TODO(todd) is CHECK_OK correct? it used to be that errors here
-      // would just be silently ignored, so this seems at least an improvement.
       bool present = false;
-      CHECK_OK(rs->CheckRowPresent(*op->key_probe, &present, tx_state->mutable_op_stats(op_idx)));
+      Status s = rs->CheckRowPresent(*op->key_probe, &present, tx_state->mutable_op_stats(op_idx));
+      if (PREDICT_FALSE(!s.ok())) {
+        CHECK(IsDiskFailure(s)) << "Failed to check if row is present: " << s.ToString();
+        LOG(ERROR) << "Failed to check if row is present. Stopping transaction early";
+        failure_detected = true;
+        return;
+      }
       if (present) {
         op->present_in_rowset = rs;
       }
@@ -780,6 +787,9 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
       });
   // Process the last group.
   ProcessPendingGroup();
+  if (PREDICT_FALSE(failure_detected)) {
+    return;
+  }
 
   // Mark all of the ops as having been checked.
   // TODO(todd): this could potentially be weaved into the std::unique() call up
@@ -790,6 +800,9 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
 }
 
 void Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
+  if (PREDICT_FALSE(IsDataInFailedDir())) {
+    return;
+  }
   int num_ops = tx_state->row_ops().size();
 
   StartApplying(tx_state);
@@ -800,6 +813,9 @@ void Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
   }
 
   BulkCheckPresence(tx_state);
+  if (PREDICT_FALSE(IsDataInFailedDir())) {
+    return;
+  }
 
   // Actually apply the ops.
   for (int op_idx = 0; op_idx < num_ops; op_idx++) {
@@ -807,6 +823,9 @@ void Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
     if (row_op->has_result()) continue;
 
     ApplyRowOperation(tx_state, row_op, tx_state->mutable_op_stats(op_idx));
+    if (PREDICT_FALSE(IsDataInFailedDir())) {
+      return;
+    }
     DCHECK(row_op->has_result());
   }
 
@@ -824,7 +843,7 @@ void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
   DCHECK(tx_state->op_id().IsInitialized()) << "TransactionState OpId needed for anchoring";
   DCHECK_EQ(tx_state->schema_at_decode_time(), schema());
 
-  if (!ValidateOpOrMarkFailed(row_op)) {
+  if (!ValidateOpOrMarkFailed(row_op) || IsDataInFailedDir()) {
     return;
   }
 
@@ -834,9 +853,13 @@ void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
     vector<RowSet *> to_check = FindRowSetsToCheck(row_op, tx_state->tablet_components());
     for (RowSet *rowset : to_check) {
       bool present = false;
-      // TODO(todd) is CHECK_OK correct? it used to be that errors here
-      // would just be silently ignored, so this seems at least an improvement.
-      CHECK_OK(rowset->CheckRowPresent(*row_op->key_probe, &present, stats));
+      Status s = rowset->CheckRowPresent(*row_op->key_probe, &present, stats);
+      if (PREDICT_FALSE(!s.ok())) {
+        LOG(ERROR) << s.ToString();
+        LOG(ERROR) << "Failed to check if row is present. Stopping transaction early";
+        CHECK(IsDiskFailure(s));
+        return;
+      }
       if (present) {
         row_op->present_in_rowset = rowset;
         break;

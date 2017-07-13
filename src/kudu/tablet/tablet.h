@@ -397,6 +397,14 @@ class Tablet {
   // Return the default bloom filter sizing parameters, configured by server flags.
   static BloomFilterSizing DefaultBloomSizing();
 
+  void MarkDataInFailedDir() {
+    data_in_failed_dir_.Store(true);
+  }
+
+  bool IsDataInFailedDir() const {
+    return data_in_failed_dir_.Load();
+  }
+
  private:
   friend class Iterator;
   friend class TabletReplicaTest;
@@ -619,6 +627,7 @@ class Tablet {
 
   std::vector<MaintenanceOp*> maintenance_ops_;
 
+  AtomicBool data_in_failed_dir_;
   DISALLOW_COPY_AND_ASSIGN(Tablet);
 };
 
