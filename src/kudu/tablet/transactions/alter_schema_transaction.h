@@ -42,6 +42,8 @@ class AlterSchemaTransactionState : public TransactionState {
   ~AlterSchemaTransactionState() {
   }
 
+  virtual void Cancel() override {}
+
   AlterSchemaTransactionState(TabletReplica* tablet_replica,
                               const tserver::AlterSchemaRequestPB* request,
                               tserver::AlterSchemaResponsePB* response)

@@ -159,11 +159,15 @@ class MvccSnapshot {
 // MVCC is used to defer updates until commit time, and allow iterators to
 // operate on a snapshot which contains only committed transactions.
 //
-// There are two valid paths for a transaction:
+// There are two healthy (see below) paths for a transaction:
 //
 // 1) StartTransaction() -> StartApplyingTransaction() -> CommitTransaction()
 //   or
 // 2) StartTransaction() -> AbortTransaction()
+//
+// In the unhealthy case where a disk fails while one of the tablets hosted on
+// it is still applying, the transaction may be canceled if it can be
+// guaranteed that the tablet will be shutdown and remain unused thereafter.
 //
 // When a transaction is ready to start making changes to in-memory data,
 // it should transition to APPLYING state by calling StartApplyingTransaction().
@@ -264,6 +268,8 @@ class MvccManager {
   // These transactions are guaranteed to eventually Commit() -- i.e. they will
   // never Abort().
   void GetApplyingTransactionsTimestamps(std::vector<Timestamp>* timestamps) const;
+
+  void CancelAllTransactions();
 
   ~MvccManager();
 
@@ -397,8 +403,16 @@ class ScopedTransaction {
   // Requires that StartApplying() has NOT been called.
   void Abort();
 
+  // Cancels the in-flight transaction, ending it regardless of state.
+  //
+  // Calls to this are unsafe and should only be used in rare situations (e.g.
+  // in case of disk failure) and the tablet to whom the MvccManager belongs
+  // should not be used.
+  void Cancel();
+
  private:
   bool done_;
+  bool canceled_;
   MvccManager * const manager_;
   const Timestamp timestamp_;
 

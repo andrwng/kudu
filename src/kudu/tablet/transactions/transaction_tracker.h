@@ -63,6 +63,8 @@ class TransactionTracker {
   // Returns number of pending transactions.
   int GetNumPendingForTests() const;
 
+  void CancelAllPendingTransactions();
+
   void WaitForAllToFinish() const;
   Status WaitForAllToFinish(const MonoDelta& timeout) const;
 

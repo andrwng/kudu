@@ -171,6 +171,15 @@ void TransactionTracker::Release(TransactionDriver* driver) {
   }
 }
 
+void TransactionTracker::CancelAllPendingTransactions() {
+  vector<scoped_refptr<TransactionDriver> > txns;
+  GetPendingTransactions(&txns);
+  for (auto& txn : txns) {
+    txn->mutable_state()->Cancel();
+    Release(txn.get());
+  }
+}
+
 void TransactionTracker::GetPendingTransactions(
     vector<scoped_refptr<TransactionDriver> >* pending_out) const {
   DCHECK(pending_out->empty());

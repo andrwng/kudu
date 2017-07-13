@@ -352,6 +352,11 @@ void WriteTransactionState::ReleaseRowLocks() {
   }
 }
 
+void WriteTransactionState::Cancel() {
+  mvcc_tx_->Cancel();
+  Reset();
+}
+
 WriteTransactionState::~WriteTransactionState() {
   Reset();
 }
