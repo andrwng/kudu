@@ -217,7 +217,8 @@ Status TSTabletManager::WaitForAllBootstrapsToFinish() {
 
   shared_lock<rw_spinlock> l(lock_);
   for (const TabletMap::value_type& entry : tablet_map_) {
-    if (entry.second->state() == tablet::FAILED) {
+    if (entry.second->state() == tablet::FAILED ||
+        entry.second->state() == tablet::FAILED_AND_SHUTDOWN) {
       return entry.second->error();
     }
   }
@@ -609,14 +610,16 @@ Status TSTabletManager::DeleteTablet(
     }
   }
 
-  // If the tablet is already deleted, the CAS check isn't possible because
-  // consensus and therefore the log is not available.
+  // If the tablet has been deleted or forcefully shut down, the CAS check
+  // isn't possible because consensus and therefore the log is not available.
   TabletDataState data_state = replica->tablet_metadata()->tablet_data_state();
-  bool tablet_deleted = (data_state == TABLET_DATA_DELETED || data_state == TABLET_DATA_TOMBSTONED);
+  bool tablet_deleted = (data_state == TABLET_DATA_DELETED ||
+                         data_state == TABLET_DATA_TOMBSTONED ||
+                         replica->state() == tablet::FAILED_AND_SHUTDOWN);
 
   // They specified an "atomic" delete. Check the committed config's opid_index.
-  // TODO: There's actually a race here between the check and shutdown, but
-  // it's tricky to fix. We could try checking again after the shutdown and
+  // TODO(mpercy): There's actually a race here between the check and shutdown,
+  // but it's tricky to fix. We could try checking again after the shutdown and
   // restarting the tablet if the local replica committed a higher config
   // change op during that time, or potentially something else more invasive.
   if (cas_config_opid_index_less_or_equal && !tablet_deleted) {
@@ -650,7 +653,6 @@ Status TSTabletManager::DeleteTablet(
     s = s.CloneAndPrepend(Substitute("Unable to delete on-disk data from tablet $0",
                                      tablet_id));
     LOG(WARNING) << s.ToString();
-    replica->SetFailed(s);
     return s;
   }
 
@@ -946,7 +948,7 @@ void TSTabletManager::CreateReportedTabletPB(const string& tablet_id,
   reported_tablet->set_tablet_id(tablet_id);
   reported_tablet->set_state(replica->state());
   reported_tablet->set_tablet_data_state(replica->tablet_metadata()->tablet_data_state());
-  if (replica->state() == tablet::FAILED) {
+  if (replica->state() == tablet::FAILED || replica->state() == tablet::FAILED_AND_SHUTDOWN) {
     AppStatusPB* error_status = reported_tablet->mutable_error();
     StatusToPB(replica->error(), error_status);
   }
@@ -1032,18 +1034,27 @@ Status TSTabletManager::DeleteTabletData(
   CHECK(delete_type == TABLET_DATA_DELETED ||
         delete_type == TABLET_DATA_TOMBSTONED ||
         delete_type == TABLET_DATA_COPYING)
-      << "Unexpected delete_type to delete tablet " << meta->tablet_id() << ": "
+      << "Unexpected delete_type to delete tablet " << tablet_id << ": "
       << TabletDataState_Name(delete_type) << " (" << delete_type << ")";
 
   // Note: Passing an unset 'last_logged_opid' will retain the last_logged_opid
   // that was previously in the metadata.
-  RETURN_NOT_OK(meta->DeleteTabletData(delete_type, last_logged_opid));
+  Status s = meta->DeleteTabletData(delete_type, last_logged_opid);
+  if (PREDICT_FALSE(!s.ok())) {
+    if (!s.IsDiskFailure()) {
+      return s;
+    }
+    // TODO(awong): this is only reached if the metadata failed to write during
+    // DeleteTabletData. Once metadata directory is no longer a single point of
+    // failure, allow this to pass through.
+    LOG(FATAL) << Substitute("Tablet $0's metadata is in a failed disk", tablet_id);
+  }
   LOG(INFO) << LogPrefix(tablet_id, meta->fs_manager())
             << "Tablet deleted. Last logged OpId: "
             << meta->tombstone_last_logged_opid();
   MAYBE_FAULT(FLAGS_fault_crash_after_blocks_deleted);
 
-  RETURN_NOT_OK(Log::DeleteOnDiskData(meta->fs_manager(), meta->tablet_id()));
+  CHECK_OK(Log::DeleteOnDiskData(meta->fs_manager(), tablet_id));
   MAYBE_FAULT(FLAGS_fault_crash_after_wal_deleted);
 
   // We do not delete the superblock or the consensus metadata when tombstoning
@@ -1057,13 +1068,23 @@ Status TSTabletManager::DeleteTabletData(
   DCHECK_EQ(TABLET_DATA_DELETED, delete_type);
 
   LOG(INFO) << LogPrefix(tablet_id, meta->fs_manager()) << "Deleting consensus metadata";
-  Status s = cmeta_manager->Delete(meta->tablet_id());
+  s = cmeta_manager->Delete(tablet_id);
   // NotFound means we already deleted the cmeta in a previous attempt.
   if (PREDICT_FALSE(!s.ok() && !s.IsNotFound())) {
-    return s;
+    if (!s.IsDiskFailure()) {
+      return s;
+    }
+    LOG(FATAL) << Substitute("Tablet $0's consensus metadata is in a failed disk", tablet_id);
   }
   MAYBE_FAULT(FLAGS_fault_crash_after_cmeta_deleted);
-  return meta->DeleteSuperBlock();
+  s = meta->DeleteSuperBlock();
+  if (PREDICT_FALSE(!s.ok())) {
+    if (!s.IsDiskFailure()) {
+      return s;
+    }
+    LOG(FATAL) << Substitute("Tablet $0's metadata is in a failed disk", tablet_id);
+  }
+  return Status::OK();
 }
 
 void TSTabletManager::FailTabletsInDataDir(const string& uuid) {

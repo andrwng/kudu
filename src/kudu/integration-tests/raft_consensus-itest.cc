@@ -2970,7 +2970,7 @@ TEST_F(RaftConsensusITest, TestUpdateConsensusErrorNonePrepared) {
 }
 
 // Test that, if the raft metadata on a replica is corrupt, then the server
-// doesn't crash, but instead just marks the tablet as corrupt.
+// doesn't crash, but instead evicts and reassigns the tablet automatically.
 TEST_F(RaftConsensusITest, TestCorruptReplicaMetadata) {
   // Start cluster and wait until we have a stable leader.
   NO_FATALS(BuildAndStart());
@@ -2989,24 +2989,18 @@ TEST_F(RaftConsensusITest, TestCorruptReplicaMetadata) {
 
   ASSERT_OK(ts->Restart());
 
-  // The server should come up with a 'FAILED' status because of the corrupt
-  // metadata.
-  ASSERT_OK(WaitUntilTabletInState(tablet_servers_[ts->uuid()],
-                                   tablet_id_,
-                                   tablet::FAILED,
-                                   MonoDelta::FromSeconds(30)));
+  // The server should return a 'FAILED' status because of the corrupt
+  // metadata. This will eventually trigger eviction and reassignment.  A new
+  // good replica should get created automatically.
+  ASSERT_OK(WaitForServersToAgree(MonoDelta::FromSeconds(30), tablet_servers_,
+                                  tablet_id_, 1));
 
-  // Currently, the tablet server does not automatically delete FAILED replicas.
-  // So, manually delete the bad replica in order to recover.
-  ASSERT_OK(itest::DeleteTablet(tablet_servers_[ts->uuid()], tablet_id_,
-                                tablet::TABLET_DATA_TOMBSTONED, boost::none,
-                                MonoDelta::FromSeconds(30)));
-
-  // A new good copy should get created.
+  // The tablet should come up with a 'RUNNING' status eventually.
   ASSERT_OK(WaitUntilTabletInState(tablet_servers_[ts->uuid()],
                                    tablet_id_,
                                    tablet::RUNNING,
                                    MonoDelta::FromSeconds(30)));
+
 }
 
 // Test that an IOError when writing to the write-ahead log is a fatal error.

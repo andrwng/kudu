@@ -2459,9 +2459,13 @@ Status CatalogManager::HandleReportedTablet(TSDescriptor* ts_desc,
   if (report.has_error()) {
     Status s = StatusFromPB(report.error());
     DCHECK(!s.ok());
-    DCHECK_EQ(report.state(), tablet::FAILED);
+    DCHECK(report.state() == tablet::FAILED || report.state() == tablet::FAILED_AND_SHUTDOWN);
     LOG(WARNING) << "Tablet " << tablet->ToString() << " has failed on TS "
                  << ts_desc->ToString() << ": " << s.ToString();
+    SendDeleteReplicaRequest(report.tablet_id(), TABLET_DATA_TOMBSTONED,
+                             boost::none,
+                             tablet->table(), ts_desc->permanent_uuid(),
+                             Substitute("Tablet failed: $0", s.ToString()));
     return Status::OK();
   }
 

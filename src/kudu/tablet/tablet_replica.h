@@ -64,6 +64,13 @@ class TabletReplica;
 class TabletStatusPB;
 class TransactionDriver;
 
+// If a replica is forced to shutdown, it should not wait on pending txns and
+// should be replicated elsewhere, as the state indicates a disk failure.
+enum ReplicaShutdownType {
+  NORMAL_SHUTDOWN,
+  FORCED_SHUTDOWN
+};
+
 // A replica in a tablet consensus configuration, which coordinates writes to tablets.
 // Each time Write() is called this class appends a new entry to a replicated
 // state machine through a consensus algorithm, which makes sure that other
@@ -90,9 +97,11 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
                ThreadPool* raft_pool,
                ThreadPool* prepare_pool);
 
-  // Shutdown this tablet replica.
-  // If a shutdown is already in progress, blocks until that shutdown is complete.
-  void Shutdown();
+  // Shutdown this tablet replica. If a shutdown is already in progress,
+  // blocks until that shutdown is complete.
+  //
+  // If shutdown_type is FORCED_SHUTDOWN, the final state will be FAILED_AND_SHUTDOWN.
+  void Shutdown(ReplicaShutdownType shutdown_type = NORMAL_SHUTDOWN);
 
   // Check that the tablet is in a RUNNING state.
   Status CheckRunning() const;
@@ -245,9 +254,13 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
   // Tablet::RegisterMaintenanceOps().
   void RegisterMaintenanceOps(MaintenanceManager* maintenance_manager);
 
-  // Unregister the maintenance ops associated with this peer's tablet.
+  // Unregister the maintenance ops associated with this replica's tablet.
   // This method is not thread safe.
   void UnregisterMaintenanceOps();
+
+  // Unregister the maintenance ops associated with this replica's tablet.
+  // This method is thread safe.
+  void UnregisterAllMaintenanceOps();
 
   // Return pointer to the transaction tracker for this peer.
   const TransactionTracker* transaction_tracker() const { return &txn_tracker_; }
