@@ -787,8 +787,6 @@ void TSTabletManager::OpenTablet(const scoped_refptr<TabletReplica>& replica,
                  << s.ToString();
       // Disk failures should already be handled.
       if (!s.IsDiskFailure()) {
-        DCHECK(replica->tablet()->IsDataInFailedDir());
-      } else {
         replica->SetFailed(s);
       }
       return;
