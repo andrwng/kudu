@@ -206,6 +206,12 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   // Returns Status::OK() iff state_ == MANAGER_RUNNING.
   Status CheckRunningUnlocked(boost::optional<TabletServerErrorPB::Code>* error_code) const;
 
+  Status TransitionTabletState(const string& tablet_id,
+                               const string& reason,
+                               scoped_refptr<tablet::TabletReplica>* replica,
+                               scoped_refptr<TransitionInProgressDeleter>* deleter,
+                               boost::optional<TabletServerErrorPB::Code>* error_code);
+
   // Registers the start of a tablet state transition by inserting the tablet
   // id and reason string into the transition_in_progress_ map.
   // 'reason' is a string included in the Status return when there is

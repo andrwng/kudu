@@ -395,7 +395,22 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
     if (superblock.has_data_dir_group()) {
       RETURN_NOT_OK_PREPEND(fs_manager_->dd_manager()->LoadDataDirGroupFromPB(
           tablet_id_, superblock.data_dir_group()), "Failed to load DataDirGroup from superblock");
+      // If any of the data dirs in the tablet's directory group have failed,
+      // do not open the tablet, as some of the tablet's data may be unusable.
+      if (PREDICT_FALSE(!fs_manager_->dd_manager()->GetFailedDataDirs().empty())) {
+        for (const string& uuid : superblock.data_dir_group().uuids()) {
+          uint16_t uuid_idx;
+          CHECK(fs_manager_->dd_manager()->FindUuidIndexByUuid(uuid, &uuid_idx));
+          if (fs_manager_->dd_manager()->IsDataDirFailed(uuid_idx)) {
+            return Status::IOError("Tablet has data in a failed directory", "", EIO);
+          }
+        }
+      }
     } else if (tablet_data_state_ == TABLET_DATA_READY) {
+      // If any data dir has failed, do not open the tablet.
+      if (PREDICT_FALSE(!fs_manager_->dd_manager()->GetFailedDataDirs().empty())) {
+        return Status::IOError("Tablet has data in a failed directory", "", EIO);
+      }
       // If the superblock does not contain a DataDirGroup, this server has
       // likely been upgraded from before 1.5.0. Create a new DataDirGroup for
       // the tablet. If the data is not TABLET_DATA_READY, group creation is

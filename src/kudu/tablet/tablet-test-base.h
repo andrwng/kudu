@@ -326,15 +326,17 @@ class TabletTestBase : public KuduTabletTest {
   void UpsertTestRows(int64_t first_row,
                       int64_t count,
                       int32_t val,
-                      TimeSeries *ts = NULL) {
-    InsertOrUpsertTestRows(RowOperationsPB::UPSERT, first_row, count, val, ts);
+                      TimeSeries *ts = NULL,
+                      bool expect_failures = false) {
+    InsertOrUpsertTestRows(RowOperationsPB::UPSERT, first_row, count, val, ts, expect_failures);
   }
 
   void InsertOrUpsertTestRows(RowOperationsPB::Type type,
                               int64_t first_row,
                               int64_t count,
                               int32_t val,
-                              TimeSeries *ts = NULL) {
+                              TimeSeries *ts = NULL,
+                              bool expect_failures = false) {
     LocalTabletWriter writer(tablet().get(), &client_schema_);
     KuduPartialRow row(&client_schema_);
 
@@ -342,9 +344,19 @@ class TabletTestBase : public KuduTabletTest {
     for (int64_t i = first_row; i < first_row + count; i++) {
       setup_.BuildRow(&row, i, val);
       if (type == RowOperationsPB::INSERT) {
-        CHECK_OK(writer.Insert(row));
+        Status s = writer.Insert(row);
+        if (!expect_failures) {
+          CHECK_OK(s);
+        } else {
+          WARN_NOT_OK(s, "Failed to insert test rows");
+        }
       } else if (type == RowOperationsPB::UPSERT) {
-        CHECK_OK(writer.Upsert(row));
+        Status s = writer.Upsert(row);
+        if (!expect_failures) {
+          CHECK_OK(s);
+        } else {
+          WARN_NOT_OK(s, "Failed to upsert test rows");
+        }
       } else {
         LOG(FATAL) << "bad type: " << type;
       }

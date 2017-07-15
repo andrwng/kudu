@@ -30,7 +30,11 @@
 #include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet-test-base.h"
 #include "kudu/util/slice.h"
+#include "kudu/util/status.h"
 #include "kudu/util/test_macros.h"
+
+DECLARE_bool(suicide_on_eio);
+DECLARE_double(env_inject_eio);
 
 DEFINE_int32(testflush_num_inserts, 1000,
              "Number of rows inserted in TestFlush");
@@ -1087,6 +1091,17 @@ TEST(TestTablet, TestGetReplaySizeForIndex) {
   // A value after all the passed segments, doesn't retain anything.
   min_log_index = 301;
   EXPECT_EQ(Tablet::GetReplaySizeForIndex(min_log_index, replay_size_map), 0);
+}
+
+TYPED_TEST(TestTablet, TestNoCrashOnDiskFailure) {
+  this->InsertTestRows(0, 1, 0);
+  ASSERT_OK(this->tablet()->Flush());
+
+  FLAGS_suicide_on_eio = false;
+  FLAGS_env_inject_eio = 1.0;
+
+  this->UpsertTestRows(0, 1, 0, nullptr, /* expect_failures */ true);
+  ASSERT_TRUE(this->tablet()->IsDataInFailedDir());
 }
 
 } // namespace tablet

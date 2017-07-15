@@ -259,10 +259,11 @@ Status DataDir::RefreshIsFull(RefreshMode mode) {
             dir_, FLAGS_fs_data_dirs_full_disk_cache_seconds, s.ToString());
         s = Status::OK();
         is_full_new = true;
+      } else if (s.IsDiskFailure()) {
+        s = Status::OK();
+        metadata_file_->SetInstanceFailed();
+        is_full_new = true;
       } else {
-        if (s.IsDiskFailure()) {
-          metadata_file_->SetInstanceFailed();
-        }
         is_full_new = false;
       }
       RETURN_NOT_OK(s); // Catch other types of IOErrors, etc.
