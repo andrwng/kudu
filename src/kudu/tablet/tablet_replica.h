@@ -258,9 +258,9 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
   // This method is not thread safe.
   void UnregisterMaintenanceOps();
 
-  // Unregister the maintenance ops associated with this replica's tablet.
-  // This method is thread safe.
-  void UnregisterAllMaintenanceOps();
+  // Unregister the maintenance ops associated with this replica's tablet and
+  // the underlying tablet. This method is thread safe.
+  void UnregisterAllOps();
 
   // Return pointer to the transaction tracker for this peer.
   const TransactionTracker* transaction_tracker() const { return &txn_tracker_; }

@@ -23,6 +23,7 @@
 #include <glog/logging.h>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -114,6 +115,7 @@ using fs::DataDirManager;
 using log::Log;
 using master::ReportedTabletPB;
 using master::TabletReportPB;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::vector;
@@ -178,8 +180,15 @@ Status TSTabletManager::Init() {
     KLOG_EVERY_N_SECS(INFO, 1) << Substitute("Loading tablet metadata ($0/$1 complete)",
                                              loaded_count, tablet_ids.size());
     scoped_refptr<TabletMetadata> meta;
-    RETURN_NOT_OK_PREPEND(OpenTabletMeta(tablet_id, &meta),
-                          "Failed to open tablet metadata for tablet: " + tablet_id);
+    Status s = OpenTabletMeta(tablet_id, &meta);
+    if (PREDICT_FALSE(!s.ok())) {
+      if (s.IsDiskFailure()) {
+        LOG(WARNING) << Substitute("Directory group for tablet $0 contains a failed directory",
+                                   tablet_id);
+        continue;
+      }
+      return s.CloneAndPrepend("Failed to open tablet metadata for tablet: " + tablet_id);
+    }
     loaded_count++;
     if (PREDICT_FALSE(meta->tablet_data_state() != TABLET_DATA_READY)) {
       RETURN_NOT_OK(HandleNonReadyTabletOnStartup(meta));
@@ -574,6 +583,31 @@ scoped_refptr<TabletReplica> TSTabletManager::CreateAndRegisterTabletReplica(
   return replica;
 }
 
+Status TSTabletManager::TransitionTabletState(
+    const string& tablet_id,
+    const string& reason,
+    scoped_refptr<TabletReplica>* replica,
+    scoped_refptr<TransitionInProgressDeleter>* deleter,
+    boost::optional<TabletServerErrorPB::Code>* error_code) {
+  // Acquire the lock in exclusive mode as we'll add an entry to the
+  // transition_in_progress_ map.
+  std::lock_guard<rw_spinlock> lock(lock_);
+  TRACE("Acquired tablet manager lock");
+  RETURN_NOT_OK(CheckRunningUnlocked(error_code));
+
+  if (!LookupTabletUnlocked(tablet_id, replica)) {
+    *error_code = TabletServerErrorPB::TABLET_NOT_FOUND;
+    return Status::NotFound("Tablet not found", tablet_id);
+  }
+  // Sanity check that the tablet's transition isn't already in progress
+  Status s = StartTabletStateTransitionUnlocked(tablet_id, reason, deleter);
+  if (!s.ok()) {
+    *error_code = TabletServerErrorPB::TABLET_NOT_RUNNING;
+    return s;
+  }
+  return Status::OK();
+}
+
 Status TSTabletManager::DeleteTablet(
     const string& tablet_id,
     TabletDataState delete_type,
@@ -591,24 +625,8 @@ Status TSTabletManager::DeleteTablet(
 
   scoped_refptr<TabletReplica> replica;
   scoped_refptr<TransitionInProgressDeleter> deleter;
-  {
-    // Acquire the lock in exclusive mode as we'll add a entry to the
-    // transition_in_progress_ map.
-    std::lock_guard<rw_spinlock> lock(lock_);
-    TRACE("Acquired tablet manager lock");
-    RETURN_NOT_OK(CheckRunningUnlocked(error_code));
-
-    if (!LookupTabletUnlocked(tablet_id, &replica)) {
-      *error_code = TabletServerErrorPB::TABLET_NOT_FOUND;
-      return Status::NotFound("Tablet not found", tablet_id);
-    }
-    // Sanity check that the tablet's deletion isn't already in progress
-    Status s = StartTabletStateTransitionUnlocked(tablet_id, "deleting tablet", &deleter);
-    if (PREDICT_FALSE(!s.ok())) {
-      *error_code = TabletServerErrorPB::TABLET_NOT_RUNNING;
-      return s;
-    }
-  }
+  RETURN_NOT_OK(TransitionTabletState(tablet_id, "deleting tablet", &replica,
+      &deleter, error_code));
 
   // If the tablet has been deleted or forcefully shut down, the CAS check
   // isn't possible because consensus and therefore the log is not available.
@@ -767,7 +785,12 @@ void TSTabletManager::OpenTablet(const scoped_refptr<TabletReplica>& replica,
     if (!s.ok()) {
       LOG(ERROR) << LogPrefix(tablet_id) << "Tablet failed to bootstrap: "
                  << s.ToString();
-      replica->SetFailed(s);
+      // Disk failures should already be handled.
+      if (!s.IsDiskFailure()) {
+        DCHECK(replica->tablet()->IsDataInFailedDir());
+      } else {
+        replica->SetFailed(s);
+      }
       return;
     }
   }
@@ -1092,8 +1115,27 @@ void TSTabletManager::FailTabletsInDataDir(const string& uuid) {
   uint16_t uuid_idx;
   CHECK(dd_manager->FindUuidIndexByUuid(uuid, &uuid_idx))
       << Substitute("No data directory found with UUID $0", uuid);
-  LOG(FATAL) << Substitute("Data directory $0 failed. Disk failure handling not implemented",
-                           dd_manager->FindDataDirByUuidIndex(uuid_idx)->dir());
+  if (dd_manager->IsDataDirFailed(uuid_idx)) {
+    return;
+  }
+  dd_manager->MarkDataDirFailed(uuid_idx);
+  const set<string>& tablets_on_dir = dd_manager->FindTabletsByDataDirUuidIdx(uuid_idx);
+  for (const string& tablet_id : tablets_on_dir) {
+    LOG(WARNING) << Substitute("Tablet $0 is located on an unhealthy data dir.", tablet_id);
+    scoped_refptr<TabletReplica> replica;
+    if (LookupTablet(tablet_id, &replica)) {
+      replica->UnregisterAllOps();
+      replica->SetFailed(Status::IOError("Disk failed", "", EIO));
+      replica->tablet()->MarkDataInFailedDir();
+      CHECK_OK(open_tablet_pool_->SubmitFunc([tablet_id, this]() {
+          scoped_refptr<TabletReplica> replica;
+          scoped_refptr<TransitionInProgressDeleter> deleter;
+          boost::optional<TabletServerErrorPB::Code> error;
+          TransitionTabletState(tablet_id, "shutting down tablet", &replica, &deleter, &error);
+          replica->Shutdown(tablet::FORCED_SHUTDOWN);
+      }));
+    }
+  }
 }
 
 TransitionInProgressDeleter::TransitionInProgressDeleter(
