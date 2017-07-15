@@ -623,6 +623,12 @@ void TabletReplica::UnregisterMaintenanceOps() {
   STLDeleteElements(&maintenance_ops_);
 }
 
+void TabletReplica::UnregisterAllOps() {
+  std::lock_guard<simple_spinlock> l(state_change_lock_);
+  if (tablet_) tablet_->UnregisterMaintenanceOps();
+  UnregisterMaintenanceOps();
+}
+
 Status FlushInflightsToLogCallback::WaitForInflightsAndFlushLog() {
   // This callback is triggered prior to any TabletMetadata flush.
   // The guarantee that we are trying to enforce is this:
