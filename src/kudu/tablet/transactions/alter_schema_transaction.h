@@ -83,6 +83,8 @@ class AlterSchemaTransactionState : public TransactionState {
     response_ = NULL;
   }
 
+  virtual void Cancel() override {}
+
   virtual std::string ToString() const OVERRIDE;
 
  private:

@@ -397,8 +397,14 @@ class ScopedTransaction {
   // Requires that StartApplying() has NOT been called.
   void Abort();
 
+  // Cancels the transaction.
+  //
+  // After calling, the destructor should be safe to call, even if the
+  // transaction has not completed.
+  void Cancel();
  private:
   bool done_;
+  bool canceled_;
   MvccManager * const manager_;
   const Timestamp timestamp_;
 
