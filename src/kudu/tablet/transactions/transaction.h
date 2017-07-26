@@ -256,6 +256,10 @@ class TransactionState {
     return request_id_;
   }
 
+  // Cancels the transaction. After calling, the transaction must be safe to
+  // delete, regardless of state.
+  virtual void Cancel() = 0;
+
  protected:
   explicit TransactionState(TabletReplica* tablet_replica);
   virtual ~TransactionState();
