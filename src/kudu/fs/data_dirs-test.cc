@@ -26,6 +26,7 @@
 #include "kudu/fs/block_manager.h"
 #include "kudu/fs/data_dirs.h"
 #include "kudu/gutil/strings/substitute.h"
+#include "kudu/util/env_util.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/test_util.h"
 #include "kudu/gutil/map-util.h"
@@ -49,7 +50,6 @@ using internal::DataDirGroup;
 
 static const char* kDirNamePrefix = "test_data_dir";
 static const int kNumDirs = 10;
-static const int kMaxPaths = (1 << 16) - 1;
 
 class DataDirGroupTest : public KuduTest {
  public:
@@ -63,8 +63,10 @@ class DataDirGroupTest : public KuduTest {
   virtual void SetUp() override {
     KuduTest::SetUp();
     FLAGS_fs_target_data_dirs_per_tablet = kNumDirs / 2 + 1;
-    ASSERT_OK(dd_manager_->Create(0));
-    ASSERT_OK(dd_manager_->Open(kMaxPaths, DataDirManager::LockMode::NONE));
+    LOG(INFO) << GetDirNames(kNumDirs)[0];
+    ASSERT_OK(dd_manager_->Init());
+    ASSERT_OK(dd_manager_->Create());
+    ASSERT_OK(dd_manager_->Open());
   }
 
  protected:
@@ -73,6 +75,7 @@ class DataDirGroupTest : public KuduTest {
     for (int i = 0; i < num_dirs; i++) {
       string dir_name = Substitute("$0-$1", kDirNamePrefix, i);
       ret.push_back(GetTestPath(dir_name));
+      CHECK_OK(env_util::CreateDirIfMissing(env_, ret[i]));
     }
     return ret;
   }
