@@ -173,7 +173,7 @@ TEST_F(FsManagerTestBase, TestEmptyWALPath) {
   ReinitFsManager("", {});
   Status s = fs_manager()->CreateInitialFileSystemLayout();
   ASSERT_TRUE(s.IsIOError());
-  ASSERT_STR_CONTAINS(s.ToString(), "directory (fs_wal_dir) not provided");
+  ASSERT_STR_CONTAINS(s.ToString(), "Empty string provided for path");
 }
 
 TEST_F(FsManagerTestBase, TestOnlyWALPath) {

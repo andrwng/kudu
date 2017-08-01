@@ -72,8 +72,6 @@ class LogBlockManagerTest : public KuduTest {
   }
 
   void SetUp() override {
-    CHECK_OK(bm_->Create());
-
     // Pass in a report to prevent the block manager from logging unnecessarily.
     FsReport report;
     CHECK_OK(bm_->Open(&report));
@@ -85,8 +83,11 @@ class LogBlockManagerTest : public KuduTest {
   LogBlockManager* CreateBlockManager(const scoped_refptr<MetricEntity>& metric_entity) {
     BlockManagerOptions opts;
     opts.metric_entity = metric_entity;
-    opts.root_paths = { test_dir_ };
-    return new LogBlockManager(env_, test_error_manager_.get(), opts);
+    dd_manager_.reset(new DataDirManager(env_, opts.metric_entity, "log", { test_dir_ },
+        DataDirManager::AccessMode::READ_WRITE));
+    dd_manager_->Create();
+    dd_manager_->Open();
+    return new LogBlockManager(env_, dd_manager_.get(), test_error_manager_.get(), opts);
   }
 
   Status ReopenBlockManager(FsReport* report = nullptr) {
@@ -148,6 +149,7 @@ class LogBlockManagerTest : public KuduTest {
   string test_tablet_name_;
   CreateBlockOptions test_block_opts_;
 
+  unique_ptr<DataDirManager> dd_manager_;
   unique_ptr<FsErrorManager> test_error_manager_;
   unique_ptr<LogBlockManager> bm_;
 
@@ -161,13 +163,15 @@ class LogBlockManagerTest : public KuduTest {
     // Populate 'data_files' and 'metadata_files'.
     vector<string> data_files;
     vector<string> metadata_files;
-    vector<string> children;
-    ASSERT_OK(env_->GetChildren(GetTestDataDirectory(), &children));
-    for (const string& child : children) {
-      if (HasSuffixString(child, LogBlockManager::kContainerDataFileSuffix)) {
-        data_files.push_back(JoinPathSegments(GetTestDataDirectory(), child));
-      } else if (HasSuffixString(child, LogBlockManager::kContainerMetadataFileSuffix)) {
-        metadata_files.push_back(JoinPathSegments(GetTestDataDirectory(), child));
+    for (const string& root : dd_manager_->GetDataRootDirs()) {
+      vector<string> children;
+      ASSERT_OK(env_->GetChildren(root, &children));
+      for (const string& child : children) {
+        if (HasSuffixString(child, LogBlockManager::kContainerDataFileSuffix)) {
+          data_files.push_back(JoinPathSegments(root, child));
+        } else if (HasSuffixString(child, LogBlockManager::kContainerMetadataFileSuffix)) {
+          metadata_files.push_back(JoinPathSegments(root, child));
+        }
       }
     }
 
@@ -795,7 +799,7 @@ TEST_F(LogBlockManagerTest, TestMisalignedBlocksFuzz) {
   NO_FATALS(GetOnlyContainer(&container_name));
 
   // Add a mixture of regular and misaligned blocks to it.
-  LBMCorruptor corruptor(env_, { test_dir_ }, SeedRandom());
+  LBMCorruptor corruptor(env_, dd_manager_->GetDataRootDirs(), SeedRandom());
   ASSERT_OK(corruptor.Init());
   int num_misaligned_blocks = 0;
   for (int i = 0; i < kNumBlocks; i++) {
@@ -907,7 +911,7 @@ TEST_F(LogBlockManagerTest, TestRepairPreallocateExcessSpace) {
   NO_FATALS(GetContainerNames(&container_names));
 
   // Corrupt one container.
-  LBMCorruptor corruptor(env_, { test_dir_ }, SeedRandom());
+  LBMCorruptor corruptor(env_, dd_manager_->GetDataRootDirs(), SeedRandom());
   ASSERT_OK(corruptor.Init());
   ASSERT_OK(corruptor.PreallocateFullContainer());
 
@@ -952,7 +956,7 @@ TEST_F(LogBlockManagerTest, TestRepairUnpunchedBlocks) {
   ASSERT_EQ(0, file_size_on_disk);
 
   // Add some "unpunched blocks" to the container.
-  LBMCorruptor corruptor(env_, { test_dir_ }, SeedRandom());
+  LBMCorruptor corruptor(env_, dd_manager_->GetDataRootDirs(), SeedRandom());
   ASSERT_OK(corruptor.Init());
   for (int i = 0; i < kNumBlocks; i++) {
     ASSERT_OK(corruptor.AddUnpunchedBlockToFullContainer());
@@ -993,7 +997,7 @@ TEST_F(LogBlockManagerTest, TestRepairIncompleteContainer) {
   // Create some incomplete containers. The corruptor will select between
   // several variants of "incompleteness" at random (see
   // LBMCorruptor::CreateIncompleteContainer() for details).
-  LBMCorruptor corruptor(env_, { test_dir_ }, SeedRandom());
+  LBMCorruptor corruptor(env_, dd_manager_->GetDataRootDirs(), SeedRandom());
   ASSERT_OK(corruptor.Init());
   for (int i = 0; i < kNumContainers; i++) {
     ASSERT_OK(corruptor.CreateIncompleteContainer());
@@ -1031,7 +1035,7 @@ TEST_F(LogBlockManagerTest, TestDetectMalformedRecords) {
   // Add some malformed records. The corruptor will select between
   // several variants of "malformedness" at random (see
   // LBMCorruptor::AddMalformedRecordToContainer for details).
-  LBMCorruptor corruptor(env_, { test_dir_ }, SeedRandom());
+  LBMCorruptor corruptor(env_, dd_manager_->GetDataRootDirs(), SeedRandom());
   ASSERT_OK(corruptor.Init());
   for (int i = 0; i < kNumRecords; i++) {
     ASSERT_OK(corruptor.AddMalformedRecordToContainer());
@@ -1061,7 +1065,7 @@ TEST_F(LogBlockManagerTest, TestDetectMisalignedBlocks) {
   NO_FATALS(GetOnlyContainer(&container_name));
 
   // Add some misaligned blocks.
-  LBMCorruptor corruptor(env_, { test_dir_ }, SeedRandom());
+  LBMCorruptor corruptor(env_, dd_manager_->GetDataRootDirs(), SeedRandom());
   ASSERT_OK(corruptor.Init());
   for (int i = 0; i < kNumBlocks; i++) {
     ASSERT_OK(corruptor.AddMisalignedBlockToContainer());
@@ -1100,7 +1104,7 @@ TEST_F(LogBlockManagerTest, TestRepairPartialRecords) {
   ASSERT_EQ(kNumContainers, container_names.size());
 
   // Add some partial records.
-  LBMCorruptor corruptor(env_, { test_dir_ }, SeedRandom());
+  LBMCorruptor corruptor(env_, dd_manager_->GetDataRootDirs(), SeedRandom());
   ASSERT_OK(corruptor.Init());
   for (int i = 0; i < kNumRecords; i++) {
     ASSERT_OK(corruptor.AddPartialRecordToContainer());

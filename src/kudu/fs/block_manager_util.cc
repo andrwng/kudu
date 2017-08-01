@@ -79,6 +79,7 @@ Status PathInstanceMetadataFile::Create(const string& uuid, const vector<string>
   DCHECK_EQ(all_paths.size(), all_uuids.size());
 
   uint64_t block_size;
+  LOG(INFO) << filename_;
   const string dir_name = DirName(filename_);
   RETURN_NOT_OK_FAIL_INSTANCE_PREPEND(env_->GetBlockSize(dir_name, &block_size),
       Substitute("Failed to create metadata file. Could not get block size of $0", dir_name));
@@ -94,7 +95,7 @@ Status PathInstanceMetadataFile::Create(const string& uuid, const vector<string>
     new_path.set_uuid(all_uuids[i]);
     new_path.set_path(all_paths[i]);
     new_path.set_health_state(PathHealthStatePB::HEALTHY);
-    new_path_set->mutable_all_paths(i)->Swap(&new_path);
+    *new_path_set->add_all_paths() = std::move(new_path);
   }
 
   // And the rest of the metadata.
