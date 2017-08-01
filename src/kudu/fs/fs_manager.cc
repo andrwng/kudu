@@ -153,67 +153,48 @@ void FsManager::UnsetErrorNotificationCb() {
   error_manager_->UnsetErrorNotificationCb();
 }
 
+Status FsManager::SanitizePath(const string& path) {
+  if (path.empty()) {
+    return Status::IOError("Empty string provided for path");
+  }
+  if (path[0] != '/') {
+    return Status::IOError(
+        Substitute("Relative path $0 provided", path));
+  }
+  string path_copy = path;
+  StripWhiteSpace(&path_copy);
+  if (path_copy.size() != path.size()) {
+    return Status::IOError(
+        Substitute("Path $0 contains illegal whitespace", path));
+  }
+  return Status::OK();
+}
+
 Status FsManager::Init() {
   if (initted_) {
     return Status::OK();
   }
 
-  // The wal root must be set.
-  if (wal_fs_root_.empty()) {
-    return Status::IOError("Write-ahead log directory (fs_wal_dir) not provided");
-  }
-
-  // Deduplicate all of the roots.
-  set<string> all_roots;
-  all_roots.insert(wal_fs_root_);
-  for (const string& data_fs_root : data_fs_roots_) {
-    all_roots.insert(data_fs_root);
-  }
-
-  // Build a map of original root --> canonicalized root, sanitizing each
-  // root a bit as we go.
-  typedef map<string, string> RootMap;
-  RootMap canonicalized_roots;
-  for (const string& root : all_roots) {
-    if (root.empty()) {
-      return Status::IOError("Empty string provided for filesystem root");
-    }
-    if (root[0] != '/') {
-      return Status::IOError(
-          Substitute("Relative path $0 provided for filesystem root", root));
-    }
-    {
-      string root_copy = root;
-      StripWhiteSpace(&root_copy);
-      if (root != root_copy) {
-        return Status::IOError(
-                  Substitute("Filesystem root $0 contains illegal whitespace", root));
-      }
-    }
-
-    // Strip the basename when canonicalizing, as it may not exist. The
-    // dirname, however, must exist.
-    string canonicalized;
-    RETURN_NOT_OK(env_->Canonicalize(DirName(root), &canonicalized));
-    canonicalized = JoinPathSegments(canonicalized, BaseName(root));
-    InsertOrDie(&canonicalized_roots, root, canonicalized);
-  }
-
-  // All done, use the map to set the canonicalized state.
-  canonicalized_wal_fs_root_ = FindOrDie(canonicalized_roots, wal_fs_root_);
+  // Initialize the directory manager. This sanitizes and canonicalizes the
+  // data roots.
+  RETURN_NOT_OK(InitDataDirManager());
   if (!data_fs_roots_.empty()) {
-    canonicalized_metadata_fs_root_ = FindOrDie(canonicalized_roots, data_fs_roots_[0]);
-    for (const string& data_fs_root : data_fs_roots_) {
-      canonicalized_data_fs_roots_.insert(FindOrDie(canonicalized_roots, data_fs_root));
-    }
+    // Sanitize and canonicalize the wal root.
+    string canonicalized;
+    RETURN_NOT_OK_PREPEND(FsManager::SanitizePath(wal_fs_root_),
+        "Failed to sanitize Write-Ahead-Log directory (fs_wal_dir)");
+    RETURN_NOT_OK_PREPEND(env_->Canonicalize(DirName(wal_fs_root_), &canonicalized),
+        Substitute("Failed to canonicalize $0", DirName(wal_fs_root_)));
+    canonicalized_wal_fs_root_ = JoinPathSegments(canonicalized, BaseName(wal_fs_root_));
   } else {
-    LOG(INFO) << "Data directories (fs_data_dirs) not provided";
-    LOG(INFO) << "Using write-ahead log directory (fs_wal_dir) as data directory";
-    canonicalized_metadata_fs_root_ = canonicalized_wal_fs_root_;
-    canonicalized_data_fs_roots_.insert(canonicalized_wal_fs_root_);
+    DCHECK_EQ(1, dd_manager_->GetDataRootDirs().size());
+    canonicalized_wal_fs_root_ = DirName(dd_manager_->GetDataRootDirs()[0]);
   }
-  for (const RootMap::value_type& e : canonicalized_roots) {
-    canonicalized_all_fs_roots_.insert(e.second);
+  canonicalized_all_fs_roots_.insert(canonicalized_wal_fs_root_);
+  canonicalized_metadata_fs_root_ = DirName(dd_manager_->GetDataRootDirs()[0]);
+  for (const string& data_root : dd_manager_->GetDataRootDirs()) {
+    canonicalized_data_fs_roots_.insert(DirName(data_root));
+    canonicalized_all_fs_roots_.insert(DirName(data_root));
   }
 
   if (VLOG_IS_ON(1)) {
@@ -223,7 +204,7 @@ Status FsManager::Init() {
     VLOG(1) << "All roots: " << canonicalized_all_fs_roots_;
   }
 
-  // With the data roots canonicalized, we can initialize the block manager.
+  // With the data dir manager initialized, we can initialize the block manager.
   InitBlockManager();
 
   initted_ = true;
@@ -234,15 +215,26 @@ void FsManager::InitBlockManager() {
   BlockManagerOptions opts;
   opts.metric_entity = metric_entity_;
   opts.parent_mem_tracker = parent_mem_tracker_;
-  opts.root_paths = GetDataRootDirs();
   opts.read_only = read_only_;
   if (FLAGS_block_manager == "file") {
-    block_manager_.reset(new FileBlockManager(env_, error_manager_.get(), opts));
+    block_manager_.reset(new FileBlockManager(env_, dd_manager_.get(), error_manager_.get(), opts));
   } else if (FLAGS_block_manager == "log") {
-    block_manager_.reset(new LogBlockManager(env_, error_manager_.get(), opts));
+    block_manager_.reset(new LogBlockManager(env_, dd_manager_.get(), error_manager_.get(), opts));
   } else {
     LOG(FATAL) << "Invalid block manager: " << FLAGS_block_manager;
   }
+}
+
+Status FsManager::InitDataDirManager() {
+  vector<string> data_roots = data_fs_roots_;
+  if (data_roots.empty()) {
+    LOG(INFO) << "Data directories (fs_data_dirs) not provided";
+    LOG(INFO) << "Using write-ahead log directory (fs_wal_dir) as data directory";
+    data_roots = { wal_fs_root_ };
+  }
+  dd_manager_.reset(new DataDirManager(env_, metric_entity_, FLAGS_block_manager, data_roots,
+      read_only_ ? DataDirManager::AccessMode::READ_ONLY : DataDirManager::AccessMode::READ_WRITE));
+  return dd_manager_->Init();
 }
 
 Status FsManager::Open(FsReport* report) {
@@ -254,8 +246,15 @@ Status FsManager::Open(FsReport* report) {
   // are not yet initialized on disk.
   for (const string& root : canonicalized_all_fs_roots_) {
     gscoped_ptr<InstanceMetadataPB> pb(new InstanceMetadataPB);
-    RETURN_NOT_OK(pb_util::ReadPBContainerFromPath(env_, GetInstanceMetadataPath(root),
-                                                   pb.get()));
+    Status s = pb_util::ReadPBContainerFromPath(env_, GetInstanceMetadataPath(root), pb.get());
+    if (PREDICT_FALSE(!s.ok())) {
+      if (s.IsDiskFailure()) {
+        // Disk failure should be handled when creating the in-memory DataDirs.
+        LOG(ERROR) << "Failed to read metadata file from " << root;
+        continue;
+      }
+      return s;
+    }
     if (!metadata_) {
       metadata_.reset(pb.release());
     } else if (pb->uuid() != metadata_->uuid()) {
@@ -270,10 +269,15 @@ Status FsManager::Open(FsReport* report) {
   // Temporary files in the data directory roots will be removed by the block
   // manager.
   if (!read_only_) {
+    // Disk failures here can be ignored with just a warning. They will be
+    // handled in BlockManager::Open().
     CleanTmpFiles();
     CheckAndFixPermissions();
   }
 
+  LOG_TIMING(INFO, "opening directory manager") {
+    RETURN_NOT_OK(dd_manager_->Open());
+  }
   LOG_TIMING(INFO, "opening block manager") {
     RETURN_NOT_OK(block_manager_->Open(report));
   }
@@ -313,14 +317,25 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
   unordered_set<string> to_sync;
   for (const string& root : canonicalized_all_fs_roots_) {
     bool created;
-    RETURN_NOT_OK_PREPEND(CreateDirIfMissing(root, &created),
-                          "Unable to create FSManager root");
+    Status s = CreateDirIfMissing(root, &created);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(ERROR) << "Unable to create FSManager root: " << s.ToString();
+      if (s.IsDiskFailure()) {
+        continue;
+      }
+      return s;
+    }
     if (created) {
       delete_on_failure.push_front(new ScopedFileDeleter(env_, root));
       to_sync.insert(DirName(root));
     }
-    RETURN_NOT_OK_PREPEND(WriteInstanceMetadata(metadata, root),
-                          "Unable to write instance metadata");
+    s = WriteInstanceMetadata(metadata, root);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(ERROR) << "Unable to write instance metadata" << s.ToString();
+      if (s.IsDiskFailure()) {
+        continue;
+      }
+    }
     delete_on_failure.push_front(new ScopedFileDeleter(
         env_, GetInstanceMetadataPath(root)));
   }
@@ -342,13 +357,22 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
   // Ensure newly created directories are synchronized to disk.
   if (FLAGS_enable_data_block_fsync) {
     for (const string& dir : to_sync) {
-      RETURN_NOT_OK_PREPEND(env_->SyncDir(dir),
-                            Substitute("Unable to synchronize directory $0", dir));
+      Status s = env_->SyncDir(dir);
+      if (PREDICT_FALSE(!s.ok())) {
+        LOG(ERROR) << Substitute("Unable to synchronize directory $0: $1", dir, s.ToString());
+        // Non-disk-failures and WAL or TabletMetadata dirs failures are fatal.
+        if (!s.IsDiskFailure() ||
+            DirName(GetWalsRootDir()) == dir ||
+            DirName(GetTabletMetadataDir()) == dir) {
+          return s;
+        }
+      }
     }
   }
 
-  // And lastly, the block manager.
-  RETURN_NOT_OK_PREPEND(block_manager_->Create(), "Unable to create block manager");
+  // And lastly, the directory manager.
+  RETURN_NOT_OK_PREPEND(dd_manager_->Create(),
+      "Unable to create directory manager");
 
   // Success: don't delete any files.
   for (ScopedFileDeleter* deleter : delete_on_failure) {
@@ -418,15 +442,7 @@ const string& FsManager::uuid() const {
 
 vector<string> FsManager::GetDataRootDirs() const {
   // Add the data subdirectory to each data root.
-  vector<string> data_paths;
-  for (const string& data_fs_root : canonicalized_data_fs_roots_) {
-    data_paths.push_back(JoinPathSegments(data_fs_root, kDataDirName));
-  }
-  return data_paths;
-}
-
-DataDirManager* FsManager::dd_manager() const {
-  return block_manager_->dd_manager();
+  return dd_manager_->GetDataRootDirs();
 }
 
 string FsManager::GetTabletMetadataDir() const {

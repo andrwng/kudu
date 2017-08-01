@@ -1458,6 +1458,10 @@ const char* LogBlockManager::kContainerDataFileSuffix = ".data";
 
 static const char* kBlockManagerType = "log";
 
+string LogBlockManager::BlockManagerType() {
+  return kBlockManagerType;
+}
+
 // These values were arrived at via experimentation. See commit 4923a74 for
 // more details.
 const map<int64_t, int64_t> LogBlockManager::kPerFsBlockSizeBlockLimits({
@@ -1466,12 +1470,17 @@ const map<int64_t, int64_t> LogBlockManager::kPerFsBlockSizeBlockLimits({
   { 4096, 2721 }});
 
 LogBlockManager::LogBlockManager(Env* env,
+                                 DataDirManager* dd_manager,
                                  FsErrorManager* error_manager,
                                  const BlockManagerOptions& opts)
   : mem_tracker_(MemTracker::CreateTracker(-1,
                                            "log_block_manager",
                                            opts.parent_mem_tracker)),
+<<<<<<< HEAD
     dd_manager_(env, opts.metric_entity, kBlockManagerType, opts.root_paths),
+=======
+    dd_manager_(dd_manager),
+>>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
     error_manager_(DCHECK_NOTNULL(error_manager)),
     file_cache_("lbm", env, GetFileCacheCapacityForBlockManager(env),
                 opts.metric_entity),
@@ -1516,36 +1525,31 @@ LogBlockManager::~LogBlockManager() {
 
   // Containers may have outstanding tasks running on data directories; shut
   // them down before destroying the containers.
-  dd_manager_.Shutdown();
+  dd_manager_->Shutdown();
 
   STLDeleteValues(&all_containers_by_name_);
 }
 
-Status LogBlockManager::Create() {
-  CHECK(!read_only_);
-  return dd_manager_.Create(FLAGS_enable_data_block_fsync ?
-      DataDirManager::FLAG_CREATE_TEST_HOLE_PUNCH | DataDirManager::FLAG_CREATE_FSYNC :
-      DataDirManager::FLAG_CREATE_TEST_HOLE_PUNCH);
-}
-
 Status LogBlockManager::Open(FsReport* report) {
-  DataDirManager::LockMode mode;
-  if (!FLAGS_block_manager_lock_dirs) {
-    mode = DataDirManager::LockMode::NONE;
-  } else if (read_only_) {
-    mode = DataDirManager::LockMode::OPTIONAL;
-  } else {
-    mode = DataDirManager::LockMode::MANDATORY;
-  }
-  RETURN_NOT_OK(dd_manager_.Open(kuint32max, mode));
-
   RETURN_NOT_OK(file_cache_.Init());
 
   // Establish (and log) block limits for each data directory using kernel,
   // filesystem, and gflags information.
-  for (const auto& dd : dd_manager_.data_dirs()) {
+  for (const auto& dd : dd_manager_->data_dirs()) {
+    if (!dd->instance()->healthy()) {
+      continue;
+    }
     boost::optional<int64_t> limit;
+<<<<<<< HEAD
 
+=======
+    uint16_t uuid_idx;
+    dd_manager_->FindUuidIndexByDataDir(dd.get(), &uuid_idx);
+    if (dd_manager_->IsDataDirFailed(uuid_idx)) {
+      // Blocks should not be placed in failed directories.
+      limit = 0;
+    }
+>>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
     if (FLAGS_log_container_max_blocks == -1) {
       // No limit, unless this is KUDU-1508.
 
@@ -1581,10 +1585,22 @@ Status LogBlockManager::Open(FsReport* report) {
     InsertOrDie(&block_limits_by_data_dir_, dd.get(), limit);
   }
 
+<<<<<<< HEAD
   vector<FsReport> reports(dd_manager_.data_dirs().size());
   vector<Status> statuses(dd_manager_.data_dirs().size());
   int i = 0;
   for (const auto& dd : dd_manager_.data_dirs()) {
+=======
+  vector<FsReport> reports(dd_manager_->data_dirs().size());
+  vector<Status> statuses(dd_manager_->data_dirs().size());
+  int i = -1;
+  for (const auto& dd : dd_manager_->data_dirs()) {
+    i++;
+    if (dd_manager_.IsDataDirFailed(i)) {
+      statuses[i] = Status::IOError("Data directory failed", "", EIO);
+      continue;
+    }
+>>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
     // Open the data dir asynchronously.
     dd->ExecClosure(
         Bind(&LogBlockManager::OpenDataDir,
@@ -1596,10 +1612,10 @@ Status LogBlockManager::Open(FsReport* report) {
   }
 
   // Wait for the opens to complete.
-  for (const auto& dd : dd_manager_.data_dirs()) {
+  for (const auto& dd : dd_manager_->data_dirs()) {
     dd->WaitOnClosures();
   }
-  if (dd_manager_.GetFailedDataDirs().size() == dd_manager_.data_dirs().size()) {
+  if (dd_manager_->GetFailedDataDirs().size() == dd_manager_->data_dirs().size()) {
     return Status::IOError("All data dirs failed to open", "", EIO);
   }
 
@@ -1618,7 +1634,7 @@ Status LogBlockManager::Open(FsReport* report) {
       return s;
     }
     LOG(ERROR) << Substitute("Not using report from $0: $1",
-        dd_manager_.data_dirs()[i]->dir(), s.ToString());
+        dd_manager_->data_dirs()[i]->dir(), s.ToString());
   }
 
   // Either return or log the report.
@@ -1772,7 +1788,7 @@ void LogBlockManager::RemoveFullContainerUnlocked(const string& container_name) 
 Status LogBlockManager::GetOrCreateContainer(const CreateBlockOptions& opts,
                                              LogBlockContainer** container) {
   DataDir* dir;
-  RETURN_NOT_OK(dd_manager_.GetNextDataDir(opts, &dir));
+  RETURN_NOT_OK(dd_manager_->GetNextDataDir(opts, &dir));
 
   {
     std::lock_guard<simple_spinlock> l(lock_);

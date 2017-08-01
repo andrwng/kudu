@@ -122,19 +122,11 @@ class BlockManagerStressTest : public KuduTest {
     // depending on the number of CPUs on the system.
     FLAGS_cache_force_single_shard = true;
 
-    if (FLAGS_block_manager_paths.empty()) {
-      data_dirs_.push_back(test_dir_);
-    } else {
-      data_dirs_ = strings::Split(FLAGS_block_manager_paths, ",",
-                                  strings::SkipEmpty());
-    }
-
     // Defer block manager creation until after the above flags are set.
     bm_.reset(CreateBlockManager());
   }
 
   virtual void SetUp() OVERRIDE {
-    CHECK_OK(bm_->Create());
     CHECK_OK(bm_->Open(nullptr));
     CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(test_tablet_name_));
     CHECK(bm_->dd_manager()->GetDataDirGroupPB(test_tablet_name_, &test_group_pb_));
@@ -144,7 +136,7 @@ class BlockManagerStressTest : public KuduTest {
     // If non-standard paths were provided we need to delete them in
     // between test runs.
     if (!FLAGS_block_manager_paths.empty()) {
-      for (const auto& dd : data_dirs_) {
+      for (const auto& dd : dd_manager_->GetDataRootDirs()) {
         WARN_NOT_OK(env_->DeleteRecursively(dd),
                     Substitute("Couldn't recursively delete $0", dd));
       }
@@ -152,9 +144,20 @@ class BlockManagerStressTest : public KuduTest {
   }
 
   BlockManager* CreateBlockManager() {
+    vector<string> data_dirs;
+    if (FLAGS_block_manager_paths.empty()) {
+      data_dirs.push_back(test_dir_);
+    } else {
+      data_dirs = strings::Split(FLAGS_block_manager_paths, ",",
+                                  strings::SkipEmpty());
+    }
     BlockManagerOptions opts;
-    opts.root_paths = data_dirs_;
-    return new T(env_, test_error_manager_.get(), opts);
+    dd_manager_.reset(new DataDirManager(env_, opts.metric_entity, T::BlockManagerType(), data_dirs,
+        DataDirManager::AccessMode::READ_WRITE));
+    dd_manager_->Init();
+    dd_manager_->Create();
+    dd_manager_->Open();
+    return new T(env_, dd_manager_.get(), test_error_manager_.get(), opts);
   }
 
   void RunTest(double secs) {
@@ -215,9 +218,6 @@ class BlockManagerStressTest : public KuduTest {
   void InjectNonFatalInconsistencies();
 
  protected:
-  // Directories where blocks will be written.
-  vector<string> data_dirs_;
-
   // Used to generate random data. All PRNG instances are seeded with this
   // value to ensure that the test is reproducible.
   int rand_seed_;
@@ -236,6 +236,9 @@ class BlockManagerStressTest : public KuduTest {
 
   // The block manager.
   gscoped_ptr<BlockManager> bm_;
+
+  // The directory manager.
+  unique_ptr<DataDirManager> dd_manager_;
 
   // The error manager.
   unique_ptr<FsErrorManager> test_error_manager_;
@@ -459,7 +462,7 @@ void BlockManagerStressTest<FileBlockManager>::InjectNonFatalInconsistencies() {
 
 template <>
 void BlockManagerStressTest<LogBlockManager>::InjectNonFatalInconsistencies() {
-  LBMCorruptor corruptor(env_, data_dirs_, rand_seed_);
+  LBMCorruptor corruptor(env_, dd_manager_->GetDataRootDirs(), rand_seed_);
   ASSERT_OK(corruptor.Init());
 
   for (int i = 0; i < FLAGS_num_inconsistencies; i++) {
