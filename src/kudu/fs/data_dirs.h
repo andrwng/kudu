@@ -195,6 +195,11 @@ class DataDirManager {
   static const int FLAG_CREATE_TEST_HOLE_PUNCH = 0x1;
   static const int FLAG_CREATE_FSYNC = 0x2;
 
+  enum AccessMode {
+    READ_ONLY,
+    READ_WRITE
+  };
+
   enum class LockMode {
     MANDATORY,
     OPTIONAL,
@@ -209,22 +214,29 @@ class DataDirManager {
   DataDirManager(Env* env,
                  scoped_refptr<MetricEntity> metric_entity,
                  std::string block_manager_type,
-                 std::vector<std::string> paths);
+                 std::vector<std::string> data_roots,
+                 AccessMode mode = AccessMode::READ_WRITE);
   ~DataDirManager();
 
   // Shuts down all directories' thread pools.
   void Shutdown();
 
+  // Waits on all directories' thread pools.
+  void WaitOnClosures();
+
+  // Initializes, sanitizes, and canonicalizes the directories.
+  Status Init();
+
   // Initializes the data directories on disk.
   //
   // Returns an error if initialized directories already exist.
-  Status Create(int flags);
+  Status Create();
 
   // Opens existing data directories from disk.
   //
   // Returns an error if the number of on-disk data directories found exceeds
-  // 'max_data_dirs', or if 'mode' is MANDATORY and locks could not be taken.
-  Status Open(int max_data_dirs, LockMode mode);
+  // the max allowed, or if 'mode' is MANDATORY and locks could not be taken.
+  Status Open();
 
   // Deserializes a DataDirGroupPB and associates the resulting DataDirGroup
   // with a tablet_id.
@@ -296,6 +308,8 @@ class DataDirManager {
     return failed_data_dirs_;
   }
 
+  std::vector<std::string> GetDataRootDirs() const;
+
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
   FRIEND_TEST(DataDirGroupTest, TestLoadFromPB);
@@ -322,9 +336,29 @@ class DataDirManager {
   void RemoveUnhealthyDataDirsUnlocked(const vector<uint16_t>& uuid_indices,
                                        vector<uint16_t>* healthy_indices) const;
 
+  static const char* kDataDirName;
+
   Env* env_;
   const std::string block_manager_type_;
-  const std::vector<std::string> paths_;
+
+  // Input directories verbatim from fs_data_dirs.
+  const std::vector<std::string> data_fs_roots_;
+
+  // Map from (fs_data_dir => canonicalized dir).
+  //
+  // These roots are the constructor inputs.
+  typedef std::map<std::string, std::string> RootMap;
+  RootMap data_root_map_;
+
+  // Canonicalized forms of 'data_fs_roots_'. Constructed during Init().
+  //
+  // - The first data root is used as the metadata root.
+  // - Common roots in the collections have been deduplicated.
+  std::string canonicalized_metadata_fs_root_;
+  std::set<std::string> canonicalized_data_fs_roots_;
+
+  bool initted_;
+  const AccessMode mode_;
 
   std::unique_ptr<DataDirMetrics> metrics_;
 
