@@ -14,9 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
-#ifndef KUDU_TABLET_ALTER_SCHEMA_TRANSACTION_H_
-#define KUDU_TABLET_ALTER_SCHEMA_TRANSACTION_H_
+#pragma once
 
 #include <mutex>
 #include <string>
@@ -83,6 +81,8 @@ class AlterSchemaTransactionState : public TransactionState {
     response_ = NULL;
   }
 
+  virtual void Cancel() override {}
+
   virtual std::string ToString() const OVERRIDE;
 
  private:
@@ -134,5 +134,3 @@ class AlterSchemaTransaction : public Transaction {
 
 }  // namespace tablet
 }  // namespace kudu
-
-#endif /* KUDU_TABLET_ALTER_SCHEMA_TRANSACTION_H_ */

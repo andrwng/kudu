@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#ifndef KUDU_TABLET_WRITE_TRANSACTION_H_
-#define KUDU_TABLET_WRITE_TRANSACTION_H_
+#pragma once
 
 #include <mutex>
 #include <string>
@@ -167,6 +166,8 @@ class WriteTransactionState : public TransactionState {
 
   void UpdateMetricsForOp(const RowOp& op);
 
+  virtual void Cancel() override;
+
   // Resets this TransactionState, releasing all locks, destroying all prepared
   // writes, clearing the transaction result _and_ committing the current Mvcc
   // transaction.
@@ -280,4 +281,3 @@ class WriteTransaction : public Transaction {
 }  // namespace tablet
 }  // namespace kudu
 
-#endif /* KUDU_TABLET_WRITE_TRANSACTION_H_ */

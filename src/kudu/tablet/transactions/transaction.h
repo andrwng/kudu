@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#ifndef KUDU_TABLET_TRANSACTION_H_
-#define KUDU_TABLET_TRANSACTION_H_
+#pragma once
 
 #include <string>
 #include <mutex>
@@ -256,6 +255,10 @@ class TransactionState {
     return request_id_;
   }
 
+  // Cancels the transaction. After calling, the transaction must be safe to
+  // delete, regardless of state.
+  virtual void Cancel() = 0;
+
  protected:
   explicit TransactionState(TabletReplica* tablet_replica);
   virtual ~TransactionState();
@@ -375,4 +378,3 @@ class StatusTransactionCompletionCallback : public TransactionCompletionCallback
 }  // namespace tablet
 }  // namespace kudu
 
-#endif /* KUDU_TABLET_TRANSACTION_H_ */

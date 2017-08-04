@@ -14,8 +14,8 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_TABLET_MVCC_H
-#define KUDU_TABLET_MVCC_H
+
+#pragma once
 
 #include <gtest/gtest_prod.h>
 #include <mutex>
@@ -397,8 +397,14 @@ class ScopedTransaction {
   // Requires that StartApplying() has NOT been called.
   void Abort();
 
+  // Cancels the in-flight transaction.
+  //
+  // After calling, the destructor should be safe to call, even if the
+  // transaction has not committed.
+  void Cancel();
  private:
   bool done_;
+  bool canceled_;
   MvccManager * const manager_;
   const Timestamp timestamp_;
 
@@ -409,4 +415,3 @@ class ScopedTransaction {
 } // namespace tablet
 } // namespace kudu
 
-#endif

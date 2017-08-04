@@ -14,8 +14,8 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_TABLET_TABLET_H
-#define KUDU_TABLET_TABLET_H
+
+#pragma once
 
 #include <condition_variable>
 #include <iosfwd>
@@ -36,6 +36,7 @@
 #include "kudu/tablet/rowset_metadata.h"
 #include "kudu/tablet/tablet_mem_trackers.h"
 #include "kudu/tablet/tablet_metadata.h"
+#include "kudu/util/atomic.h"
 #include "kudu/util/locks.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/semaphore.h"
@@ -302,6 +303,12 @@ class Tablet {
 
   // Return the current number of rowsets in the tablet.
   size_t num_rowsets() const;
+
+  // Records that some of the tablet's on-disk state is in a failed disk.
+  void SetInFailedDir();
+
+  // Checks whether the tablet's disks are healthy.
+  bool IsInFailedDir() const;
 
   // Attempt to count the total number of rows in the tablet.
   // This is not super-efficient since it must iterate over the
@@ -603,6 +610,11 @@ class Tablet {
   // started earlier completes after the one started later.
   mutable Semaphore rowsets_flush_sem_;
 
+  // Flag indicating whether any of the tablet's on-disk state resides in a
+  // failed disk. Before Applying, transactions should check to ensure this is
+  // not the case and should exit early if it is.
+  AtomicBool in_failed_dir_;
+
   enum State {
     kInitialized,
     kBootstrapping,
@@ -694,4 +706,3 @@ struct TabletComponents : public RefCountedThreadSafe<TabletComponents> {
 } // namespace tablet
 } // namespace kudu
 
-#endif

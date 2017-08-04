@@ -188,6 +188,7 @@ Tablet::Tablet(const scoped_refptr<TabletMetadata>& metadata,
     next_mrs_id_(0),
     clock_(clock),
     rowsets_flush_sem_(1),
+    in_failed_dir_(false),
     state_(kInitialized) {
       CHECK(schema()->has_column_ids());
   compaction_policy_.reset(CreateCompactionPolicy());
@@ -2042,6 +2043,14 @@ int64_t Tablet::CountRedoDeltasForTests() const {
 size_t Tablet::num_rowsets() const {
   shared_lock<rw_spinlock> l(component_lock_);
   return components_->rowsets->all_rowsets().size();
+}
+
+void Tablet::SetInFailedDir() {
+  in_failed_dir_.Store(true);
+}
+
+bool Tablet::IsInFailedDir() const {
+  return in_failed_dir_.Load();
 }
 
 void Tablet::PrintRSLayout(ostream* o) {

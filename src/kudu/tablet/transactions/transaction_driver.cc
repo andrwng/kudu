@@ -43,6 +43,7 @@ using log::Log;
 using rpc::RequestIdPB;
 using rpc::ResultTracker;
 using std::shared_ptr;
+using strings::Substitute;
 
 static const char* kTimestampFieldName = "timestamp";
 
@@ -474,7 +475,17 @@ void TransactionDriver::ApplyTask() {
 
   {
     gscoped_ptr<CommitMsg> commit_msg;
-    CHECK_OK(transaction_->Apply(&commit_msg));
+    Status s = transaction_->Apply(&commit_msg);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(ERROR) << Substitute("Could not Apply transaction $0: $1",
+          transaction_->ToString(), s.ToString());
+      CHECK(s.IsDiskFailure());
+
+      // Release this transaction from the tracker without committing.
+      transaction_->state()->Cancel();
+      txn_tracker_->Release(this);
+      return;
+    }
     commit_msg->mutable_commited_op_id()->CopyFrom(op_id_copy_);
     SetResponseTimestamp(transaction_->state(), transaction_->state()->timestamp());
 

@@ -1071,6 +1071,10 @@ void TSTabletManager::FailTabletsInDataDir(const string& uuid) {
   uint16_t uuid_idx;
   CHECK(dd_manager->FindUuidIndexByUuid(uuid, &uuid_idx))
       << Substitute("No data directory found with UUID $0", uuid);
+  for (const string& tablet_id : dd_manager->FindTabletsByDataDirUuidIdx(uuid_idx)) {
+    Tablet* tablet = FindOrDie(tablet_map_, tablet_id)->tablet();
+    tablet->SetInFailedDir();
+  }
   LOG(FATAL) << Substitute("Data directory $0 failed. Disk failure handling not implemented",
                            dd_manager->FindDataDirByUuidIndex(uuid_idx)->dir());
 }

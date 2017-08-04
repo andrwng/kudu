@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "kudu/gutil/ref_counted.h"
+#include "kudu/tablet/mvcc.h"
 #include "kudu/tablet/transactions/transaction_driver.h"
 #include "kudu/tablet/transactions/transaction_tracker.h"
 #include "kudu/tablet/transactions/transaction.h"
@@ -51,6 +52,7 @@ class TransactionTrackerTest : public KuduTest {
     NoOpTransactionState() : TransactionState(nullptr) {}
     virtual const google::protobuf::Message* request() const OVERRIDE { return &req_; }
     virtual std::string ToString() const OVERRIDE { return "NoOpTransactionState"; }
+    virtual void Cancel() override {}
    private:
     consensus::ReplicateMsg req_;
   };

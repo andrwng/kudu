@@ -296,6 +296,37 @@ class DelayedApplyTransaction : public WriteTransaction {
   DISALLOW_COPY_AND_ASSIGN(DelayedApplyTransaction);
 };
 
+TEST_F(TabletReplicaTest, TestDiskFailedTransaction) {
+  // Test ensuring that a transaction of a tablet in a failed directory will
+  // unregister itself.
+  ConsensusBootstrapInfo info;
+  ASSERT_OK(StartReplicaAndWaitUntilLeader(info));
+  WriteRequestPB req;
+  GenerateSequentialInsertRequest(&req);
+  WriteResponsePB resp;
+  unique_ptr<WriteTransactionState> tx_state(new WriteTransactionState(tablet_replica_.get(),
+                                                                       &req,
+                                                                       nullptr, // No RequestIdPB
+                                                                       &resp));
+  gscoped_ptr<WriteTransaction> transaction(new WriteTransaction(std::move(tx_state),
+                                                                 consensus::LEADER));
+  scoped_refptr<TransactionDriver> driver;
+  ASSERT_OK(tablet_replica_->NewLeaderTransactionDriver(
+      std::move(transaction.PassAs<Transaction>()), &driver));
+  driver->replication_state_ = TransactionDriver::ReplicationState::REPLICATED;
+  driver->prepare_state_ = TransactionDriver::PrepareState::PREPARED;
+
+  // Mark the tablet being in a failed directory so transactions will stop
+  // Applying early. With the below set, the Apply essentially becomes a no-op.
+  tablet()->SetInFailedDir();
+  NO_FATALS(driver->ApplyTask());
+
+  // Check to ensure the transaction is no longer being tracked.
+  vector<Timestamp> timestamps;
+  tablet()->mvcc_manager()->GetApplyingTransactionsTimestamps(&timestamps);
+  ASSERT_EQ(0, timestamps.size());
+}
+
 // Ensure that Log::GC() doesn't delete logs when the MRS has an anchor.
 TEST_F(TabletReplicaTest, TestMRSAnchorPreventsLogGC) {
   ConsensusBootstrapInfo info;

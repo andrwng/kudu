@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#ifndef KUDU_TABLET_TRANSACTION_DRIVER_H_
-#define KUDU_TABLET_TRANSACTION_DRIVER_H_
+#pragma once
 
 #include <string>
 
@@ -272,6 +271,7 @@ class TransactionDriver : public RefCountedThreadSafe<TransactionDriver> {
   Trace* trace() { return trace_.get(); }
 
  private:
+  FRIEND_TEST(TabletReplicaTest, TestDiskFailedTransaction);
   friend class RefCountedThreadSafe<TransactionDriver>;
   enum ReplicationState {
     // The operation has not yet been sent to consensus for replication
@@ -388,4 +388,3 @@ class TransactionDriver : public RefCountedThreadSafe<TransactionDriver> {
 }  // namespace tablet
 }  // namespace kudu
 
-#endif /* KUDU_TABLET_TRANSACTION_DRIVER_H_ */

@@ -107,6 +107,10 @@ Status AlterSchemaTransaction::Apply(gscoped_ptr<CommitMsg>* commit_msg) {
   TRACE("APPLY ALTER-SCHEMA: Starting");
 
   Tablet* tablet = state_->tablet_replica()->tablet();
+  if (tablet->IsInFailedDir()) {
+    return Status::IOError("Not Applying because tablet is on a failed disk",
+                           tablet->tablet_id(), EIO);
+  }
   RETURN_NOT_OK(tablet->AlterSchema(state()));
   state_->tablet_replica()->log()
     ->SetSchemaForNextLogSegment(*DCHECK_NOTNULL(state_->schema()),

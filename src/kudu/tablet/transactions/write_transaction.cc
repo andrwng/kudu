@@ -131,6 +131,10 @@ Status WriteTransaction::Apply(gscoped_ptr<CommitMsg>* commit_msg) {
   }
 
   Tablet* tablet = state()->tablet_replica()->tablet();
+  if (PREDICT_FALSE(tablet->IsInFailedDir())) {
+    return Status::IOError("Not Applying because tablet is on a failed disk",
+                           tablet->tablet_id(), EIO);
+  }
 
   tablet->ApplyRowOperations(state());
 
@@ -347,6 +351,13 @@ void WriteTransactionState::ReleaseRowLocks() {
   for (RowOp* op : row_ops_) {
     op->row_lock.Release();
   }
+}
+
+void WriteTransactionState::Cancel() {
+  if (mvcc_tx_) {
+    mvcc_tx_->Cancel();
+  }
+  Reset();
 }
 
 WriteTransactionState::~WriteTransactionState() {

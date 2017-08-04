@@ -273,6 +273,14 @@ TEST_F(MvccTest, TestScopedTransaction) {
   mgr.TakeSnapshot(&snap);
   ASSERT_TRUE(snap.IsCommitted(Timestamp(1)));
   ASSERT_FALSE(snap.IsCommitted(Timestamp(2)));
+
+  // Test that an applying scoped transaction does not crash if it goes out of
+  // scope after being canceled.
+  {
+    ScopedTransaction t(&mgr, clock_->Now());
+    t.StartApplying();
+    t.Cancel();
+  }
 }
 
 TEST_F(MvccTest, TestPointInTimeSnapshot) {
