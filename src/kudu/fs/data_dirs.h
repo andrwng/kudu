@@ -192,8 +192,15 @@ class DataDir {
 class DataDirManager {
  public:
   // Flags for Create().
-  static const int FLAG_CREATE_TEST_HOLE_PUNCH = 0x1;
-  static const int FLAG_CREATE_FSYNC = 0x2;
+  static const int kFlagCreateTestHolePunch = 0x1;
+  static const int kFlagCreateFsync = 0x2;
+
+  static const char* kDataDirName;
+
+  enum AccessMode {
+    READ_ONLY,
+    READ_WRITE
+  };
 
   enum class LockMode {
     MANDATORY,
@@ -207,24 +214,40 @@ class DataDirManager {
   };
 
   DataDirManager(Env* env,
-                 scoped_refptr<MetricEntity> metric_entity,
+                 const scoped_refptr<MetricEntity>& metric_entity,
                  std::string block_manager_type,
-                 std::vector<std::string> paths);
+                 std::vector<std::string> data_roots,
+                 AccessMode mode = AccessMode::READ_WRITE);
   ~DataDirManager();
 
   // Shuts down all directories' thread pools.
   void Shutdown();
 
+  // Waits on all directories' thread pools.
+  void WaitOnClosures();
+
+  // Initializes, sanitizes, and canonicalizes the directories.
+  Status Init();
+
   // Initializes the data directories on disk.
   //
   // Returns an error if initialized directories already exist.
-  Status Create(int flags);
+  Status Create();
 
-  // Opens existing data directories from disk.
+  // Opens existing data roots from disk and indexes the files found.
   //
-  // Returns an error if the number of on-disk data directories found exceeds
-  // 'max_data_dirs', or if 'mode' is MANDATORY and locks could not be taken.
-  Status Open(int max_data_dirs, LockMode mode);
+  // Returns an error if the number of on-disk directories found exceeds the
+  // max allowed, or if 'mode' is MANDATORY and locks could not be taken.
+  Status Open();
+
+  // Returns a list of all data dirs.
+  const std::vector<std::unique_ptr<DataDir>>& data_dirs() const {
+    return data_dirs_;
+  }
+
+  // ==========================================================================
+  // Tablet Placement
+  // ==========================================================================
 
   // Deserializes a DataDirGroupPB and associates the resulting DataDirGroup
   // with a tablet_id.
@@ -260,28 +283,13 @@ class DataDirManager {
   // there is no room in the group, returns an error.
   Status GetNextDataDir(const CreateBlockOptions& opts, DataDir** dir);
 
-  // Finds a data directory by uuid index, returning nullptr if it can't be
-  // found.
-  //
-  // More information on uuid indexes and their relation to data directories
-  // can be found next to PathSetPB in fs.proto.
-  DataDir* FindDataDirByUuidIndex(uint16_t uuid_idx) const;
-
-  // Finds a uuid index by data directory, returning false if it can't be found.
-  bool FindUuidIndexByDataDir(DataDir* dir,
-                              uint16_t* uuid_idx) const;
-
-  // Finds a uuid index by UUID, returning false if it can't be found.
-  bool FindUuidIndexByUuid(const std::string& uuid, uint16_t* uuid_idx) const;
-
-  // Returns a list of all data dirs.
-  const std::vector<std::unique_ptr<DataDir>>& data_dirs() const {
-    return data_dirs_;
-  }
-
   // Finds the set of tablet_ids in the data dir specified by 'uuid_idx' and
   // returns a copy, returning an empty set if none are found.
   std::set<std::string> FindTabletsByDataDirUuidIdx(uint16_t uuid_idx);
+
+  // ==========================================================================
+  // Directory Health
+  // ==========================================================================
 
   // Adds 'uuid_idx' to the set of failed data directories. This directory will
   // no longer be used. Logs an error message prefixed with 'error_message'
@@ -295,6 +303,36 @@ class DataDirManager {
     shared_lock<rw_spinlock> group_lock(dir_group_lock_.get_lock());
     return failed_data_dirs_;
   }
+
+  // ==========================================================================
+  // Directory Paths
+  // ==========================================================================
+
+  // Return a list of the successfully canonicalized root directory names.
+  std::vector<std::string> GetDataRoots() const;
+
+  // Return a list of data directory names.
+  std::vector<std::string> GetDataRootDirs() const;
+
+  // ==========================================================================
+  // Representation Conversion
+  // ==========================================================================
+
+  // Finds a data directory by uuid index, returning nullptr if it can't be
+  // found.
+  //
+  // More information on uuid indexes and their relation to data directories
+  // can be found next to PathSetPB in fs.proto.
+  DataDir* FindDataDirByUuidIndex(uint16_t uuid_idx) const;
+
+  // Finds a uuid index by data directory, returning false if it can't be found.
+  bool FindUuidIndexByDataDir(DataDir* dir, uint16_t* uuid_idx) const;
+
+  // Finds a uuid index by UUID, returning false if it can't be found.
+  bool FindUuidIndexByUuid(const std::string& uuid, uint16_t* uuid_idx) const;
+
+  // Finds a root directory by its uuid index.
+  bool FindRootByUuidIndex(uint16_t uuid_idx, std::string* root) const;
 
  private:
   FRIEND_TEST(DataDirGroupTest, TestCreateGroup);
@@ -324,9 +362,24 @@ class DataDirManager {
 
   Env* env_;
   const std::string block_manager_type_;
-  const std::vector<std::string> paths_;
+
+  bool initted_;
+  const AccessMode mode_;
 
   std::unique_ptr<DataDirMetrics> metrics_;
+
+  // Input directories verbatim from the user input fs_data_dirs.
+  const std::vector<std::string> data_fs_roots_;
+
+  // Canonicalized forms of 'data_fs_roots_'. Constructed during Init().
+  //
+  // - The first data root is used as the metadata root.
+  // - Common roots in the collections have been deduplicated.
+  std::vector<std::string> canonicalized_data_fs_roots_;
+
+  // Map from the user input fs_data_dirs to the canonicalized forms.
+  typedef std::unordered_map<std::string, std::string> RootMap;
+  RootMap data_root_map_;
 
   std::vector<std::unique_ptr<DataDir>> data_dirs_;
 

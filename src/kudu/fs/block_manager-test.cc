@@ -33,6 +33,7 @@
 #include "kudu/gutil/stl_util.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/gutil/strings/util.h"
+#include "kudu/util/env_util.h"
 #include "kudu/util/mem_tracker.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/path_util.h"
@@ -92,16 +93,20 @@ class BlockManagerTest : public KuduTest {
     test_tablet_name_("test_tablet"),
     test_block_opts_(CreateBlockOptions({ test_tablet_name_ })),
     test_error_manager_(new FsErrorManager()),
+    dd_manager_(new DataDirManager(env_, scoped_refptr<MetricEntity>(),
+                                   T::BlockManagerType(),
+                                   { test_dir_ })),
     bm_(CreateBlockManager(scoped_refptr<MetricEntity>(),
-                           shared_ptr<MemTracker>(),
-                           { test_dir_ })) {
+                           shared_ptr<MemTracker>())) {
   }
 
-  virtual void SetUp() OVERRIDE {
-    CHECK_OK(bm_->Create());
+  virtual void SetUp() override {
     // Pass in a report to prevent the block manager from logging
     // unnecessarily.
     FsReport report;
+    CHECK_OK(dd_manager_->Init());
+    CHECK_OK(dd_manager_->Create());
+    CHECK_OK(dd_manager_->Open());
     CHECK_OK(bm_->Open(&report));
     CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(test_tablet_name_));
     CHECK(bm_->dd_manager()->GetDataDirGroupPB(test_tablet_name_, &test_group_pb_));
@@ -128,13 +133,11 @@ class BlockManagerTest : public KuduTest {
 
  protected:
   T* CreateBlockManager(const scoped_refptr<MetricEntity>& metric_entity,
-                        const shared_ptr<MemTracker>& parent_mem_tracker,
-                        const vector<string>& paths) {
+                        const shared_ptr<MemTracker>& parent_mem_tracker) {
     BlockManagerOptions opts;
     opts.metric_entity = metric_entity;
     opts.parent_mem_tracker = parent_mem_tracker;
-    opts.root_paths = paths;
-    return new T(env_, test_error_manager_.get(), opts);
+    return new T(env_, this->dd_manager_.get(), test_error_manager_.get(), opts);
   }
 
   Status ReopenBlockManager(const scoped_refptr<MetricEntity>& metric_entity,
@@ -142,10 +145,14 @@ class BlockManagerTest : public KuduTest {
                             const vector<string>& paths,
                             bool create,
                             bool load_test_group = true) {
-    bm_.reset(CreateBlockManager(metric_entity, parent_mem_tracker, paths));
+    bm_.reset();
+    dd_manager_.reset(new DataDirManager(env_, metric_entity, T::BlockManagerType(), paths));
+    RETURN_NOT_OK(dd_manager_->Init());
     if (create) {
-      RETURN_NOT_OK(bm_->Create());
+      RETURN_NOT_OK(dd_manager_->Create());
     }
+    RETURN_NOT_OK(dd_manager_->Open());
+    bm_.reset(CreateBlockManager(metric_entity, parent_mem_tracker));
     RETURN_NOT_OK(bm_->Open(nullptr));
 
     // Certain tests may maintain their own directory groups, in which case
@@ -188,18 +195,21 @@ class BlockManagerTest : public KuduTest {
   string test_tablet_name_;
   CreateBlockOptions test_block_opts_;
   unique_ptr<FsErrorManager> test_error_manager_;
-  gscoped_ptr<T> bm_;
+  unique_ptr<DataDirManager> dd_manager_;
+  unique_ptr<T> bm_;
 };
 
 template <>
 void BlockManagerTest<LogBlockManager>::SetUp() {
   RETURN_NOT_LOG_BLOCK_MANAGER();
-  CHECK_OK(bm_->Create());
   // Pass in a report to prevent the block manager from logging
   // unnecessarily.
   FsReport report;
-  CHECK_OK(bm_->Open(&report));
-  CHECK_OK(bm_->dd_manager()->CreateDataDirGroup(test_tablet_name_));
+  ASSERT_OK(dd_manager_->Init());
+  ASSERT_OK(dd_manager_->Create());
+  ASSERT_OK(dd_manager_->Open());
+  ASSERT_OK(bm_->Open(&report));
+  ASSERT_OK(bm_->dd_manager()->CreateDataDirGroup(test_tablet_name_));
 
   // Store the DataDirGroupPB for tests that reopen the block manager.
   CHECK(bm_->dd_manager()->GetDataDirGroupPB(test_tablet_name_, &test_group_pb_));
@@ -270,7 +280,7 @@ void BlockManagerTest<LogBlockManager>::RunBlockDistributionTest(const vector<st
 template <>
 void BlockManagerTest<FileBlockManager>::RunMultipathTest(const vector<string>& paths) {
   // Ensure that each path has an instance file and that it's well-formed.
-  for (const string& path : paths) {
+  for (const string& path : dd_manager_->GetDataRootDirs()) {
     vector<string> children;
     ASSERT_OK(env_->GetChildren(path, &children));
     ASSERT_EQ(3, children.size());
@@ -334,16 +344,18 @@ void BlockManagerTest<LogBlockManager>::RunMultipathTest(const vector<string>& p
   }
   ASSERT_OK(closer.CloseBlocks());
 
-  // Verify the results. Each path has dot, dotdot, instance file.
-  // (numPaths * 2) containers were created, each consisting of 2 files.
-  // Thus, there should be a total of (numPaths * (3 + 4)) files.
+  // Verify the results. (numPaths * 2) containers were created, each
+  // consisting of 2 files. Thus, there should be a total of
+  // (numPaths * 4) files, ignoring '.', '..', and instance files.
   int sum = 0;
   for (const string& path : paths) {
     vector<string> children;
     ASSERT_OK(env_->GetChildren(path, &children));
-    sum += children.size();
+    int files_in_path = 0;
+    ASSERT_OK(CountFiles(path, &files_in_path));
+    sum += files_in_path;
   }
-  ASSERT_EQ(paths.size() * 7, sum);
+  ASSERT_EQ(paths.size() * 4, sum);
 }
 
 template <>
@@ -650,8 +662,7 @@ TYPED_TEST(BlockManagerTest, PersistenceTest) {
   // on-disk metadata should still be clean.
   gscoped_ptr<BlockManager> new_bm(this->CreateBlockManager(
       scoped_refptr<MetricEntity>(),
-      MemTracker::CreateTracker(-1, "other tracker"),
-      { this->test_dir_ }));
+      MemTracker::CreateTracker(-1, "other tracker")));
   ASSERT_OK(new_bm->Open(nullptr));
 
   // Test that the state of all three blocks is properly reflected.
@@ -677,6 +688,7 @@ TYPED_TEST(BlockManagerTest, BlockDistributionTest) {
   vector<string> paths;
   for (int i = 0; i < 5; i++) {
     paths.push_back(this->GetTestPath(Substitute("block_dist_path$0", i)));
+    ASSERT_OK(env_util::CreateDirIfMissing(this->env_, paths[i]));
   }
   ASSERT_OK(this->ReopenBlockManager(scoped_refptr<MetricEntity>(),
                                      shared_ptr<MemTracker>(),
@@ -691,6 +703,7 @@ TYPED_TEST(BlockManagerTest, MultiPathTest) {
   vector<string> paths;
   for (int i = 0; i < 3; i++) {
     paths.push_back(this->GetTestPath(Substitute("path$0", i)));
+    ASSERT_OK(env_util::CreateDirIfMissing(this->env_, paths[i]));
   }
   ASSERT_OK(this->ReopenBlockManager(scoped_refptr<MetricEntity>(),
                                      shared_ptr<MemTracker>(),

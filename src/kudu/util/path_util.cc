@@ -40,8 +40,7 @@ namespace kudu {
 const char kTmpInfix[] = ".kudutmp";
 const char kOldTmpInfix[] = ".tmp";
 
-std::string JoinPathSegments(const std::string &a,
-                             const std::string &b) {
+string JoinPathSegments(const string& a, const string& b) {
   CHECK(!a.empty()) << "empty first component: " << a;
   CHECK(!b.empty() && b[0] != '/')
     << "second path component must be non-empty and relative: "
@@ -51,6 +50,14 @@ std::string JoinPathSegments(const std::string &a,
   } else {
     return a + "/" + b;
   }
+}
+
+vector<string> JoinPathSegmentsV(const vector<string>& v, const string& s) {
+  std::vector<std::string> out;
+  for (const std::string& path : v) {
+    out.emplace_back(JoinPathSegments(path, s));
+  }
+  return out;
 }
 
 vector<string> SplitPath(const string& path) {

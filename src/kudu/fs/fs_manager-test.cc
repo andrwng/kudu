@@ -131,8 +131,8 @@ TEST_F(FsManagerTestBase, TestDuplicatePaths) {
   string path = GetTestPath("foo");
   ReinitFsManager(path, { path, path, path });
   ASSERT_OK(fs_manager()->CreateInitialFileSystemLayout());
-  ASSERT_EQ(vector<string>({ JoinPathSegments(path, fs_manager()->kDataDirName) }),
-            fs_manager()->GetDataRootDirs());
+  ASSERT_EQ(vector<string>({ JoinPathSegments(path, fs::DataDirManager::kDataDirName) }),
+      fs_manager()->GetDataRootDirs());
 }
 
 TEST_F(FsManagerTestBase, TestListTablets) {
@@ -173,7 +173,7 @@ TEST_F(FsManagerTestBase, TestEmptyWALPath) {
   ReinitFsManager("", {});
   Status s = fs_manager()->CreateInitialFileSystemLayout();
   ASSERT_TRUE(s.IsIOError());
-  ASSERT_STR_CONTAINS(s.ToString(), "directory (fs_wal_dir) not provided");
+  ASSERT_STR_CONTAINS(s.ToString(), "Empty string provided for path");
 }
 
 TEST_F(FsManagerTestBase, TestOnlyWALPath) {
@@ -197,8 +197,8 @@ TEST_F(FsManagerTestBase, TestFormatWithSpecificUUID) {
   // Use an invalid uuid at first.
   string uuid = "not_a_valid_uuid";
   Status s = fs_manager()->CreateInitialFileSystemLayout(uuid);
-  ASSERT_TRUE(s.IsInvalidArgument());
   ASSERT_STR_CONTAINS(s.ToString(), Substitute("invalid uuid $0", uuid));
+  ASSERT_TRUE(s.IsInvalidArgument());
 
   // Now use a valid one.
   ObjectIdGenerator oid_generator;
@@ -311,6 +311,7 @@ TEST_F(FsManagerTestBase, TestUmask) {
   string root = GetTestPath("fs_root");
   EXPECT_EQ("700", FilePermsAsString(root));
   EXPECT_EQ("700", FilePermsAsString(fs_manager()->GetConsensusMetadataDir()));
+  EXPECT_EQ("700", FilePermsAsString(fs_manager()->GetTabletMetadataDir()));
   EXPECT_EQ("600", FilePermsAsString(fs_manager()->GetInstanceMetadataPath(root)));
 
   // With umask 007, we should create files with permissions 660

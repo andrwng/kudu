@@ -164,6 +164,7 @@ class FsManager {
   // ==========================================================================
   //  on-disk path
   // ==========================================================================
+
   std::vector<std::string> GetDataRootDirs() const;
 
   std::string GetWalsRootDir() const {
@@ -212,6 +213,9 @@ class FsManager {
   // ==========================================================================
   //  file-system helpers
   // ==========================================================================
+
+  static Status SanitizePath(const std::string& path);
+
   bool Exists(const std::string& path) const {
     return env_->FileExists(path);
   }
@@ -222,7 +226,9 @@ class FsManager {
 
   Status CreateDirIfMissing(const std::string& path, bool* created = NULL);
 
-  fs::DataDirManager* dd_manager() const;
+  fs::DataDirManager* dd_manager() const {
+    return dd_manager_.get();
+  }
 
   fs::BlockManager* block_manager() {
     return block_manager_.get();
@@ -239,6 +245,11 @@ class FsManager {
   //
   // Does not actually perform any on-disk operations.
   void InitBlockManager();
+
+  // Create an new DataDirManager.
+  //
+  // Does not actually perform any on-disk operations.
+  Status InitDataDirManager();
 
   // Create a new InstanceMetadataPB.
   Status CreateInstanceMetadata(boost::optional<std::string> uuid,
@@ -308,6 +319,7 @@ class FsManager {
 
   std::unique_ptr<InstanceMetadataPB> metadata_;
 
+  std::unique_ptr<fs::DataDirManager> dd_manager_;
   std::unique_ptr<fs::BlockManager> block_manager_;
   std::unique_ptr<fs::FsErrorManager> error_manager_;
 
