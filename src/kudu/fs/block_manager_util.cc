@@ -60,32 +60,16 @@ Status PathInstanceMetadataFile::Create(const string& uuid, const vector<string>
   DCHECK(ContainsKey(set<string>(all_uuids.begin(), all_uuids.end()), uuid));
 
   uint64_t block_size;
-<<<<<<< HEAD
   RETURN_NOT_OK(env_->GetBlockSize(DirName(filename_), &block_size));
-=======
-  LOG(INFO) << filename_;
-  const string dir_name = DirName(filename_);
-  RETURN_NOT_OK_FAIL_INSTANCE_PREPEND(env_->GetBlockSize(dir_name, &block_size),
-      Substitute("Failed to create metadata file. Could not get block size of $0", dir_name));
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
 
   PathInstanceMetadataPB new_instance;
 
   // Set up the path set.
   PathSetPB* new_path_set = new_instance.mutable_path_set();
   new_path_set->set_uuid(uuid);
-<<<<<<< HEAD
   new_path_set->mutable_all_uuids()->Reserve(all_uuids.size());
   for (const string& u : all_uuids) {
     new_path_set->add_all_uuids(u);
-=======
-  for (int i = 0; i < all_uuids.size(); i++) {
-    PathPB new_path;
-    new_path.set_uuid(all_uuids[i]);
-    new_path.set_path(all_paths[i]);
-    new_path.set_health_state(PathHealthStatePB::HEALTHY);
-    *new_path_set->add_all_paths() = std::move(new_path);
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
   }
 
   // And the rest of the metadata.

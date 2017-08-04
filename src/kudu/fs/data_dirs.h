@@ -207,6 +207,11 @@ struct DataDirManagerOptions {
   bool read_only;
 };
 
+enum AccessMode {
+  READ_ONLY,
+  READ_WRITE
+};
+
 // Encapsulates knowledge of data directory management on behalf of block
 // managers.
 class DataDirManager {
@@ -229,12 +234,8 @@ class DataDirManager {
   DataDirManager(Env* env,
                  scoped_refptr<MetricEntity> metric_entity,
                  std::string block_manager_type,
-<<<<<<< HEAD
-                 std::vector<std::string> paths);
-=======
                  std::vector<std::string> data_roots,
                  AccessMode mode = AccessMode::READ_WRITE);
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
   ~DataDirManager();
 
   // Shuts down all directories' thread pools.
@@ -356,9 +357,6 @@ class DataDirManager {
 
   Env* env_;
   const std::string block_manager_type_;
-<<<<<<< HEAD
-  const std::vector<std::string> paths_;
-=======
 
   // Input directories verbatim from fs_data_dirs.
   const std::vector<std::string> data_fs_roots_;
@@ -378,7 +376,6 @@ class DataDirManager {
 
   bool initted_;
   const AccessMode mode_;
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
 
   std::unique_ptr<DataDirMetrics> metrics_;
 

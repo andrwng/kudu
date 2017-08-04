@@ -35,11 +35,6 @@
 
 #include "kudu/fs/block_manager.h"
 #include "kudu/fs/block_manager_util.h"
-<<<<<<< HEAD
-=======
-#include "kudu/fs/fs_manager.h"
-#include "kudu/fs/error_manager.h"
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/stl_util.h"
@@ -277,12 +272,6 @@ const char* kInvalidPath = "";
 DataDirManager::DataDirManager(Env* env,
                                scoped_refptr<MetricEntity> metric_entity,
                                string block_manager_type,
-<<<<<<< HEAD
-                               vector<string> paths)
-    : env_(env),
-      block_manager_type_(std::move(block_manager_type)),
-      paths_(std::move(paths)),
-=======
                                vector<string> data_roots,
                                AccessMode mode)
     : env_(env),
@@ -290,7 +279,6 @@ DataDirManager::DataDirManager(Env* env,
       data_fs_roots_(std::move(data_roots)),
       initted_(false),
       mode_(mode),
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
       rng_(GetRandomSeed32()) {
   DCHECK_GT(data_fs_roots_.size(), 0);
   LOG(INFO) << "Constructing a new DataDirManager";
@@ -380,12 +368,6 @@ Status DataDirManager::Create() {
 
   // Ensure the data paths exist and create the instance files.
   unordered_set<string> to_sync;
-<<<<<<< HEAD
-  for (const auto& p : paths_) {
-    bool created;
-    RETURN_NOT_OK_PREPEND(env_util::CreateDirIfMissing(env_, p, &created),
-                          Substitute("Could not create directory $0", p));
-=======
   PathUuidMap uuid_by_path;
   for (const string& d : GetDataRootDirs()) {
     idx++;
@@ -394,31 +376,19 @@ Status DataDirManager::Create() {
     // In test, this is the input path, IRL, this is the paths with kDataDirName
     RETURN_NOT_OK_PREPEND(env_util::CreateDirIfMissing(env_, d, &created),
         Substitute("Could not create directory $0", d));
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
     if (created) {
       delete_on_failure.push_front(new ScopedFileDeleter(env_, d));
       to_sync.insert(DirName(d));
     }
 
     if (flags & FLAG_CREATE_TEST_HOLE_PUNCH) {
-<<<<<<< HEAD
-      RETURN_NOT_OK_PREPEND(CheckHolePunch(env_, p), kHolePunchErrorMsg);
-=======
       RETURN_NOT_OK_PREPEND(CheckHolePunch(env_, d), kHolePunchErrorMsg);
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
     }
 
     string instance_filename = JoinPathSegments(d, kInstanceMetadataFileName);
     PathInstanceMetadataFile metadata(env_, block_manager_type_,
                                       instance_filename);
-<<<<<<< HEAD
     RETURN_NOT_OK_PREPEND(metadata.Create(all_uuids[idx], all_uuids), instance_filename);
-=======
-    RETURN_NOT_OK(metadata.Create(all_uuids[idx], all_uuids, GetDataRootDirs()));
-    if (PREDICT_FALSE(!metadata.healthy())) {
-      continue;
-    }
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
     delete_on_failure.push_front(new ScopedFileDeleter(env_, instance_filename));
     idx++;
   }
@@ -462,11 +432,7 @@ Status DataDirManager::Open() {
                                      instance_filename));
     RETURN_NOT_OK_PREPEND(instance->LoadFromDisk(),
                           Substitute("Could not open $0", instance_filename));
-<<<<<<< HEAD
-    if (mode != LockMode::NONE) {
-=======
-    if (instance->healthy() && lock_mode != LockMode::NONE) {
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
+    if (lock_mode != LockMode::NONE) {
       Status s = instance->Lock();
       if (!s.ok()) {
         Status new_status = s.CloneAndPrepend(Substitute(
@@ -475,13 +441,8 @@ Status DataDirManager::Open() {
           LOG(WARNING) << new_status.ToString();
           LOG(WARNING) << "Proceeding without lock";
         } else {
-<<<<<<< HEAD
-          DCHECK(LockMode::MANDATORY == mode);
-          RETURN_NOT_OK(new_status);
-=======
           DCHECK(LockMode::MANDATORY == lock_mode);
           return new_status;
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
         }
       }
       instances.push_back(instance.get());
@@ -521,23 +482,9 @@ Status DataDirManager::Open() {
     i++;
   }
 
-<<<<<<< HEAD
   RETURN_NOT_OK_PREPEND(PathInstanceMetadataFile::CheckIntegrity(instances),
                         Substitute("Could not verify integrity of files: $0",
-                                   JoinStrings(paths_, ",")));
-=======
-  // Check integrity and update all healthy instances to agree on a single path set.
-  set<int> updated_indices;
-  PathSetPB path_set;
-  RETURN_NOT_OK_PREPEND(PathInstanceMetadataFile::CheckIntegrity(instances,
-      &path_set, &updated_indices), Substitute("Could not verify integrity of files: $0",
-                                                JoinStrings(GetDataRootDirs(), ",")));
-  if (uuid_by_path_.empty()) {
-    for (int i = 0; i < path_set.all_paths_size(); i++) {
-      InsertOrDie(&uuid_by_path_, path_set.all_paths(i).path(), path_set.all_paths(i).uuid());
-    }
-  }
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
+                                   JoinStrings(GetDataRootDirs(), ",")));
 
   // Use the per-dir thread pools to delete temporary files in parallel.
   for (const auto& dd : dds) {
@@ -552,21 +499,11 @@ Status DataDirManager::Open() {
   UuidIndexByUuidMap idx_by_uuid;
   UuidIndexMap dd_by_uuid_idx;
   ReverseUuidIndexMap uuid_idx_by_dd;
-<<<<<<< HEAD
-=======
-  FailedDataDirSet failed_data_dirs;
-  TabletsByUuidIndexMap tablets_by_uuid_idx_map;
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
   for (const auto& dd : dds) {
     const PathSetPB& path_set = dd->instance()->metadata()->path_set();
     uint32_t idx = -1;
-<<<<<<< HEAD
     for (int i = 0; i < path_set.all_uuids_size(); i++) {
       if (path_set.uuid() == path_set.all_uuids(i)) {
-=======
-    for (int i = 0; i < path_set.all_paths_size(); i++) {
-      if (uuid == path_set.all_paths(i).uuid()) {
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
         idx = i;
         break;
       }
@@ -580,18 +517,7 @@ Status DataDirManager::Open() {
     InsertOrDie(&idx_by_uuid, path_set.uuid(), idx);
     InsertOrDie(&dd_by_uuid_idx, idx, dd.get());
     InsertOrDie(&uuid_idx_by_dd, dd.get(), idx);
-<<<<<<< HEAD
     InsertOrDie(&tablets_by_uuid_idx_map_, idx, {});
-=======
-    InsertOrDie(&tablets_by_uuid_idx_map, idx, {});
-    if (PREDICT_FALSE(path_set.all_paths(idx).health_state() == PathHealthStatePB::DISK_FAILED)) {
-      DCHECK(!dd->instance()->healthy());
-      if (metrics_) {
-        metrics_->data_dirs_failed->IncrementBy(1);
-      }
-      InsertOrDie(&failed_data_dirs, idx);
-    }
->>>>>>> ba5e457... fs: separate DataDirManager from BlockManager
   }
 
   data_dirs_.swap(dds);
@@ -599,9 +525,6 @@ Status DataDirManager::Open() {
   idx_by_uuid_.swap(idx_by_uuid);
   data_dir_by_uuid_idx_.swap(dd_by_uuid_idx);
   uuid_idx_by_data_dir_.swap(uuid_idx_by_dd);
-<<<<<<< HEAD
-=======
-  failed_data_dirs_.swap(failed_data_dirs);
   tablets_by_uuid_idx_map_.swap(tablets_by_uuid_idx_map);
   return Status::OK();
 }
