@@ -121,6 +121,14 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
                          consensus::RaftConfigPB config,
                          scoped_refptr<tablet::TabletReplica>* replica);
 
+  // Transitions the tablet state specified by 'tablet_id' with the specified
+  // 'reason' after taking the appropriate locks.
+  Status TransitionTabletState(const std::string& tablet_id,
+                               const std::string& reason,
+                               scoped_refptr<tablet::TabletReplica>* replica,
+                               scoped_refptr<TransitionInProgressDeleter>* deleter,
+                               boost::optional<TabletServerErrorPB::Code>* error_code);
+
   // Delete the specified tablet.
   // 'delete_type' must be one of TABLET_DATA_DELETED or TABLET_DATA_TOMBSTONED
   // or else returns Status::IllegalArgument.

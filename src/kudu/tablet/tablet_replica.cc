@@ -481,6 +481,15 @@ void TabletReplica::SetError(const Status& error) {
   last_status_ = error.ToString();
 }
 
+void TabletReplica::SetShutdownRequested(const Status& status) {
+  std::lock_guard<simple_spinlock> lock(lock_);
+  state_ = SHUTDOWN_REQUESTED;
+  if (!status.ok()) {
+    error_ = status;
+  }
+  last_status_ = status.ToString();
+}
+
 string TabletReplica::HumanReadableState() const {
   std::lock_guard<simple_spinlock> lock(lock_);
   TabletDataState data_state = meta_->tablet_data_state();
@@ -722,6 +731,14 @@ size_t TabletReplica::OnDiskSize() const {
     ret += log->OnDiskSize();
   }
   return ret;
+}
+
+void TabletReplica::UnregisterAllOps() {
+  std::lock_guard<simple_spinlock> l(state_change_lock_);
+  if (tablet_) {
+    tablet_->UnregisterMaintenanceOps();
+  }
+  UnregisterMaintenanceOps();
 }
 
 Status FlushInflightsToLogCallback::WaitForInflightsAndFlushLog() {

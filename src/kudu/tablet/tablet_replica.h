@@ -203,6 +203,10 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
   // Sets the error to the provided one.
   void SetError(const Status& error);
 
+  // Sets the tablet state to SHUTDOWN_REQUESTED, setting the error if an error
+  // is provided.
+  void SetShutdownRequested(const Status& status);
+
   // Returns the error that occurred, when state is FAILED.
   Status error() const {
     std::lock_guard<simple_spinlock> lock(lock_);
@@ -270,6 +274,10 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
   // Unregister the maintenance ops associated with this replica's tablet.
   // This method is not thread safe.
   void UnregisterMaintenanceOps();
+
+  // Unregisters both the replica maintenance ops and tablet maintenance ops.
+  // This method is thread safe.
+  void UnregisterAllOps();
 
   // Return pointer to the transaction tracker for this peer.
   const TransactionTracker* transaction_tracker() const { return &txn_tracker_; }

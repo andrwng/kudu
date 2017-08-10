@@ -194,10 +194,13 @@ void FlushDeltaMemStoresOp::Perform() {
                  << tablet_replica_->tablet_id();
     return;
   }
-  KUDU_CHECK_OK_PREPEND(tablet_replica_->tablet()->FlushDMSWithHighestRetention(
-                            max_idx_to_replay_size),
-                            Substitute("Failed to flush DMS on $0",
-                                       tablet_replica_->tablet()->tablet_id()));
+  Status s = tablet_replica_->tablet()->FlushDMSWithHighestRetention(max_idx_to_replay_size);
+  if (PREDICT_FALSE(!s.ok())) {
+    LOG(ERROR) << Substitute("Failed to flush DMS on $0", tablet_replica_->tablet_id());
+    CHECK(s.IsDiskFailure()) << "Failed with status: " << s.ToString();
+    return;
+  }
+
   {
     std::lock_guard<simple_spinlock> l(lock_);
     time_since_flush_.start();

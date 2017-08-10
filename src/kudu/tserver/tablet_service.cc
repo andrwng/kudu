@@ -1763,9 +1763,14 @@ Status TabletServiceImpl::HandleNewScanRequest(TabletReplica* replica,
     // error codes throughout Kudu.
     *error_code = tmp_error_code;
     return s;
-  } else if (PREDICT_FALSE(!s.ok())) {
+  }
+  if (PREDICT_FALSE(!s.ok())) {
     LOG(WARNING) << "Error setting up scanner with request " << SecureShortDebugString(*req);
-    *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
+    if (s.IsDiskFailure()) {
+      *error_code = TabletServerErrorPB::TABLET_FAILED;
+    } else {
+      *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
+    }
     return s;
   }
 
@@ -1899,7 +1904,11 @@ Status TabletServiceImpl::HandleContinueScanRequest(const ScanRequestPB* req,
     if (PREDICT_FALSE(!s.ok())) {
       LOG(WARNING) << "Copying rows from internal iterator for request "
                    << SecureShortDebugString(*req);
-      *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
+      if (s.IsDiskFailure()) {
+        *error_code = TabletServerErrorPB::TABLET_FAILED;
+      } else {
+        *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
+      }
       return s;
     }
 

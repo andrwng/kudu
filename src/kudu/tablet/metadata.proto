@@ -173,6 +173,10 @@ enum TabletStatePB {
   // The tablet has been stopped, possibly because it has been tombstoned.
   STOPPED = 7;
 
+  // Indicates the tablet is scheduled to shut down, but has not started
+  // quiescing. Will not accept further requests.
+  SHUTDOWN_REQUESTED = 8;
+
   // The Tablet has been completely shut down.
   SHUTDOWN = 4;
 }
