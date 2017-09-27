@@ -258,6 +258,12 @@ void TabletReplica::Stop() {
     set_state(STOPPING);
   }
 
+  // Since we're shutting down the replica, there's no point in permitting
+  // further transactions.
+  if (tablet_) {
+    tablet_->Stop();
+  }
+
   std::lock_guard<simple_spinlock> l(state_change_lock_);
   // Even though Tablet::Shutdown() also unregisters its ops, we have to do it here
   // to ensure that any currently running operation finishes before we proceed with

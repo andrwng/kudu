@@ -284,6 +284,14 @@ TEST_F(MvccTest, TestScopedTransaction) {
   mgr.TakeSnapshot(&snap);
   ASSERT_TRUE(snap.IsCommitted(Timestamp(1)));
   ASSERT_FALSE(snap.IsCommitted(Timestamp(2)));
+
+  // Test that an applying scoped transaction does not crash if it goes out of
+  // scope while the MvccManager is closed.
+  mgr.SetClosed();
+  {
+    ScopedTransaction t(&mgr, clock_->Now());
+    NO_FATALS(t.StartApplying());
+  }
 }
 
 TEST_F(MvccTest, TestPointInTimeSnapshot) {
@@ -467,11 +475,14 @@ TEST_F(MvccTest, TestWaitForCleanSnapshot_SnapAfterSafeTimeWithInFlights) {
 
   // Wait should return immediately, since we have no transactions "applying"
   // yet.
-  mgr.WaitForApplyingTransactionsToCommit();
+  ASSERT_OK(mgr.WaitForApplyingTransactionsToCommit());
 
   mgr.StartApplyingTransaction(tx1);
 
-  thread waiting_thread = thread(&MvccManager::WaitForApplyingTransactionsToCommit, &mgr);
+  Status s;
+  thread waiting_thread = thread([&] {
+    s = mgr.WaitForApplyingTransactionsToCommit();
+  });
   while (mgr.GetNumWaitersForTests() == 0) {
     SleepFor(MonoDelta::FromMilliseconds(5));
   }
@@ -484,6 +495,7 @@ TEST_F(MvccTest, TestWaitForCleanSnapshot_SnapAfterSafeTimeWithInFlights) {
   // Committing our transaction should wake the waiter.
   mgr.CommitTransaction(tx1);
   ASSERT_EQ(mgr.GetNumWaitersForTests(), 0);
+  ASSERT_OK(s);
   waiting_thread.join();
 }
 
@@ -536,7 +548,7 @@ TEST_F(MvccTest, TestWaitForApplyingTransactionsToCommit) {
 
   // Wait should return immediately, since we have no transactions "applying"
   // yet.
-  mgr.WaitForApplyingTransactionsToCommit();
+  ASSERT_OK(mgr.WaitForApplyingTransactionsToCommit());
 
   mgr.StartApplyingTransaction(tx1);
 
@@ -554,6 +566,46 @@ TEST_F(MvccTest, TestWaitForApplyingTransactionsToCommit) {
   mgr.CommitTransaction(tx1);
   ASSERT_EQ(mgr.GetNumWaitersForTests(), 0);
   waiting_thread.join();
+}
+
+// Test to ensure that after MVCC has been marked as closed, it will not Wait
+// and will instead return an error.
+TEST_F(MvccTest, TestDontWaitAfterClosed) {
+  MvccManager mgr;
+  Timestamp tx1 = clock_->Now();
+  mgr.StartTransaction(tx1);
+  mgr.AdjustSafeTime(tx1);
+  mgr.StartApplyingTransaction(tx1);
+
+  // Spin up a thread to wait on the applying transaction.
+  // Lock the changing status. This is only necessary in this test to read the
+  // status from the main thread, showing that, regardless of where, MVCC's
+  // closing will cause waiters to abort mid-wait.
+  Status s;
+  simple_spinlock status_lock;
+  thread waiting_thread = thread([&] {
+    std::lock_guard<simple_spinlock> l(status_lock);
+    s = mgr.WaitForApplyingTransactionsToCommit();
+  });
+
+  // Wait until the waiter actually gets registered.
+  while (mgr.GetNumWaitersForTests() == 0) {
+    SleepFor(MonoDelta::FromMilliseconds(5));
+  }
+
+  // Set that the mgr is shutting down. This should cause waiters to abort.
+  mgr.SetClosed();
+  ASSERT_EVENTUALLY([&] {
+    std::lock_guard<simple_spinlock> l(status_lock);
+    ASSERT_STR_CONTAINS(s.ToString(), "closed");
+    ASSERT_TRUE(s.IsAborted());
+  });
+  waiting_thread.join();
+
+  // New waiters should abort immediately.
+  s = mgr.WaitForApplyingTransactionsToCommit();
+  ASSERT_STR_CONTAINS(s.ToString(), "closed");
+  ASSERT_TRUE(s.IsAborted());
 }
 
 // Test that if we abort a transaction we don't advance the safe time and don't

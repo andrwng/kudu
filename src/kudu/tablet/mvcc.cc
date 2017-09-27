@@ -39,7 +39,8 @@ using strings::Substitute;
 
 MvccManager::MvccManager()
   : safe_time_(Timestamp::kMin),
-    earliest_in_flight_(Timestamp::kMax) {
+    earliest_in_flight_(Timestamp::kMax),
+    closed_(false) {
   cur_snap_.all_committed_before_ = Timestamp::kInitialTimestamp;
   cur_snap_.none_committed_at_or_after_ = Timestamp::kInitialTimestamp;
 }
@@ -91,6 +92,15 @@ void MvccManager::AbortTransaction(Timestamp timestamp) {
 
   // Remove from our in-flight list.
   TxnState old_state = RemoveInFlightAndGetStateUnlocked(timestamp);
+
+  // If the tablet is shutting down, we can ignore the state of the
+  // transactions.
+  if (PREDICT_FALSE(closed_.load())) {
+    LOG(WARNING) << "aborting transaction with timestamp " << timestamp.ToString()
+        << " in state " << old_state << "; tablet is shutting down";
+    return;
+  }
+
   CHECK_EQ(old_state, RESERVED) << "transaction with timestamp " << timestamp.ToString()
                                 << " cannot be aborted in state " << old_state;
 
@@ -192,6 +202,16 @@ static void FilterTimestamps(std::vector<Timestamp::val_type>* v,
   v->resize(j);
 }
 
+void MvccManager::SetClosed() {
+  closed_.store(true);
+  std::lock_guard<LockType> l(lock_);
+  auto iter = waiters_.begin();
+  while (iter != waiters_.end()) {
+    (*iter)->latch->CountDown();
+    iter = waiters_.erase(iter);
+  }
+}
+
 void MvccManager::AdjustCleanTime() {
   // There are two possibilities:
   //
@@ -237,6 +257,8 @@ Status MvccManager::WaitUntil(WaitFor wait_for, Timestamp ts, const MonoTime& de
                "wait_for", wait_for == ALL_COMMITTED ? "all_committed" : "none_applying",
                "ts", ts.ToUint64())
 
+  // If MVCC is shutting down, there's no point in waiting.
+  RETURN_NOT_OK(CheckNotClosed());
   CountDownLatch latch(1);
   WaitingState waiting_state;
   {
@@ -249,7 +271,8 @@ Status MvccManager::WaitUntil(WaitFor wait_for, Timestamp ts, const MonoTime& de
     waiters_.push_back(&waiting_state);
   }
   if (waiting_state.latch->WaitUntil(deadline)) {
-    return Status::OK();
+    // If the wait ended because MVCC is shutting down, return an error.
+    return CheckNotClosed();
   }
   // We timed out. We need to clean up our entry in the waiters_ array.
 
@@ -257,7 +280,7 @@ Status MvccManager::WaitUntil(WaitFor wait_for, Timestamp ts, const MonoTime& de
   // It's possible that while we were re-acquiring the lock, we did get
   // notified. In that case, we have no cleanup to do.
   if (waiting_state.latch->count() == 0) {
-    return Status::OK();
+    return CheckNotClosed();
   }
 
   waiters_.erase(std::find(waiters_.begin(), waiters_.end(), &waiting_state));
@@ -274,6 +297,13 @@ bool MvccManager::IsDoneWaitingUnlocked(const WaitingState& waiter) const {
       return !AnyApplyingAtOrBeforeUnlocked(waiter.timestamp);
   }
   LOG(FATAL); // unreachable
+}
+
+Status MvccManager::CheckNotClosed() const {
+  if (PREDICT_FALSE(IsClosed())) {
+    return Status::Aborted("MVCC is shutting down");
+  }
+  return Status::OK();
 }
 
 bool MvccManager::AreAllTransactionsCommittedUnlocked(Timestamp ts) const {
@@ -312,8 +342,9 @@ Status MvccManager::WaitForSnapshotWithAllCommitted(Timestamp timestamp,
   return Status::OK();
 }
 
-void MvccManager::WaitForApplyingTransactionsToCommit() const {
+Status MvccManager::WaitForApplyingTransactionsToCommit() const {
   TRACE_EVENT0("tablet", "MvccManager::WaitForApplyingTransactionsToCommit");
+  RETURN_NOT_OK(CheckNotClosed());
 
   // Find the highest timestamp of an APPLYING transaction.
   Timestamp wait_for = Timestamp::kMin;
@@ -332,9 +363,9 @@ void MvccManager::WaitForApplyingTransactionsToCommit() const {
   // succeed.
   if (wait_for == Timestamp::kMin) {
     // None were APPLYING: we can just return.
-    return;
+    return Status::OK();
   }
-  CHECK_OK(WaitUntil(NONE_APPLYING, wait_for, MonoTime::Max()));
+  return WaitUntil(NONE_APPLYING, wait_for, MonoTime::Max());
 }
 
 bool MvccManager::AreAllTransactionsCommitted(Timestamp ts) const {

@@ -288,6 +288,12 @@ Status Tablet::Open() {
   return Status::OK();
 }
 
+void Tablet::Stop() {
+  // Close MVCC so Applying transactions will not complete and will not be
+  // waited on. This prevents further snapshotting of the tablet.
+  mvcc_manager()->SetClosed();
+}
+
 void Tablet::MarkFinishedBootstrapping() {
   CHECK_EQ(state_, kBootstrapping);
   state_ = kOpen;
@@ -699,11 +705,11 @@ void Tablet::StartApplying(WriteTransactionState* tx_state) {
   tx_state->set_tablet_components(components_);
 }
 
-void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
+Status Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   int num_ops = tx_state->row_ops().size();
 
   // TODO(todd) determine why we sometimes get empty writes!
-  if (PREDICT_FALSE(num_ops == 0)) return;
+  if (PREDICT_FALSE(num_ops == 0)) return Status::OK();
 
   // The compiler seems to be bad at hoisting this load out of the loops,
   // so load it up top.
@@ -764,8 +770,9 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   // 'pending_group' and then calls 'ProcessPendingGroup' when the next group
   // begins.
   vector<pair<RowSet*, int>> pending_group;
+  Status s = Status::OK();
   const auto& ProcessPendingGroup = [&]() {
-    if (pending_group.empty()) return;
+    if (pending_group.empty() || !s.ok()) return;
     // Check invariant of the batch RowSetTree query: within each output group
     // we should have fully-sorted keys.
     DCHECK(std::is_sorted(pending_group.begin(), pending_group.end(),
@@ -787,10 +794,15 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
         continue;
       }
 
-      // TODO(todd) is CHECK_OK correct? it used to be that errors here
-      // would just be silently ignored, so this seems at least an improvement.
       bool present = false;
-      CHECK_OK(rs->CheckRowPresent(*op->key_probe, &present, tx_state->mutable_op_stats(op_idx)));
+      s = rs->CheckRowPresent(*op->key_probe, &present, tx_state->mutable_op_stats(op_idx));
+      if (PREDICT_FALSE(!s.ok())) {
+        s = Status::Aborted(s.ToString());
+        LOG(WARNING) << Substitute("Tablet $0 failed op $1: $2",
+            tablet_id(), op->ToString(key_schema_), s.ToString());
+        CHECK(mvcc_.IsClosed()) << "MVCC must be closed to survive transaction failures";
+        return;
+      }
       if (present) {
         op->present_in_rowset = rs;
       }
@@ -809,6 +821,7 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
       });
   // Process the last group.
   ProcessPendingGroup();
+  RETURN_NOT_OK_PREPEND(s, "Failed to check presence of rows");
 
   // Mark all of the ops as having been checked.
   // TODO(todd): this could potentially be weaved into the std::unique() call up
@@ -816,9 +829,19 @@ void Tablet::BulkCheckPresence(WriteTransactionState* tx_state) {
   for (auto& p : keys_and_indexes) {
     row_ops_base[p.second]->checked_present = true;
   }
+  return Status::OK();
 }
 
-void Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
+Status Tablet::CheckNotStopped() const {
+  if (Stopped()) {
+    return Status::Aborted("Tablet has been stopped");
+  }
+  return Status::OK();
+}
+
+Status Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
+  RETURN_NOT_OK_PREPEND(CheckNotStopped(),
+      Substitute("Transaction $0 exited early", tx_state->ToString()));
   int num_ops = tx_state->row_ops().size();
 
   StartApplying(tx_state);
@@ -828,25 +851,28 @@ void Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
     ValidateOpOrMarkFailed(op);
   }
 
-  BulkCheckPresence(tx_state);
+  RETURN_NOT_OK(BulkCheckPresence(tx_state));
 
   // Actually apply the ops.
   for (int op_idx = 0; op_idx < num_ops; op_idx++) {
     RowOp* row_op = tx_state->row_ops()[op_idx];
     if (row_op->has_result()) continue;
 
-    ApplyRowOperation(tx_state, row_op, tx_state->mutable_op_stats(op_idx));
+    RETURN_NOT_OK(ApplyRowOperation(tx_state, row_op, tx_state->mutable_op_stats(op_idx)));
     DCHECK(row_op->has_result());
   }
 
   if (metrics_ && num_ops > 0) {
     metrics_->AddProbeStats(tx_state->mutable_op_stats(0), num_ops, tx_state->arena());
   }
+  return Status::OK();
 }
 
-void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
+Status Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
                                RowOp* row_op,
                                ProbeStats* stats) {
+  RETURN_NOT_OK_PREPEND(CheckNotStopped(),
+      Substitute("Transaction $0 exited early", tx_state->ToString()));
   CHECK(state_ == kOpen || state_ == kBootstrapping);
   DCHECK(row_op->has_row_lock()) << "RowOp must hold the row lock.";
   DCHECK(tx_state != nullptr) << "must have a WriteTransactionState";
@@ -854,7 +880,7 @@ void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
   DCHECK_EQ(tx_state->schema_at_decode_time(), schema());
 
   if (!ValidateOpOrMarkFailed(row_op)) {
-    return;
+    return Status::OK();
   }
 
   // If we were unable to check rowset presence in batch (e.g. because we are processing
@@ -863,9 +889,13 @@ void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
     vector<RowSet *> to_check = FindRowSetsToCheck(row_op, tx_state->tablet_components());
     for (RowSet *rowset : to_check) {
       bool present = false;
-      // TODO(todd) is CHECK_OK correct? it used to be that errors here
-      // would just be silently ignored, so this seems at least an improvement.
-      CHECK_OK(rowset->CheckRowPresent(*row_op->key_probe, &present, stats));
+      Status s = rowset->CheckRowPresent(*row_op->key_probe, &present, stats);
+      if (PREDICT_FALSE(!s.ok())) {
+        LOG(WARNING) << Substitute("Failed to check if row is present; ending "
+                                   "transaction $0 early", tx_state->ToString());
+        CHECK(Stopped()) << "Transaction can only end early if the tablet is stopped";
+        return Status::Aborted("Transaction failed because tablet was stopped");
+      }
       if (present) {
         row_op->present_in_rowset = rowset;
         break;
@@ -878,16 +908,17 @@ void Tablet::ApplyRowOperation(WriteTransactionState* tx_state,
     case RowOperationsPB::INSERT:
     case RowOperationsPB::UPSERT:
       ignore_result(InsertOrUpsertUnlocked(tx_state, row_op, stats));
-      return;
+      return Status::OK();
 
     case RowOperationsPB::UPDATE:
     case RowOperationsPB::DELETE:
       ignore_result(MutateRowUnlocked(tx_state, row_op, stats));
-      return;
+      return Status::OK();
 
     default:
       LOG_WITH_PREFIX(FATAL) << RowOperationsPB::Type_Name(row_op->decoded_op.type);
   }
+  return Status::OK();
 }
 
 void Tablet::ModifyRowSetTree(const RowSetTree& old_tree,
@@ -998,7 +1029,9 @@ Status Tablet::FlushUnlocked() {
 
   // Wait for any in-flight transactions to finish against the old MRS
   // before we flush it.
-  mvcc_.WaitForApplyingTransactionsToCommit();
+  //
+  // This may fail if the tablet is being stopped.
+  RETURN_NOT_OK(mvcc_.WaitForApplyingTransactionsToCommit());
 
   // Note: "input" should only contain old_mrs.
   return FlushInternal(input, old_mrs);
@@ -1457,7 +1490,7 @@ Status Tablet::DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
   // those transactions in 'applying_during_swap', but MVCC doesn't implement the
   // ability to wait for a specific set. So instead we wait for all currently applying --
   // a bit more than we need, but still correct.
-  mvcc_.WaitForApplyingTransactionsToCommit();
+  RETURN_NOT_OK(mvcc_.WaitForApplyingTransactionsToCommit());
 
   // Then we want to consider all those transactions that were in-flight when we did the
   // swap as committed in 'non_duplicated_txns_snap'.

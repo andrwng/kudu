@@ -14,8 +14,8 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_TABLET_TABLET_H
-#define KUDU_TABLET_TABLET_H
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -157,11 +157,11 @@ class Tablet {
   void StartApplying(WriteTransactionState* tx_state);
 
   // Apply all of the row operations associated with this transaction.
-  void ApplyRowOperations(WriteTransactionState* tx_state);
+  Status ApplyRowOperations(WriteTransactionState* tx_state);
 
   // Apply a single row operation, which must already be prepared.
   // The result is set back into row_op->result
-  void ApplyRowOperation(WriteTransactionState* tx_state,
+  Status ApplyRowOperation(WriteTransactionState* tx_state,
                          RowOp* row_op,
                          ProbeStats* stats);
 
@@ -402,6 +402,14 @@ class Tablet {
   // Return the default bloom filter sizing parameters, configured by server flags.
   static BloomFilterSizing DefaultBloomSizing();
 
+  // Stops the tablet. Once called, currently-Applying operations should
+  // terminate early, and further transactions should be aborted.
+  void Stop();
+
+  bool Stopped() const {
+    return mvcc_.IsClosed();
+  }
+
  private:
   friend class Iterator;
   friend class TabletReplicaTest;
@@ -454,7 +462,7 @@ class Tablet {
   // For each of the operations in 'tx_state', check for the presence of their
   // row keys in the RowSets in the current RowSetTree (as determined by the transaction's
   // captured TabletComponents).
-  void BulkCheckPresence(WriteTransactionState* tx_state);
+  Status BulkCheckPresence(WriteTransactionState* tx_state);
 
   // Capture a set of iterators which, together, reflect all of the data in the tablet.
   //
@@ -525,6 +533,10 @@ class Tablet {
                                  Schema *mapped_projection) const;
 
   Status CheckRowInTablet(const ConstContiguousRow& row) const;
+
+  // Returns an error if the tablet has been stopped, e.g. because the tablet
+  // needs to be closed due to an error.
+  Status CheckNotStopped() const;
 
   // Helper method to find the rowset that has the DMS with the highest retention.
   std::shared_ptr<RowSet> FindBestDMSToFlush(const ReplaySizeMap& replay_size_map) const;
@@ -699,4 +711,3 @@ struct TabletComponents : public RefCountedThreadSafe<TabletComponents> {
 } // namespace tablet
 } // namespace kudu
 
-#endif

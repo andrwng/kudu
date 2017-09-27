@@ -65,8 +65,8 @@ using log::Log;
 using pb_util::SecureShortDebugString;
 using rpc::RequestIdPB;
 using rpc::ResultTracker;
-using std::shared_ptr;
 using std::string;
+using strings::Substitute;
 
 static const char* kTimestampFieldName = "timestamp";
 
@@ -127,6 +127,13 @@ TransactionDriver::TransactionDriver(TransactionTracker *txn_tracker,
 
 Status TransactionDriver::Init(gscoped_ptr<Transaction> transaction,
                                DriverType type) {
+  // If the tablet has been stopped, the replica is likely shutting down soon.
+  // Prevent further transacions from starting.
+  // Note: Some tests may not have a replica.
+  TabletReplica* replica = transaction->state()->tablet_replica();
+  if (PREDICT_FALSE(replica && replica->tablet()->Stopped())) {
+    return Status::Aborted("Not executing transaction; tablet has been stopped");
+  }
   transaction_ = std::move(transaction);
 
   if (type == consensus::REPLICA) {
@@ -296,7 +303,7 @@ Status TransactionDriver::Prepare() {
     } else {
       if (state()->are_results_tracked()
           && !state()->result_tracker()->IsCurrentDriver(state()->request_id())) {
-        transaction_status_ = Status::AlreadyPresent(strings::Substitute(
+        transaction_status_ = Status::AlreadyPresent(Substitute(
             "There's already an attempt of the same operation on the server for request id: $0",
             SecureShortDebugString(state()->request_id())));
         replication_state_ = REPLICATION_FAILED;
@@ -364,24 +371,26 @@ void TransactionDriver::HandleFailure(const Status& s) {
   }
 
   switch (repl_state_copy) {
+    case REPLICATING:
+    case REPLICATED:
+    {
+      // Replicated transactions are only allowed to fail if the tablet has
+      // been stopped.
+      if (!state()->tablet_replica()->tablet()->Stopped()) {
+        LOG_WITH_PREFIX(FATAL) << "Cannot cancel transactions that have already replicated"
+            << ": " << transaction_status_.ToString()
+            << " transaction:" << ToString();
+      }
+      FALLTHROUGH_INTENDED;
+    }
     case NOT_REPLICATING:
     case REPLICATION_FAILED:
     {
-      VLOG_WITH_PREFIX(1) << "Transaction " << ToString() << " failed prior to "
-          "replication success: " << s.ToString();
+      VLOG_WITH_PREFIX(1) << Substitute("Transaction $0 failed: $1", ToString(), s.ToString());
       transaction_->Finish(Transaction::ABORTED);
       mutable_state()->completion_callback()->set_error(transaction_status_);
       mutable_state()->completion_callback()->TransactionCompleted();
       txn_tracker_->Release(this);
-      return;
-    }
-
-    case REPLICATING:
-    case REPLICATED:
-    {
-      LOG_WITH_PREFIX(FATAL) << "Cannot cancel transactions that have already replicated"
-          << ": " << transaction_status_.ToString()
-          << " transaction:" << ToString();
     }
   }
 }
@@ -485,6 +494,10 @@ Status TransactionDriver::ApplyAsync() {
 void TransactionDriver::ApplyTask() {
   TRACE_EVENT_FLOW_END0("txn", "ApplyTask", this);
   ADOPT_TRACE(trace());
+  if (state()->tablet_replica()->tablet()->Stopped()) {
+    HandleFailure(Status::Aborted("Not Applying transaction; tablet has been stopped"));
+    return;
+  }
 
   {
     std::lock_guard<simple_spinlock> lock(lock_);
@@ -498,7 +511,14 @@ void TransactionDriver::ApplyTask() {
 
   {
     gscoped_ptr<CommitMsg> commit_msg;
-    CHECK_OK(transaction_->Apply(&commit_msg));
+    Status s = transaction_->Apply(&commit_msg);
+    if (PREDICT_FALSE(!s.ok())) {
+      LOG(WARNING) << Substitute("Did not Apply transaction $0: $1",
+          transaction_->ToString(), s.ToString());
+      CHECK(state()->tablet_replica()->tablet()->Stopped());
+      HandleFailure(s);
+      return;
+    }
     commit_msg->mutable_commited_op_id()->CopyFrom(op_id_copy_);
     SetResponseTimestamp(transaction_->state(), transaction_->state()->timestamp());
 
@@ -606,12 +626,12 @@ std::string TransactionDriver::LogPrefix() const {
   string state_str = StateString(repl_state_copy, prep_state_copy);
   // We use the tablet and the peer (T, P) to identify ts and tablet and the timestamp (Ts) to
   // (help) identify the transaction. The state string (S) describes the state of the transaction.
-  return strings::Substitute("T $0 P $1 S $2 Ts $3: ",
-                             // consensus_ is NULL in some unit tests.
-                             PREDICT_TRUE(consensus_) ? consensus_->tablet_id() : "(unknown)",
-                             PREDICT_TRUE(consensus_) ? consensus_->peer_uuid() : "(unknown)",
-                             state_str,
-                             ts_string);
+  return Substitute("T $0 P $1 S $2 Ts $3: ",
+                    // consensus_ is NULL in some unit tests.
+                    PREDICT_TRUE(consensus_) ? consensus_->tablet_id() : "(unknown)",
+                    PREDICT_TRUE(consensus_) ? consensus_->peer_uuid() : "(unknown)",
+                    state_str,
+                    ts_string);
 }
 
 }  // namespace tablet

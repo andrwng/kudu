@@ -52,6 +52,8 @@
 #include "kudu/master/master.pb.h"
 #include "kudu/rpc/result_tracker.h"
 #include "kudu/tablet/metadata.pb.h"
+#include "kudu/tablet/mvcc.h"
+#include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet_bootstrap.h"
 #include "kudu/tablet/tablet_metadata.h"
 #include "kudu/tablet/tablet_replica.h"
@@ -162,10 +164,6 @@ using std::vector;
 using strings::Substitute;
 
 namespace kudu {
-
-namespace tablet {
-class Tablet;
-}
 
 using consensus::ConsensusMetadata;
 using consensus::ConsensusMetadataCreateMode;

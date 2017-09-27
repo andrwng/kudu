@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <memory>
 #include <ostream>
+#include <stdint.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -30,6 +31,7 @@
 #include "kudu/client/client.h"
 #include "kudu/client/schema.h"
 #include "kudu/client/shared_ptr.h"
+#include "kudu/common/wire_protocol.pb.h"
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/consensus/quorum_util.h"
 #include "kudu/consensus/raft_consensus.h"
@@ -37,6 +39,7 @@
 #include "kudu/gutil/stl_util.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/integration-tests/cluster_itest_util.h"
+#include "kudu/integration-tests/internal_mini_cluster-itest-base.h"
 #include "kudu/integration-tests/test_workload.h"
 #include "kudu/master/master.pb.h"
 #include "kudu/master/master.proxy.h"
@@ -44,6 +47,7 @@
 #include "kudu/mini-cluster/internal_mini_cluster.h"
 #include "kudu/rpc/messenger.h"
 #include "kudu/tablet/metadata.pb.h"
+#include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tserver/heartbeater.h"
 #include "kudu/tserver/mini_tablet_server.h"
@@ -74,7 +78,9 @@ using cluster::InternalMiniCluster;
 using cluster::InternalMiniClusterOptions;
 using consensus::GetConsensusRole;
 using consensus::RaftPeerPB;
+using itest::FindTabletLeader;
 using itest::SimpleIntKeyKuduSchema;
+using itest::TServerDetails;
 using master::MasterServiceProxy;
 using master::ReportedTabletPB;
 using master::TabletReportPB;
@@ -90,7 +96,7 @@ using tserver::MiniTabletServer;
 
 static const char* const kTableName = "test-table";
 
-class TsTabletManagerITest : public KuduTest {
+class TsTabletManagerITest : public MiniClusterITestBase {
  public:
   TsTabletManagerITest()
       : schema_(SimpleIntKeyKuduSchema()) {
@@ -102,58 +108,175 @@ class TsTabletManagerITest : public KuduTest {
     ASSERT_OK(bld.Build(&client_messenger_));
   }
 
-  void StartCluster(int num_replicas) {
-    InternalMiniClusterOptions opts;
-    opts.num_tablet_servers = num_replicas;
-    cluster_.reset(new InternalMiniCluster(env_, opts));
-    ASSERT_OK(cluster_->Start());
-    ASSERT_OK(cluster_->CreateClient(nullptr, &client_));
+  // Returns the index of the tablet server housing the LEADER for 'tablet_id',
+  // or -1 if it can't be found.
+  Status GetLeaderTServerNum(const string& tablet_id, int* leader_num) {
+    *leader_num = -1;
+    TServerDetails* leader_details;
+    RETURN_NOT_OK(FindTabletLeader(
+        ts_map_, tablet_id, MonoDelta::FromSeconds(10), &leader_details));
+    for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
+      MiniTabletServer* candidate = cluster_->mini_tablet_server(i);
+      if (candidate->uuid() ==
+          leader_details->instance_id.permanent_uuid()) {
+        *leader_num = i;
+        break;
+      }
+    }
+    return Status::OK();
   }
 
- protected:
-  const KuduSchema schema_;
+  // Stop the tablet at the specified tablet server.
+  void StopTablet(const string& tablet_id, int tserver_num = 0) {
+    LOG(INFO) << "Closing replica's MVCC manager";
+    scoped_refptr<TabletReplica> replica;
+    MiniTabletServer* ts = cluster_->mini_tablet_server(tserver_num);
+    ASSERT_OK(ts->server()->tablet_manager()->GetTabletReplica(tablet_id, &replica));
+    replica->tablet()->Stop();
+  }
 
-  unique_ptr<InternalMiniCluster> cluster_;
-  client::sp::shared_ptr<KuduClient> client_;
-  std::shared_ptr<Messenger> client_messenger_;
-};
-
-// Test that when a tablet is marked as failed, it will eventually be evicted
-// and replaced.
-TEST_F(TsTabletManagerITest, TestFailedTabletsAreReplaced) {
-  const int kNumReplicas = 3;
-  NO_FATALS(StartCluster(kNumReplicas));
-
-  InternalMiniClusterOptions opts;
-  opts.num_tablet_servers = kNumReplicas;
-  unique_ptr<InternalMiniCluster> cluster(new InternalMiniCluster(env_, opts));
-  ASSERT_OK(cluster->Start());
-  TestWorkload work(cluster.get());
-  work.set_num_replicas(3);
-  work.Setup();
-  work.Start();
-
-  // Insert data until the tablet becomes visible to the server.
-  // We'll operate on the first tablet server, chosen arbitrarily.
-  MiniTabletServer* ts = cluster->mini_tablet_server(0);
-  string tablet_id;
-  ASSERT_EVENTUALLY([&] {
-    vector<string> tablet_ids = ts->ListTablets();
-    ASSERT_EQ(1, tablet_ids.size());
-    tablet_id = tablet_ids[0];
-  });
-
-  // Wait until the replica is running before failing it.
-  const auto wait_until_running = [&]() {
-    AssertEventually([&]{
+  // Waits until the specified tablet gets to the RUNNING state.
+  void WaitUntilTabletRunningOnTServer(MiniTabletServer* ts, const string& tablet_id) {
+    AssertEventually([&] {
       scoped_refptr<TabletReplica> replica;
       ASSERT_OK(ts->server()->tablet_manager()->GetTabletReplica(tablet_id, &replica));
       ASSERT_EQ(replica->state(), tablet::RUNNING);
     }, MonoDelta::FromSeconds(60));
     NO_PENDING_FATALS();
-  };
-  wait_until_running();
+  }
 
+  // Starts a new cluster and creates a tablet with the specified number of
+  // replicas. Waits until a replica is running on at least one server before
+  // returning with the tablet id.
+  void StartClusterAndLoadTablet(int num_replicas, string* tablet_id) {
+    NO_FATALS(StartCluster(num_replicas));
+
+    TestWorkload writes(cluster_.get());
+    writes.set_num_replicas(num_replicas);
+    writes.Setup();
+    writes.Start();
+
+    // Insert data until the tablet becomes visible to the server.
+    // Operate on the first tablet server, chosen arbitrarily.
+    MiniTabletServer* ts = cluster_->mini_tablet_server(0);
+    ASSERT_EVENTUALLY([&] {
+      vector<string> tablet_ids = ts->ListTablets();
+      ASSERT_EQ(1, tablet_ids.size());
+      *tablet_id = tablet_ids[0];
+    });
+
+    // Wait until the replica is running before failing it.
+    WaitUntilTabletRunningOnTServer(ts, *tablet_id);
+    writes.StopAndJoin();
+  }
+
+ protected:
+  const KuduSchema schema_;
+
+  std::shared_ptr<Messenger> client_messenger_;
+};
+
+// Ensure that stopping a tablet will not prevent scans from completing.
+TEST_F(TsTabletManagerITest, TestStoppedTabletsScansGetRedirected) {
+  const int kNumReplicas = 3;
+  string tablet_id;
+  NO_FATALS(StartClusterAndLoadTablet(kNumReplicas, &tablet_id));
+  NO_FATALS(StopTablet(tablet_id));
+
+  TestWorkload reads(cluster_.get());
+  reads.set_num_write_threads(0);
+  reads.set_num_read_threads(1);
+  reads.set_num_replicas(kNumReplicas);
+
+  // Wait a bit to scan the results. This would fail with an RPC timeout and
+  // crash if the tablet servers became unavailable due to the stopped tablet.
+  reads.Setup();
+  reads.Start();
+
+  // Allow some time for the scan to start.
+  SleepFor(MonoDelta::FromSeconds(10));
+  reads.StopAndJoin();
+}
+
+// Ensure that stopping a tablet while it is being written to should prevent
+// further Prepares and Applies on that replica.
+TEST_F(TsTabletManagerITest, TestStoppedLeaderTabletsDontWrite) {
+  const int kNumReplicas = 3;
+  string tablet_id;
+  NO_FATALS(StartClusterAndLoadTablet(kNumReplicas, &tablet_id));
+
+  TestWorkload writes(cluster_.get());
+  writes.set_timeout_allowed(true);
+  writes.Setup();
+  writes.Start();
+
+  int64_t init_rows_snapshot = writes.rows_inserted();
+  int64_t target_before_stop = init_rows_snapshot + 10000;
+
+  // Wait for some rows to be inserted.
+  while (writes.rows_inserted() < target_before_stop) {
+    SleepFor(MonoDelta::FromMilliseconds(5));
+  }
+
+  int leader_num;
+  ASSERT_OK(GetLeaderTServerNum(tablet_id, &leader_num));
+  ASSERT_GE(leader_num, 0);
+
+  // Stop the leader tablet and wait a bit for any writes that may have been
+  // already Committing to respond.
+  NO_FATALS(StopTablet(tablet_id, leader_num));
+  SleepFor(MonoDelta::FromSeconds(5));
+  int64_t num_rows_after_stop = writes.rows_inserted();
+
+  // Now that the tablet has been stopped, wait longer and ensure that no more
+  // writes get through.
+  SleepFor(MonoDelta::FromSeconds(5));
+  ASSERT_EQ(num_rows_after_stop, writes.rows_inserted());
+
+  writes.StopAndJoin();
+}
+
+TEST_F(TsTabletManagerITest, TestStoppedFollowerTabletsDontBlockWrites) {
+  const int kNumReplicas = 3;
+  string tablet_id;
+  NO_FATALS(StartClusterAndLoadTablet(kNumReplicas, &tablet_id));
+
+  TestWorkload writes(cluster_.get());
+  writes.set_timeout_allowed(true);
+  writes.Setup();
+  writes.Start();
+
+  int64_t init_rows_snapshot = writes.rows_inserted();
+  int64_t target_before_stop = init_rows_snapshot + 10000;
+  int64_t target_after_stop = target_before_stop + 50000;
+
+  // Wait for some rows to be inserted.
+  while (writes.rows_inserted() < target_before_stop) {
+    SleepFor(MonoDelta::FromMilliseconds(5));
+  }
+
+  int leader_num;
+  ASSERT_OK(GetLeaderTServerNum(tablet_id, &leader_num));
+  ASSERT_GE(leader_num, 0);
+
+  // Stop a follower tablet and continue writing. Since we're stopping a
+  // follower, writes should still be able to get through.
+  NO_FATALS(StopTablet(tablet_id, (leader_num + 1) % kNumReplicas));
+  while (writes.rows_inserted() < target_after_stop) {
+    SleepFor(MonoDelta::FromMilliseconds(5));
+  }
+
+  writes.StopAndJoin();
+}
+
+// Test that when a tablet is marked as failed, it will eventually be evicted
+// and replaced.
+TEST_F(TsTabletManagerITest, TestFailedTabletsAreReplaced) {
+  const int kNumReplicas = 3;
+  string tablet_id;
+  NO_FATALS(StartClusterAndLoadTablet(kNumReplicas, &tablet_id));
+
+  MiniTabletServer* ts = cluster_->mini_tablet_server(0);
   {
     // Inject an error to the replica. Shutting it down will leave it FAILED.
     scoped_refptr<TabletReplica> replica;
@@ -164,8 +287,7 @@ TEST_F(TsTabletManagerITest, TestFailedTabletsAreReplaced) {
   }
 
   // Ensure the tablet eventually is replicated.
-  wait_until_running();
-  work.StopAndJoin();
+  WaitUntilTabletRunningOnTServer(ts, tablet_id);
 }
 
 // Test that when the leader changes, the tablet manager gets notified and

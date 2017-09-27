@@ -1728,6 +1728,13 @@ Status TabletServiceImpl::HandleNewScanRequest(TabletReplica* replica,
           return s;
         }
 
+        // If we get a Status::Aborted() from HandleScanAtSnapshot(), it likely
+        // means the tablet had to shut down, e.g. due to a disk error.
+        if (s.IsAborted()) {
+          *error_code = TabletServerErrorPB::TABLET_FAILED;
+          return s;
+        }
+
         if (!s.ok()) {
           tmp_error_code = TabletServerErrorPB::INVALID_SNAPSHOT;
         }
