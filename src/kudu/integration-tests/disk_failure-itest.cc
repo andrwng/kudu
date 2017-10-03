@@ -194,15 +194,10 @@ class DiskFailureITest : public ExternalMiniClusterITestBase,
     ignore_result(session->Flush());
   }
 
-  // Creates a table with three replicas named 'table_id'.
-  void CreateTable(const string table_id) {
-    client::KuduSchema client_schema(client::KuduSchemaFromSchema(GetSimpleTestSchema()));
-    unique_ptr<client::KuduTableCreator> table_creator(client_->NewTableCreator());
-    ASSERT_OK(table_creator->table_name(table_id)
-              .schema(&client_schema)
-              .set_range_partition_columns({ "key" })
-              .num_replicas(3)
-              .Create());
+  // Sets the specified tablet server to inject failures on the specified 'glob'.
+  Status SetInjectionFlags(ExternalTabletServer* ts, const string& glob) {
+    RETURN_NOT_OK(cluster_->SetFlag(ts, "env_inject_eio_globs", glob));
+    return cluster_->SetFlag(ts, "env_inject_eio", "1.0");
   }
 
   // Starts a cluster with three tservers, the specified number of directories,
@@ -316,11 +311,9 @@ TEST_P(DiskFailureITest, TestFailDuringFlushMRS) {
 
   // Set flags to fail the appropriate directories.
   NO_FATALS(SetServerSurvivalFlags());
-  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(0), "env_inject_eio", "1.0"));
-  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(1), "env_inject_eio", "1.0"));
-  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(0), "env_inject_eio_globs",
+  ASSERT_OK(SetInjectionFlags(cluster_->tablet_server(0),
                               GlobForBlocksInDataDir(dirs_with_A_data[0])));
-  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(1), "env_inject_eio_globs",
+  ASSERT_OK(SetInjectionFlags(cluster_->tablet_server(1),
                               GlobForBlocksInDataDir(dirs_without_A_data[1])));
   LOG(INFO) << "Flags set! Write ops shall henceforth result in EIOs.";
 
@@ -336,6 +329,9 @@ TEST_P(DiskFailureITest, TestFailDuringFlushMRS) {
   for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
     ASSERT_TRUE(cluster_->tablet_server(i)->IsProcessAlive());
   }
+
+  // Wait for the copies to restabilize.
+  SleepFor(MonoDelta::FromSeconds(10));
 
   // Ensure that the tablets are healthy.
   ClusterVerifier v(cluster_.get());
@@ -365,9 +361,15 @@ TEST_P(DiskFailureITest, TestFailDuringFlushMRS) {
 // [ X | a ] [ a | X ] [ X | a ]
 TEST_P(DiskFailureITest, TestFailDuringFlushDMS) {
   NO_FATALS(StartCluster(/*num_data_dirs=*/ 2));
-
+  const int kNumTabletServers = 3;
   const string kTableId = "test_table";
-  NO_FATALS(CreateTable(kTableId));
+  client::KuduSchema client_schema(client::KuduSchemaFromSchema(GetSimpleTestSchema()));
+  unique_ptr<client::KuduTableCreator> table_creator(client_->NewTableCreator());
+  ASSERT_OK(table_creator->table_name(kTableId)
+            .schema(&client_schema)
+            .set_range_partition_columns({ "key" })
+            .num_replicas(kNumTabletServers)
+            .Create());
 
   const int kStartRow = 0;
   const int kNumRows = 100;
@@ -386,9 +388,8 @@ TEST_P(DiskFailureITest, TestFailDuringFlushDMS) {
   // Iterate through the disks and crash the dir with data on each.
   NO_FATALS(SetServerSurvivalFlags());
   for (int ts = 0; ts < cluster_->num_tablet_servers(); ts++) {
-    ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(ts), "env_inject_eio_globs",
-        GlobForBlocksInDataDir(paths_with_data[ts])));
-    ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(ts), "env_inject_eio", "1.0"));
+    ASSERT_OK(SetInjectionFlags(cluster_->tablet_server(ts),
+                                GlobForBlocksInDataDir(paths_with_data[ts])));
 
     // By repeatedly upserting the same range of rows, we can exercise DMS flushes.
     NO_FATALS(UpsertPayload(kTableId, kStartRow, kNumRows));
@@ -397,6 +398,8 @@ TEST_P(DiskFailureITest, TestFailDuringFlushDMS) {
     // Ensure that the tablets are healthy.
     ClusterVerifier v(cluster_.get());
     NO_FATALS(v.CheckCluster());
+
+    // There should be more than one (the initial) batch.
     NO_FATALS(v.CheckRowCount(kTableId, ClusterVerifier::AT_LEAST,
                               2 + ts));
   }
@@ -423,9 +426,8 @@ TEST_P(DiskFailureITest, TestFailDuringScan) {
 
   // Fail one of the directories that have data.
   NO_FATALS(SetServerSurvivalFlags());
-  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(0), "env_inject_eio", "1.0"));
-  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(0), "env_inject_eio_globs",
-      GlobForBlocksInDataDir(paths_with_data[0])));
+  ASSERT_OK(SetInjectionFlags(cluster_->tablet_server(0),
+                              GlobForBlocksInDataDir(paths_with_data[0])));
 
   // Read from the table and expect the first tserver to fail.
   read_workload.Start();

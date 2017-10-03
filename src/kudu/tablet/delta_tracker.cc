@@ -545,7 +545,9 @@ Status DeltaTracker::NewDeltaIterator(const Schema* schema,
                                       WhichStores which,
                                       unique_ptr<DeltaIterator>* out) const {
   std::vector<shared_ptr<DeltaStore> > stores;
+  LOG(INFO) << "COLLECTING STORES";
   CollectStores(&stores, which);
+  LOG(INFO) << "CREATING NEW MERGER";
   return DeltaIteratorMerger::Create(stores, schema, snap, out);
 }
 
@@ -720,12 +722,11 @@ Status DeltaTracker::Flush(MetadataFlushType flush_type) {
   Status s = FlushDMS(old_dms.get(), &dfr, flush_type);
   // TODO(awong): if this is not a disk failure, we need to figure out what to
   // do since end up with a DeltaMemStore permanently in the store list.
-  CHECK(s.ok());
-  // if (PREDICT_FALSE(!s.ok())) {
-  //   s = s.CloneAndPrepend("Failed to flush DMS");
-  //   CHECK(s.IsDiskFailure()) << s.ToString();
-  //   return s;
-  // }
+  if (PREDICT_FALSE(!s.ok())) {
+    s = s.CloneAndPrepend("Failed to flush DMS");
+    CHECK(s.IsDiskFailure()) << s.ToString();
+    return s;
+  }
 
 
   // Now, re-take the lock and swap in the DeltaFileReader in place of

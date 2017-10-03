@@ -47,6 +47,7 @@
 #include "kudu/gutil/strings/split.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/array_view.h"
+#include "kudu/util/debug-util.h"
 #include "kudu/util/debug/trace_event.h"
 #include "kudu/util/env.h"
 #include "kudu/util/errno.h"
@@ -308,6 +309,7 @@ Status IOError(const std::string& context, int err_number) {
     case EOPNOTSUPP:
       return Status::NotSupported(context, ErrnoToString(err_number), err_number);
     case EIO:
+      // LOG(INFO) << GetStackTrace();
       if (FLAGS_crash_on_eio) {
         // TODO(awong): This is very, very coarse-grained. A more comprehensive
         // approach is described in KUDU-616.

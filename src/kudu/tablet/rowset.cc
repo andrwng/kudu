@@ -159,6 +159,10 @@ Status DuplicatingRowSet::MutateRow(Timestamp timestamp,
       // through all, and make sure that we only update in one of them.
       break;
       #endif
+    } else if (s.IsDiskFailure()) {
+      // Failures due to disk failure should have been handled separately by
+      // the FsErrorManager.
+      return s;
     } else if (!s.IsNotFound()) {
       LOG(FATAL) << "Unable to mirror update to rowset " << new_rowset->ToString()
                  << " for key: " << probe.schema()->CreateKeyProjection().DebugRow(probe.row_key())

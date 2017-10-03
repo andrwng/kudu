@@ -1066,6 +1066,7 @@ Status Tablet::ReplaceMemRowSetUnlocked(RowSetsInCompaction *compaction,
 
 Status Tablet::FlushInternal(const RowSetsInCompaction& input,
                              const shared_ptr<MemRowSet>& old_ms) {
+  RETURN_NOT_OK(CheckNotStopped());
   CHECK(state_ == kOpen || state_ == kBootstrapping);
 
   // Step 1. Freeze the old memrowset by blocking readers and swapping
@@ -1223,6 +1224,7 @@ bool Tablet::ShouldThrottleAllow(int64_t bytes) {
 
 Status Tablet::PickRowSetsToCompact(RowSetsInCompaction *picked,
                                     CompactFlags flags) const {
+  RETURN_NOT_OK(CheckNotStopped());
   CHECK_EQ(state_, kOpen);
   // Grab a local reference to the current RowSetTree. This is to avoid
   // holding the component_lock_ for too long. See the comment on component_lock_
@@ -1326,13 +1328,16 @@ void Tablet::RegisterMaintenanceOps(MaintenanceManager* maint_mgr) {
   }
 }
 
-void Tablet::UnregisterMaintenanceOps() {
-  // First cancel all of the operations, so that while we're waiting for one
-  // operation to finish in Unregister(), a different one can't get re-scheduled.
+void Tablet::CancelMaintenanceOps() {
   for (MaintenanceOp* op : maintenance_ops_) {
     op->CancelAndDisable();
   }
+}
 
+void Tablet::UnregisterMaintenanceOps() {
+  // First cancel all of the operations, so that while we're waiting for one
+  // operation to finish in Unregister(), a different one can't get re-scheduled.
+  CancelMaintenanceOps();
   for (MaintenanceOp* op : maintenance_ops_) {
     op->Unregister();
   }
@@ -1356,6 +1361,7 @@ Status Tablet::FlushMetadata(const RowSetVector& to_remove,
 
 Status Tablet::DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
                                         int64_t mrs_being_flushed) {
+  RETURN_NOT_OK(CheckNotStopped());
   const char *op_name =
         (mrs_being_flushed == TabletMetadata::kNoMrsFlushed) ? "Compaction" : "Flush";
   TRACE_EVENT2("tablet", "Tablet::DoMergeCompactionOrFlush",
@@ -1571,6 +1577,7 @@ Status Tablet::HandleEmptyCompactionOrFlush(const RowSetVector& rowsets,
 }
 
 Status Tablet::Compact(CompactFlags flags) {
+  RETURN_NOT_OK(CheckNotStopped());
   CHECK_EQ(state_, kOpen);
 
   RowSetsInCompaction input;
@@ -1640,6 +1647,7 @@ Status Tablet::CaptureConsistentIterators(
   const ScanSpec *spec,
   OrderMode order,
   vector<shared_ptr<RowwiseIterator> > *iters) const {
+  RETURN_NOT_OK(CheckNotStopped());
   shared_lock<rw_spinlock> l(component_lock_);
 
   // Construct all the iterators locally first, so that if we fail

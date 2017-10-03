@@ -1728,13 +1728,6 @@ Status TabletServiceImpl::HandleNewScanRequest(TabletReplica* replica,
           return s;
         }
 
-        // If we get a Status::Aborted() from HandleScanAtSnapshot(), it likely
-        // means the tablet had to shut down, e.g. due to a disk error.
-        if (s.IsAborted()) {
-          *error_code = TabletServerErrorPB::TABLET_FAILED;
-          return s;
-        }
-
         if (!s.ok()) {
           tmp_error_code = TabletServerErrorPB::INVALID_SNAPSHOT;
         }
@@ -1766,7 +1759,9 @@ Status TabletServiceImpl::HandleNewScanRequest(TabletReplica* replica,
   }
   if (PREDICT_FALSE(!s.ok())) {
     LOG(WARNING) << "Error setting up scanner with request " << SecureShortDebugString(*req);
-    if (s.IsDiskFailure()) {
+    if (tablet->Stopped()) {
+      // If the replica has been stopped due to disk failure, return
+      // TABLET_FAILED so the scan can be handled appropriately.
       *error_code = TabletServerErrorPB::TABLET_FAILED;
     } else {
       *error_code = TabletServerErrorPB::UNKNOWN_ERROR;
@@ -1904,7 +1899,7 @@ Status TabletServiceImpl::HandleContinueScanRequest(const ScanRequestPB* req,
     if (PREDICT_FALSE(!s.ok())) {
       LOG(WARNING) << "Copying rows from internal iterator for request "
                    << SecureShortDebugString(*req);
-      if (s.IsDiskFailure()) {
+      if (s.IsAborted()) {
         *error_code = TabletServerErrorPB::TABLET_FAILED;
       } else {
         *error_code = TabletServerErrorPB::UNKNOWN_ERROR;

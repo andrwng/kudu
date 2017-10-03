@@ -733,12 +733,14 @@ size_t TabletReplica::OnDiskSize() const {
   return ret;
 }
 
-void TabletReplica::UnregisterAllOps() {
+void TabletReplica::CancelAllOps() {
   std::lock_guard<simple_spinlock> l(state_change_lock_);
   if (tablet_) {
-    tablet_->UnregisterMaintenanceOps();
+    tablet_->CancelMaintenanceOps();
   }
-  UnregisterMaintenanceOps();
+  for (MaintenanceOp* op : maintenance_ops_) {
+    op->CancelAndDisable();
+  }
 }
 
 Status FlushInflightsToLogCallback::WaitForInflightsAndFlushLog() {

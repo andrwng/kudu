@@ -375,6 +375,10 @@ class Tablet {
   // This method is not thread safe.
   void UnregisterMaintenanceOps();
 
+  // Cancels the maintenance ops associated with this tablet so further ops
+  // will not be scheduled. Not thread safe.
+  void CancelMaintenanceOps();
+
   const std::string& tablet_id() const { return metadata_->tablet_id(); }
 
   // Return the metrics for this tablet.

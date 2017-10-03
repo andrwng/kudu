@@ -21,6 +21,7 @@
 #include <memory>
 #include <mutex>
 #include <ostream>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -188,6 +189,7 @@ using tablet::TabletDataState;
 using tablet::TabletMetadata;
 using tablet::TabletReplica;
 using tserver::TabletCopyClient;
+using std::set;
 
 namespace tserver {
 
@@ -1296,13 +1298,18 @@ void TSTabletManager::FailTabletsInDataDir(const string& uuid) {
   uint16_t uuid_idx;
   CHECK(dd_manager->FindUuidIndexByUuid(uuid, &uuid_idx))
       << Substitute("No data directory found with UUID $0", uuid);
+  if (fs_manager_->dd_manager()->IsDataDirFailed(uuid_idx)) {
+    LOG(WARNING) << "Directory is already marked failed.";
+    return;
+  }
   dd_manager->MarkDataDirFailed(uuid_idx);
+  set<string> tablets = dd_manager->FindTabletsByDataDirUuidIdx(uuid_idx);
+  LOG(INFO) << Substitute("Data dir $0 has $1 tablets", uuid, tablets.size());
   for (const string& tablet_id : dd_manager->FindTabletsByDataDirUuidIdx(uuid_idx)) {
-    VLOG(3) << Substitute("Tablet $0 is located in an unhealthy directory", tablet_id);
+    LOG(INFO) << Substitute("Tablet $0 is located in an unhealthy directory", tablet_id);
     scoped_refptr<TabletReplica> replica;
     if (LookupTablet(tablet_id, &replica)) {
-      replica->UnregisterAllOps();
-
+      replica->CancelAllOps();
       // Stop the tablet from completing further transactions.
       if (replica->tablet()) {
         replica->tablet()->Stop();

@@ -26,6 +26,7 @@
 #include "kudu/gutil/callback_forward.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/fault_injection.h"
+#include "kudu/util/locks.h"
 #include "kudu/util/status.h"
 
 namespace kudu {
@@ -102,17 +103,22 @@ class FsErrorManager {
   //
   // 'uuid' is the full UUID of the component that failed.
   void RunErrorNotificationCb(const std::string& uuid) const {
+    std::lock_guard<simple_spinlock> l(lock_);
     notify_cb_.Run(uuid);
   }
 
   // Runs the error notification callback with the UUID of 'dir'.
   void RunErrorNotificationCb(const DataDir* dir) const {
-    notify_cb_.Run(dir->instance()->metadata()->path_set().uuid());
+    RunErrorNotificationCb(dir->instance()->metadata()->path_set().uuid());
   }
 
  private:
    // Callback to be run when an error occurs.
    ErrorNotificationCb notify_cb_;
+
+   // Protects calls to the same callback to ensure the callback is complete
+   // before its next call.
+   mutable simple_spinlock lock_;
 };
 
 }  // namespace fs

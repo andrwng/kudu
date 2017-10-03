@@ -188,6 +188,7 @@ void MaintenanceManager::Shutdown() {
 }
 
 void MaintenanceManager::RegisterOp(MaintenanceOp* op) {
+  LOG(INFO) << "LOCK";
   CHECK(op);
   std::lock_guard<Mutex> guard(lock_);
   CHECK(!op->manager_) << "Tried to register " << op->name()
@@ -244,6 +245,7 @@ void MaintenanceManager::RunSchedulerThread() {
   MonoDelta polling_interval = MonoDelta::FromMilliseconds(polling_interval_ms_);
 
   std::unique_lock<Mutex> guard(lock_);
+  LOG(INFO) << "LOCK";
 
   // Set to true if the scheduler runs and finds that there is no work to do.
   bool prev_iter_found_no_work = false;
@@ -343,12 +345,17 @@ MaintenanceOp* MaintenanceManager::FindBestOp() {
   MaintenanceOp* best_perf_improvement_op = nullptr;
   for (OpMapTy::value_type &val : ops_) {
     MaintenanceOp* op(val.first);
-    MaintenanceOpStats& stats(val.second);
     VLOG_WITH_PREFIX(3) << "Considering MM op " << op->name();
+    // Before anything else, if the op has been cancelled, don't bother with
+    // anything else.
+    if (op->cancelled()) {
+      continue;
+    }
+    MaintenanceOpStats& stats(val.second);
     // Update op stats.
     stats.Clear();
     op->UpdateStats(&stats);
-    if (op->cancelled() || !stats.valid() || !stats.runnable()) {
+    if (!stats.valid() || !stats.runnable()) {
       continue;
     }
     if (stats.logs_retained_bytes() > low_io_most_logs_retained_bytes &&

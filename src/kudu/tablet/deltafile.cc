@@ -266,15 +266,19 @@ Status DeltaFileReader::ReadDeltaStats() {
 }
 
 bool DeltaFileReader::IsRelevantForSnapshot(const MvccSnapshot& snap) const {
+  LOG(INFO) << "CALL: IsRelevantForSnapshot()";
   if (!init_once_.initted()) {
     // If we're not initted, it means we have no delta stats and must
     // assume that this file is relevant for every snapshot.
     return true;
   }
+  LOG(INFO) << "IS INITTED";
   if (delta_type_ == REDO) {
+    LOG(INFO) << "REDO";
     return snap.MayHaveCommittedTransactionsAtOrAfter(delta_stats_->min_timestamp());
   }
   if (delta_type_ == UNDO) {
+    LOG(INFO) << "UNDO";
     return snap.MayHaveUncommittedTransactionsAtOrBefore(delta_stats_->max_timestamp());
   }
   LOG(DFATAL) << "Cannot reach here";
