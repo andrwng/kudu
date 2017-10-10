@@ -336,6 +336,7 @@ Status Tablet::NewRowIterator(const Schema &projection,
                               const MvccSnapshot &snap,
                               const OrderMode order,
                               gscoped_ptr<RowwiseIterator> *iter) const {
+  RETURN_NOT_OK(CheckNotStopped());
   CHECK_EQ(state_, kOpen);
   if (metrics_) {
     metrics_->scans_started->Increment();
@@ -2180,6 +2181,7 @@ Tablet::Iterator::Iterator(const Tablet* tablet, const Schema& projection,
 Tablet::Iterator::~Iterator() {}
 
 Status Tablet::Iterator::Init(ScanSpec *spec) {
+  RETURN_NOT_OK(tablet_->CheckNotStopped());
   DCHECK(iter_.get() == nullptr);
 
   RETURN_NOT_OK(tablet_->GetMappedReadProjection(projection_, &projection_));

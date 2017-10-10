@@ -258,6 +258,13 @@ Status CFileSet::FindRow(const RowSetKeyProbe &probe,
       LOG(WARNING) << "Unable to query bloom: " << s.ToString()
                    << " (disabling bloom for this rowset from this point forward)";
       const_cast<CFileSet *>(this)->bloom_reader_.reset(nullptr);
+      if (PREDICT_FALSE(s.IsDiskFailure())) {
+        // If this is a disk failure, return early since IO to the tablet
+        // should be stopped.
+        // Error cause by this is due to the fact that we may not touch disk if
+        // everything's been initialized already, and thus not fail below.
+        return s;
+      }
       // Continue with the slow path
     }
   }

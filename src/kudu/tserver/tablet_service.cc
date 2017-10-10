@@ -1899,7 +1899,7 @@ Status TabletServiceImpl::HandleContinueScanRequest(const ScanRequestPB* req,
     if (PREDICT_FALSE(!s.ok())) {
       LOG(WARNING) << "Copying rows from internal iterator for request "
                    << SecureShortDebugString(*req);
-      if (s.IsAborted()) {
+      if (s.IsDiskFailure()) {
         *error_code = TabletServerErrorPB::TABLET_FAILED;
       } else {
         *error_code = TabletServerErrorPB::UNKNOWN_ERROR;

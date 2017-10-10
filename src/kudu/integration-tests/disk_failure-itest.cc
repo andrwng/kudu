@@ -197,7 +197,8 @@ class DiskFailureITest : public ExternalMiniClusterITestBase,
   // Sets the specified tablet server to inject failures on the specified 'glob'.
   Status SetInjectionFlags(ExternalTabletServer* ts, const string& glob) {
     RETURN_NOT_OK(cluster_->SetFlag(ts, "env_inject_eio_globs", glob));
-    return cluster_->SetFlag(ts, "env_inject_eio", "1.0");
+    // Don't inject 100% of the time so more codepaths can be tested.
+    return cluster_->SetFlag(ts, "env_inject_eio", "0.25");
   }
 
   // Starts a cluster with three tservers, the specified number of directories,
@@ -388,20 +389,23 @@ TEST_P(DiskFailureITest, TestFailDuringFlushDMS) {
   // Iterate through the disks and crash the dir with data on each.
   NO_FATALS(SetServerSurvivalFlags());
   for (int ts = 0; ts < cluster_->num_tablet_servers(); ts++) {
-    ASSERT_OK(SetInjectionFlags(cluster_->tablet_server(ts),
-                                GlobForBlocksInDataDir(paths_with_data[ts])));
+    const auto& tserver = cluster_->tablet_server(ts);
+    ASSERT_OK(SetInjectionFlags(tserver, GlobForBlocksInDataDir(paths_with_data[ts])));
 
     // By repeatedly upserting the same range of rows, we can exercise DMS flushes.
-    NO_FATALS(UpsertPayload(kTableId, kStartRow, kNumRows));
-    NO_FATALS(WaitForDiskFailures(cluster_->tablet_server(ts), 1));
+    // Keep upserting until the disk fails.
+    int64_t failed_on_ts = 0;
+    while (failed_on_ts == 0) {
+      NO_FATALS(UpsertPayload(kTableId, kStartRow, kNumRows));
+      ASSERT_OK(tserver->GetInt64Metric(
+          &METRIC_ENTITY_server, nullptr, &METRIC_data_dirs_failed, "value", &failed_on_ts));
+    }
 
     // Ensure that the tablets are healthy.
     ClusterVerifier v(cluster_.get());
     NO_FATALS(v.CheckCluster());
-
-    // There should be more than one (the initial) batch.
     NO_FATALS(v.CheckRowCount(kTableId, ClusterVerifier::AT_LEAST,
-                              2 + ts));
+                              kNumRows));
   }
 }
 

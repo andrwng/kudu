@@ -1302,7 +1302,6 @@ void TSTabletManager::FailTabletsInDataDir(const string& uuid) {
     LOG(WARNING) << "Directory is already marked failed.";
     return;
   }
-  dd_manager->MarkDataDirFailed(uuid_idx);
   set<string> tablets = dd_manager->FindTabletsByDataDirUuidIdx(uuid_idx);
   LOG(INFO) << Substitute("Data dir $0 has $1 tablets", uuid, tablets.size());
   for (const string& tablet_id : dd_manager->FindTabletsByDataDirUuidIdx(uuid_idx)) {
@@ -1330,6 +1329,12 @@ void TSTabletManager::FailTabletsInDataDir(const string& uuid) {
       }));
     }
   }
+  // TODO(awong): rephrase
+  // Do this last to prevent a race between DataDirManager::GetNextDataDir()
+  // and maintenance ops. Maintenance ops can fail outside of IO but might not
+  // trigger and might not have completed triggering the error handling if the
+  // disk is failed any earlier.
+  dd_manager->MarkDataDirFailed(uuid_idx);
 }
 
 int TSTabletManager::RefreshTabletStateCacheAndReturnCount(tablet::TabletStatePB st) {

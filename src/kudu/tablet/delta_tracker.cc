@@ -333,10 +333,14 @@ Status DeltaTracker::CommitDeltaStoreMetadataUpdate(const RowSetMetadataUpdate& 
   DCHECK(!to_remove.empty());
 
   // Update the in-memory metadata.
+  // TODO(awong): How about we instead use RAII?
   RETURN_NOT_OK(rowset_metadata_->CommitUpdate(update));
   // Once we successfully commit to the rowset metadata, let's ensure we update
   // the delta stores to maintain consistency between the two. We enforce this
   // with a CHECK_OK here.
+  //
+  // TODO(awong): add a test for this failing.
+  // This goes down the path of opening blocks.
   CHECK_OK(AtomicUpdateStores(to_remove, new_delta_blocks, type));
   if (flush_type == FLUSH_METADATA) {
     // Flushing the metadata is considered best-effort in this function.
