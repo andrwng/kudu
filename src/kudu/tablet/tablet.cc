@@ -1337,7 +1337,7 @@ void Tablet::CancelMaintenanceOps() {
 
 void Tablet::UnregisterMaintenanceOps() {
   // First cancel all of the operations, so that while we're waiting for one
-  // operation to finish in Unregister(), a different one can't get re-scheduled.
+  // operatioe to finish in Unregister(), a different one can't get re-scheduled.
   CancelMaintenanceOps();
   for (MaintenanceOp* op : maintenance_ops_) {
     op->Unregister();

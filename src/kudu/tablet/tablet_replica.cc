@@ -734,7 +734,6 @@ size_t TabletReplica::OnDiskSize() const {
 }
 
 void TabletReplica::CancelAllOps() {
-  std::lock_guard<simple_spinlock> l(state_change_lock_);
   if (tablet_) {
     tablet_->CancelMaintenanceOps();
   }

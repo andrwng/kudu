@@ -89,6 +89,7 @@ using rpc::RpcController;
 using std::min;
 using std::shared_ptr;
 using std::string;
+using std::unique_ptr;
 using std::unordered_map;
 using std::vector;
 using strings::Substitute;
@@ -293,7 +294,7 @@ Status CreateTabletServerMap(const shared_ptr<MasterServiceProxy>& master_proxy,
     vector<Sockaddr> addresses;
     host_port.ResolveAddresses(&addresses);
 
-    gscoped_ptr<TServerDetails> peer(new TServerDetails);
+    unique_ptr<TServerDetails> peer(new TServerDetails);
     peer->instance_id.CopyFrom(entry.instance_id());
     peer->registration.CopyFrom(entry.registration());
 

@@ -14,9 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
-#ifndef KUDU_TSERVER_TABLET_SERVER_TEST_BASE_H_
-#define KUDU_TSERVER_TABLET_SERVER_TEST_BASE_H_
+#pragma once
 
 #include <assert.h>
 #include <signal.h>
@@ -463,17 +461,17 @@ class TabletServerTestBase : public KuduTest {
 
   const Schema schema_;
   Schema key_schema_;
-  gscoped_ptr<RowBuilder> rb_;
+  std::unique_ptr<RowBuilder> rb_;
 
   std::shared_ptr<rpc::Messenger> client_messenger_;
 
-  gscoped_ptr<MiniTabletServer> mini_server_;
+  std::unique_ptr<MiniTabletServer> mini_server_;
   scoped_refptr<tablet::TabletReplica> tablet_replica_;
-  gscoped_ptr<TabletCopyServiceProxy> tablet_copy_proxy_;
-  gscoped_ptr<TabletServerServiceProxy> proxy_;
-  gscoped_ptr<TabletServerAdminServiceProxy> admin_proxy_;
-  gscoped_ptr<consensus::ConsensusServiceProxy> consensus_proxy_;
-  gscoped_ptr<server::GenericServiceProxy> generic_proxy_;
+  std::unique_ptr<TabletCopyServiceProxy> tablet_copy_proxy_;
+  std::unique_ptr<TabletServerServiceProxy> proxy_;
+  std::unique_ptr<TabletServerAdminServiceProxy> admin_proxy_;
+  std::unique_ptr<consensus::ConsensusServiceProxy> consensus_proxy_;
+  std::unique_ptr<server::GenericServiceProxy> generic_proxy_;
 
   MetricRegistry ts_test_metric_registry_;
   scoped_refptr<MetricEntity> ts_test_metric_entity_;
@@ -487,5 +485,3 @@ const char* TabletServerTestBase::kTabletId = "TestTablet";
 } // namespace tserver
 } // namespace kudu
 
-
-#endif /* KUDU_TSERVER_TABLET_SERVER_TEST_BASE_H_ */

@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -107,6 +108,7 @@ using kudu::rpc::RpcController;
 using kudu::tablet::Tablet;
 using kudu::tablet::TabletReplica;
 using kudu::tablet::TabletSuperBlockPB;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
@@ -121,10 +123,17 @@ DEFINE_int32(single_threaded_insert_latency_bench_insert_rows, 1000,
              "Number of rows to insert in the testing phase of the single threaded"
              " tablet server insert latency micro-benchmark");
 
+DECLARE_bool(crash_on_eio);
+DECLARE_bool(enable_maintenance_manager);
 DECLARE_bool(fail_dns_resolution);
+DECLARE_double(env_inject_eio);
+DECLARE_int32(flush_threshold_mb);
+DECLARE_int32(flush_threshold_secs);
+DECLARE_int32(maintenance_manager_num_threads);
 DECLARE_int32(metrics_retirement_age_ms);
 DECLARE_int32(scanner_batch_size_rows);
 DECLARE_string(block_manager);
+DECLARE_string(env_inject_eio_globs);
 
 // Declare these metrics prototypes for simpler unit testing of their behavior.
 METRIC_DECLARE_counter(rows_inserted);
@@ -330,6 +339,86 @@ TEST_F(TabletServerTest, TestWebPages) {
   // only exists on Linux.
   ASSERT_STR_CONTAINS(buf.ToString(), "tablet_server-test");
 #endif
+}
+
+TEST_F(TabletServerTest, TestDiskFailure) {
+  const int kNumDirs = 5;
+  const int kMaxKey = 100000;
+  // Ensure the server will flush frequently.
+  FLAGS_enable_maintenance_manager = true;
+  FLAGS_maintenance_manager_num_threads = kNumDirs;
+  FLAGS_flush_threshold_mb = 1;
+  FLAGS_flush_threshold_secs = 1;
+  FLAGS_heartbeat_rpc_timeout_ms = 1000 * 60 * 10;
+
+  // Create a brand new tablet server with multiple disks, ensuring it can
+  // survive at least one disk failure.
+  NO_FATALS(ShutdownTablet());
+  NO_FATALS(StartTabletServer(/*num_data_dirs=*/ kNumDirs));
+  set<int> keys;
+  const auto GetRandomString = [] {
+    return StringPrintf("%d", rand() % kMaxKey);
+  };
+  const auto PerformOp = [&] {
+    WriteRequestPB req;
+    req.set_tablet_id(kTabletId);
+    WriteResponsePB resp;
+    RpcController controller;
+    RowOperationsPB::Type op_type;
+    int key_candidate = rand() % kMaxKey;
+    auto key_iter = keys.find(key_candidate);
+    if (key_iter == keys.end()) {
+      // If the key already exists, insert or upsert.
+      op_type = rand() % 2 == 0 ? RowOperationsPB::INSERT : RowOperationsPB::UPSERT;
+    } else {
+      // ... else we can do anything but insert.
+      switch(rand() % 3) {
+        case 0:
+          op_type = RowOperationsPB::UPSERT;
+          break;
+        case 1:
+          op_type = RowOperationsPB::UPDATE;
+          break;
+        case 2:
+          op_type = RowOperationsPB::DELETE;
+          break;
+      }
+    }
+    if (op_type != RowOperationsPB::DELETE) {
+      AddTestRowToPB(op_type, schema_, key_candidate, key_candidate, GetRandomString(),
+                     req.mutable_row_operations());
+      keys.insert(key_candidate);
+    } else {
+      AddTestKeyToPB(RowOperationsPB::DELETE, schema_, key_candidate, req.mutable_row_operations());
+      keys.erase(key_iter);
+    }
+    RETURN_NOT_OK(SchemaToPB(schema_, req.mutable_schema()));
+    RETURN_NOT_OK_PREPEND(proxy_->Write(req, &resp, &controller), "Failed to write");
+    LOG(INFO) << SecureDebugString(resp);
+    return resp.has_error() ?
+      StatusFromPB(resp.error().status()) : Status::OK();
+  };
+
+  for (int i = 0; i < 1000 * 10; i++) {
+    if (i % 1000 == 0) {
+      SleepFor(MonoDelta::FromMilliseconds(100));
+    }
+    ASSERT_OK(PerformOp());
+  }
+  // At this point, a bunch of operations have gone through successfully. Fail
+  // one of the disks that the tablet lives on.
+  FLAGS_crash_on_eio = false;
+  FLAGS_env_inject_eio_globs = JoinPathSegments(mini_server_->options()->fs_opts.data_paths[1], "**");
+  FLAGS_env_inject_eio = 0.25;
+
+  // The tablet will be failed and will not be able to accept updates.
+  ASSERT_EVENTUALLY([&] {
+    ASSERT_FALSE(PerformOp().ok());
+  });
+  ASSERT_EVENTUALLY([&] {
+    ASSERT_TRUE(tablet_replica_->state() == tablet::FAILED);
+  });
+  FLAGS_env_inject_eio = false;
 }
 
 TEST_F(TabletServerTest, TestInsert) {

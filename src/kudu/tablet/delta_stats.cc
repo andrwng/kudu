@@ -25,6 +25,7 @@
 
 #include "kudu/common/row_changelist.h"
 #include "kudu/common/schema.h"
+#include "kudu/util/debug-util.h"
 #include "kudu/gutil/strings/join.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/tablet.pb.h"
@@ -43,6 +44,10 @@ DeltaStats::DeltaStats()
       reinsert_count_(0),
       max_timestamp_(Timestamp::kMin),
       min_timestamp_(Timestamp::kMax) {
+}
+
+DeltaStats::~DeltaStats() {
+  LOG(INFO) << "DELTASTATS_DTOR";
 }
 
 void DeltaStats::IncrUpdateCount(ColumnId col_id, int64_t update_count) {

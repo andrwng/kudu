@@ -39,6 +39,7 @@ class DeltaStatsPB;
 class DeltaStats {
  public:
   DeltaStats();
+  ~DeltaStats();
 
   // Increment update count for column 'col_id' by 'update_count'.
   void IncrUpdateCount(ColumnId col_id, int64_t update_count);

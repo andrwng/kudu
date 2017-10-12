@@ -198,7 +198,7 @@ class DiskFailureITest : public ExternalMiniClusterITestBase,
   Status SetInjectionFlags(ExternalTabletServer* ts, const string& glob) {
     RETURN_NOT_OK(cluster_->SetFlag(ts, "env_inject_eio_globs", glob));
     // Don't inject 100% of the time so more codepaths can be tested.
-    return cluster_->SetFlag(ts, "env_inject_eio", "0.25");
+    return cluster_->SetFlag(ts, "env_inject_eio", "0.1");
   }
 
   // Starts a cluster with three tservers, the specified number of directories,
@@ -376,11 +376,24 @@ TEST_P(DiskFailureITest, TestFailDuringFlushDMS) {
   const int kNumRows = 100;
 
   // Insert an initial payload that will be updated with deltas.
-  std::function<void(void)> f = [&] {
-    UpsertPayload(kTableId, kStartRow, kNumRows);
+  const std::function<void(void)> UpsertPayload = [&] {
+    shared_ptr<KuduTable> table;
+    ASSERT_OK(client_->OpenTable(kTableId, &table));
+    shared_ptr<KuduSession> session = client_->NewSession();
+    ASSERT_OK(session->SetFlushMode(KuduSession::MANUAL_FLUSH));
+    string payload(size, 'x');
+    for (int i = 0; i < kNumRows; i++) {
+      unique_ptr<KuduUpsert> upsert(table->NewUpsert());
+      KuduPartialRow* row = upsert->mutable_row();
+      ASSERT_OK(row->SetInt32(0, i + kStartRow));
+      ASSERT_OK(row->SetInt32(1, 0));
+      ASSERT_OK(row->SetStringCopy(2, payload));
+      ASSERT_OK(session->Apply(upsert.release()));
+    }
+    ignore_result(session->Flush());
   };
   vector<string> paths_with_data;
-  NO_FATALS(GetDataDirsWrittenToByFunction(f, 3, &paths_with_data));
+  NO_FATALS(GetDataDirsWrittenToByFunction(UpsertPayload, 3, &paths_with_data));
 
   // Ensure the tablets get to a running state.
   ExternalTabletServer* ts = cluster_->tablet_server(0);
@@ -396,7 +409,7 @@ TEST_P(DiskFailureITest, TestFailDuringFlushDMS) {
     // Keep upserting until the disk fails.
     int64_t failed_on_ts = 0;
     while (failed_on_ts == 0) {
-      NO_FATALS(UpsertPayload(kTableId, kStartRow, kNumRows));
+      NO_FATALS(UpsertPayload());
       ASSERT_OK(tserver->GetInt64Metric(
           &METRIC_ENTITY_server, nullptr, &METRIC_data_dirs_failed, "value", &failed_on_ts));
     }
@@ -440,6 +453,14 @@ TEST_P(DiskFailureITest, TestFailDuringScan) {
   NO_FATALS(v.CheckCluster());
   NO_FATALS(v.CheckRowCount(write_workload.table_name(), ClusterVerifier::AT_LEAST,
                             write_workload.batches_completed()));
+}
+
+TEST_P(DiskFailureITest, TestWALCrash) {
+
+}
+
+TEST_P(DiskFailureITest, TestMetadataCrash) {
+
 }
 
 INSTANTIATE_TEST_CASE_P(DiskFailure, DiskFailureITest,

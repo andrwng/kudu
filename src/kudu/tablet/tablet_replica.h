@@ -276,7 +276,7 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
   void UnregisterMaintenanceOps();
 
   // Cancel both the replica maintenance ops and tablet maintenance ops.
-  // This method is thread safe.
+  // This method is not thread safe.
   void CancelAllOps();
 
   // Return pointer to the transaction tracker for this peer.
