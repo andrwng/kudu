@@ -194,13 +194,13 @@ class DeltaTracker {
 
   // Validate that 'first' may precede 'second' in an ordered list of deltas,
   // given a delta type of 'type'. This should only be run in DEBUG mode.
-  void ValidateDeltaOrder(const std::shared_ptr<DeltaStore>& first,
+  Status ValidateDeltaOrder(const std::shared_ptr<DeltaStore>& first,
                           const std::shared_ptr<DeltaStore>& second,
                           DeltaType type);
 
   // Validate the relative ordering of the deltas in the specified list. This
   // should only be run in DEBUG mode.
-  void ValidateDeltasOrdered(const SharedDeltaStoreVector& list, DeltaType type);
+  Status ValidateDeltasOrdered(const SharedDeltaStoreVector& list, DeltaType type);
 
   // Replace the subsequence of stores that matches 'stores_to_replace' with
   // delta file readers corresponding to 'new_delta_blocks', which may be empty.

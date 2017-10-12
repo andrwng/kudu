@@ -166,14 +166,16 @@ class DiskFailureITest : public ExternalMiniClusterITestBase,
   }
 
   // Waits for 'ext_tserver' to experience 'target_failed_disks' disk failures.
+  // Setting a larger timeout is more important if the injection rate is low.
   void WaitForDiskFailures(const ExternalTabletServer* ext_tserver,
                            int64_t target_failed_disks = 1) const {
-    ASSERT_EVENTUALLY([&] {
+    AssertEventually([&] {
       int64_t failed_on_ts;
       ASSERT_OK(ext_tserver->GetInt64Metric(
           &METRIC_ENTITY_server, nullptr, &METRIC_data_dirs_failed, "value", &failed_on_ts));
       ASSERT_EQ(target_failed_disks, failed_on_ts);
-    });
+    }, MonoDelta::FromSeconds(120));
+    NO_PENDING_FATALS();
   }
 
   // Upserts a payload of a specific range of rows, useful to create deltas.
@@ -414,7 +416,8 @@ TEST_P(DiskFailureITest, TestFailDuringFlushDMS) {
           &METRIC_ENTITY_server, nullptr, &METRIC_data_dirs_failed, "value", &failed_on_ts));
     }
 
-    // Ensure that the tablets are healthy.
+    // Ensure that the tablets are healthy (i.e. the failed replica should be
+    // replicated back to the same server, but on a different disk).
     ClusterVerifier v(cluster_.get());
     NO_FATALS(v.CheckCluster());
     NO_FATALS(v.CheckRowCount(kTableId, ClusterVerifier::AT_LEAST,
@@ -453,14 +456,7 @@ TEST_P(DiskFailureITest, TestFailDuringScan) {
   NO_FATALS(v.CheckCluster());
   NO_FATALS(v.CheckRowCount(write_workload.table_name(), ClusterVerifier::AT_LEAST,
                             write_workload.batches_completed()));
-}
-
-TEST_P(DiskFailureITest, TestWALCrash) {
-
-}
-
-TEST_P(DiskFailureITest, TestMetadataCrash) {
-
+  read_workload.StopAndJoin();
 }
 
 INSTANTIATE_TEST_CASE_P(DiskFailure, DiskFailureITest,
