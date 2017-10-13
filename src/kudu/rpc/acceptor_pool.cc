@@ -28,6 +28,7 @@
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/rpc/messenger.h"
+#include "kudu/util/debug-util.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/logging.h"
 #include "kudu/util/metrics.h"
@@ -103,6 +104,7 @@ void AcceptorPool::Shutdown() {
 #if defined(__linux__)
   // Closing the socket will break us out of accept() if we're in it, and
   // prevent future accepts.
+  LOG(INFO) << GetStackTrace();
   WARN_NOT_OK(socket_.Shutdown(true, true),
               strings::Substitute("Could not shut down acceptor socket on $0",
                                   bind_address_.ToString()));

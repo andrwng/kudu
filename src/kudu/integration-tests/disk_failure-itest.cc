@@ -421,8 +421,10 @@ TEST_P(DiskFailureITest, TestFailDuringScan) {
   ASSERT_OK(cluster_->WaitForTabletsRunning(ts, 1, kAgreementTimeout));
 
   // Create a read workload before any failures can happen.
+  // Use many read threads to increase the likelihood a scan will end up at a
+  // failed server.
   TestWorkload read_workload(cluster_.get());
-  read_workload.set_num_read_threads(1);
+  read_workload.set_num_read_threads(6);
   read_workload.set_num_write_threads(0);
   read_workload.Setup();
 
@@ -432,7 +434,6 @@ TEST_P(DiskFailureITest, TestFailDuringScan) {
                               GlobForBlocksInDataDir(paths_with_data[0])));
 
   // Read from the table and expect the first tserver to fail.
-  // TODO(awong): is there a way to enforce ts0 is always scanned?
   read_workload.Start();
   NO_FATALS(WaitForDiskFailures(cluster_->tablet_server(0)));
   ClusterVerifier v(cluster_.get());

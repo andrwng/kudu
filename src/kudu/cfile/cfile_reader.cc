@@ -55,6 +55,7 @@
 #include "kudu/util/coding.h"
 #include "kudu/util/compression/compression_codec.h"
 #include "kudu/util/crc.h"
+#include "kudu/util/debug-util.h"
 #include "kudu/util/debug/trace_event.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/logging.h"
@@ -193,6 +194,7 @@ Status CFileReader::InitOnce() {
 }
 
 Status CFileReader::Init() {
+  LOG(INFO) << GetStackTrace();
   RETURN_NOT_OK_PREPEND(init_once_.Init(&CFileReader::InitOnce, this),
                         Substitute("failed to init CFileReader for block $0",
                                    block_id().ToString()));

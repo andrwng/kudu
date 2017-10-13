@@ -78,7 +78,7 @@ TEST(TestOnce, KuduOnceDynamicTest) {
     for (int i = 0; i < 2; i++) {
       ASSERT_TRUE(t.Init().IsIllegalState());
       ASSERT_EQ(0, t.value_);
-      ASSERT_TRUE(t.once_.initted());
+      ASSERT_FALSE(t.once_.initted());
     }
   }
 }

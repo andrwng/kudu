@@ -50,6 +50,7 @@
 #include "kudu/consensus/log.h"
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/fs/fs.pb.h"
+#include "kudu/fs/fs-test-util.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/casts.h"
 #include "kudu/gutil/gscoped_ptr.h"
@@ -100,11 +101,15 @@
 using google::protobuf::util::MessageDifferencer;
 using kudu::clock::Clock;
 using kudu::clock::HybridClock;
+using kudu::fs::ReadableBlock;
+using kudu::pb_util::ReadPBFromPath;
 using kudu::pb_util::SecureDebugString;
 using kudu::pb_util::SecureShortDebugString;
+using kudu::pb_util::WritePBToPath;
 using kudu::rpc::Messenger;
 using kudu::rpc::MessengerBuilder;
 using kudu::rpc::RpcController;
+using kudu::tablet::RowSetDataPB;
 using kudu::tablet::Tablet;
 using kudu::tablet::TabletReplica;
 using kudu::tablet::TabletSuperBlockPB;
@@ -1278,52 +1283,79 @@ TEST_F(TabletServerTest, TestScan) {
   }
 }
 
-TEST_F(TabletServerTest, TestCorruptBlockScan) {
-  // Ensure some rows get to disk.
+TEST_F(TabletServerTest, TestScanCorruptedDeltas) {
+  // Ensure some rows get to disk with deltas.
   InsertTestRowsDirect(0, 100);
   ASSERT_OK(tablet_replica_->tablet()->Flush());
-  ASSERT_NO_FATAL_FAILURE(ShutdownAndRebuildTablet());
+  UpdateTestRowRemote(0, 1, 100);
+  ASSERT_OK(tablet_replica_->tablet()->Flush());
 
-  // Grab every block that was written and corrupt it.
-  //
-  // Setting the header sizes to kMaxHeaderFooterPBSize + 1 should lead to a
-  // corruption error when opening the cfile.
+  TabletSuperBlockPB superblock_pb;
+  tablet_replica_->tablet()->metadata()->ToSuperBlock(&superblock_pb);
+
+  // Grab the deltafiles and corrupt them.
   FsManager* fs_manager = mini_server_->server()->fs_manager();
   vector<string> tablets;
   ASSERT_OK(fs_manager->ListTabletIds(&tablets));
   ASSERT_EQ(1, tablets.size());
   unique_ptr<RowSetDataPB> rowset_pb(new RowSetDataPB());
-  unique_ptr<TabletSuperBlockPB> superblock_pb(new TabletSuperBlockPB());
-  ReadPBFromPath(env_, fs_manager->GetTabletMetadataPath(tablets[0]), superblock_pb.get());
-  for (int rowset_no = 0; rowset_no < superblock_pb->rowsets_size(); rowset_no++) {
-    const RowSetDataPB rowset_pb = superblock_pb->rowsets(rowset_no);
-    for (int col_no = 0; col_no < rowset_pb.columns_size(); col_no++) {
-      const BlockIdPB& block_pb = rowset_pb.columns(col_no).block();
+
+  // Fudge with the blocks.
+  for (int rowset_no = 0; rowset_no < superblock_pb.rowsets_size(); rowset_no++) {
+    RowSetDataPB* rowset_pb = superblock_pb.mutable_rowsets(rowset_no);
+    for (int col_no = 0; col_no < rowset_pb->undo_deltas_size(); col_no++) {
+      BlockId block_id(rowset_pb->undo_deltas(col_no).block().id());
+      BlockId new_block_id;
+      // Make a copy of each block and rewrite the superblock to include these
+      // newly corrupted blocks.
+      ASSERT_OK(fs::CorruptBlock(fs_manager, block_id, 0, 0, &new_block_id));
+      rowset_pb->mutable_undo_deltas(col_no)->mutable_block()->set_id(new_block_id.id());
+    }
+    for (int col_no = 0; col_no < rowset_pb->redo_deltas_size(); col_no++) {
+      BlockId block_id(rowset_pb->undo_deltas(col_no).block().id());
+      BlockId new_block_id;
+      // Make a copy of each block and rewrite the superblock to include these
+      // newly corrupted blocks.
+      ASSERT_OK(fs::CorruptBlock(fs_manager, block_id, 0, 0, &new_block_id));
+      rowset_pb->mutable_redo_deltas(col_no)->mutable_block()->set_id(new_block_id.id());
     }
   }
+  string meta_path = fs_manager->GetTabletMetadataPath(tablets[0]);
+  ShutdownTablet();
+
+  // Flush the corruption.
+  ASSERT_OK(pb_util::WritePBContainerToPath(env_,
+      meta_path, superblock_pb, pb_util::OVERWRITE, pb_util::SYNC));
+  ASSERT_OK(ShutdownAndRebuildTablet());
+  LOG(INFO) << Substitute("Rebuilt tablet $0 with broken blocks", tablet_replica_->tablet_id());
 
   // Now open a scanner for the server.
   ScanRequestPB req;
   ScanResponsePB resp;
   RpcController rpc;
-
   NewScanRequestPB* scan = req.mutable_new_scan_request();
   scan->set_tablet_id(kTabletId);
   req.set_batch_size_bytes(0); // so it won't return data right away
   ASSERT_OK(SchemaToColumnPBs(schema_, scan->mutable_projected_columns()));
 
-  // Set up a range predicate: "hello 50" < string_val <= "hello 59"
-  ColumnRangePredicatePB* pred = scan->add_deprecated_range_predicates();
-  pred->mutable_column()->CopyFrom(scan->projected_columns(2));
-
-  pred->set_lower_bound("hello 50");
-  pred->set_inclusive_upper_bound("hello 59");
-
-  // Send the call
+  // Send the call. This first call should attempt to init the corrupted
+  // deltafiles and return with an error.
   {
-    SCOPED_TRACE(SecureDebugString(req));
-    ASSERT_OK(proxy_->Scan(req, &resp, &rpc));
-    SCOPED_TRACE(SecureDebugString(resp));
+    req.set_batch_size_bytes(10000);
+    LOG(INFO) << SecureDebugString(req);
+    Status s = proxy_->Scan(req, &resp, &rpc);
+    LOG(INFO) << s.ToString();
+    LOG(INFO) << SecureDebugString(resp);
+    ASSERT_TRUE(resp.has_error());
+  }
+  // This second call should try should see that the previous call to init
+  // failed and retry, only to fail again.
+  {
+    rpc.Reset();
+    LOG(INFO) << SecureDebugString(req);
+    Status s = proxy_->Scan(req, &resp, &rpc);
+    LOG(INFO) << s.ToString();
+    LOG(INFO) << SecureDebugString(resp);
     ASSERT_TRUE(resp.has_error());
   }
 }
