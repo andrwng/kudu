@@ -580,11 +580,15 @@ Status DiskRowSet::MajorCompactDeltaStoresWithColumnIds(const vector<ColumnId>& 
                                mem_trackers_.tablet_tracker,
                                &new_base));
   {
+    // This should eventually fail a check somewhere if it's not a disk failure.
+    // This should not fail unless there is a disk failure, in which case the
+    // error is bubbled up.
     std::lock_guard<rw_spinlock> lock(component_lock_);
-    CHECK_OK(compaction->UpdateDeltaTracker(delta_tracker_.get()));
+    RETURN_NOT_OK(compaction->UpdateDeltaTracker(delta_tracker_.get()));
     base_data_.swap(new_base);
   }
 
+  // TODO(awong): update here this message.
   // We don't CHECK_OK on Flush here because if we don't successfully flush we
   // don't have consistency problems in the case of major delta compaction --
   // we are not adding additional mutations that weren't already present.

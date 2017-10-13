@@ -342,6 +342,10 @@ TEST_F(TabletServerTest, TestWebPages) {
 }
 
 TEST_F(TabletServerTest, TestDiskFailure) {
+  typedef vector<RowOperationsPB::Type> OpTypeList;
+  const OpTypeList kOpsIfNotPresent = { RowOperationsPB::INSERT, RowOperationsPB::UPSERT };
+  const OpTypeList kOpsIfPresent = { RowOperationsPB::UPSERT, RowOperationsPB::UPDATE,
+                                     RowOperationsPB::DELETE };
   const int kNumDirs = 5;
   const int kMaxKey = 100000;
   // Ensure the server will flush frequently.
@@ -360,60 +364,59 @@ TEST_F(TabletServerTest, TestDiskFailure) {
     return StringPrintf("%d", rand() % kMaxKey);
   };
   const auto PerformOp = [&] {
+    // Set up the request.
     WriteRequestPB req;
     req.set_tablet_id(kTabletId);
+    RETURN_NOT_OK(SchemaToPB(schema_, req.mutable_schema()));
+
+    // Set up the other state.
     WriteResponsePB resp;
     RpcController controller;
     RowOperationsPB::Type op_type;
-    int key_candidate = rand() % kMaxKey;
-    auto key_iter = keys.find(key_candidate);
+    int key = rand() % kMaxKey;
+    auto key_iter = keys.find(key);
     if (key_iter == keys.end()) {
       // If the key already exists, insert or upsert.
-      op_type = rand() % 2 == 0 ? RowOperationsPB::INSERT : RowOperationsPB::UPSERT;
+      op_type = kOpsIfNotPresent[rand() % kOpsIfNotPresent.size()];
     } else {
       // ... else we can do anything but insert.
-      switch(rand() % 3) {
-        case 0:
-          op_type = RowOperationsPB::UPSERT;
-          break;
-        case 1:
-          op_type = RowOperationsPB::UPDATE;
-          break;
-        case 2:
-          op_type = RowOperationsPB::DELETE;
-          break;
-      }
+      op_type = kOpsIfPresent[rand() % kOpsIfPresent.size()];
     }
+
+    // Add the op to the request.
     if (op_type != RowOperationsPB::DELETE) {
-      AddTestRowToPB(op_type, schema_, key_candidate, key_candidate, GetRandomString(),
+      AddTestRowToPB(op_type, schema_, key, key, GetRandomString(),
                      req.mutable_row_operations());
-      keys.insert(key_candidate);
+      keys.insert(key);
     } else {
-      AddTestKeyToPB(RowOperationsPB::DELETE, schema_, key_candidate, req.mutable_row_operations());
+      AddTestKeyToPB(RowOperationsPB::DELETE, schema_, key, req.mutable_row_operations());
       keys.erase(key_iter);
     }
-    RETURN_NOT_OK(SchemaToPB(schema_, req.mutable_schema()));
+
+    // Finally, write to the server and log the response.
     RETURN_NOT_OK_PREPEND(proxy_->Write(req, &resp, &controller), "Failed to write");
     LOG(INFO) << SecureDebugString(resp);
-    return resp.has_error() ?
-      StatusFromPB(resp.error().status()) : Status::OK();
+    return resp.has_error() ?  StatusFromPB(resp.error().status()) : Status::OK();
   };
 
-  for (int i = 0; i < 1000 * 10; i++) {
-    if (i % 1000 == 0) {
-      SleepFor(MonoDelta::FromMilliseconds(100));
-    }
+  // Perform some arbitrarily large number of ops, with some pauses to encourage flushes.
+  for (int i = 0; i < 5000; i++) {
+    SleepFor(MonoDelta::FromMilliseconds(100));
     ASSERT_OK(PerformOp());
   }
   // At this point, a bunch of operations have gone through successfully. Fail
   // one of the disks that the tablet lives on.
   FLAGS_crash_on_eio = false;
   FLAGS_env_inject_eio_globs = JoinPathSegments(mini_server_->options()->fs_opts.data_paths[1], "**");
-  FLAGS_env_inject_eio = 0.25;
+  FLAGS_env_inject_eio = 0.05;
 
   // The tablet will be failed and will not be able to accept updates.
   ASSERT_EVENTUALLY([&] {
-    ASSERT_FALSE(PerformOp().ok());
+    Status s;
+    for (int i = 0; i < 100 && s.ok(); i++) {
+      s = PerformOp();
+    }
+    ASSERT_FALSE(s.ok());
   });
   ASSERT_EVENTUALLY([&] {
     ASSERT_TRUE(tablet_replica_->state() == tablet::FAILED);
@@ -1061,9 +1064,9 @@ TEST_F(TabletServerTest, TestKUDU_176_RecoveryAfterMajorDeltaCompaction) {
   {
     vector<shared_ptr<tablet::RowSet> > rsets;
     tablet_replica_->tablet()->GetRowSetsForTests(&rsets);
-    vector<ColumnId> col_ids = { tablet_replica_->tablet()->schema()->column_id(1),
+    vector<ColumnId> col_nos = { tablet_replica_->tablet()->schema()->column_id(1),
                                  tablet_replica_->tablet()->schema()->column_id(2) };
-    ASSERT_OK(tablet_replica_->tablet()->DoMajorDeltaCompaction(col_ids, rsets[0]))
+    ASSERT_OK(tablet_replica_->tablet()->DoMajorDeltaCompaction(col_nos, rsets[0]))
   }
 
   // Verify that data is still the same.
@@ -1190,9 +1193,9 @@ TEST_F(TabletServerTest, TestKUDU_177_RecoveryOfDMSEditsAfterMajorDeltaCompactio
   {
     vector<shared_ptr<tablet::RowSet> > rsets;
     tablet_replica_->tablet()->GetRowSetsForTests(&rsets);
-    vector<ColumnId> col_ids = { tablet_replica_->tablet()->schema()->column_id(1),
+    vector<ColumnId> col_nos = { tablet_replica_->tablet()->schema()->column_id(1),
                                  tablet_replica_->tablet()->schema()->column_id(2) };
-    ASSERT_OK(tablet_replica_->tablet()->DoMajorDeltaCompaction(col_ids, rsets[0]));
+    ASSERT_OK(tablet_replica_->tablet()->DoMajorDeltaCompaction(col_nos, rsets[0]));
   }
   // Verify that data is still the same.
   ANFF(VerifyRows(schema_, { KeyValue(1, 3) }));
@@ -1272,6 +1275,56 @@ TEST_F(TabletServerTest, TestScan) {
   {
     SharedScanner junk;
     ASSERT_FALSE(mini_server_->server()->scanner_manager()->LookupScanner(scanner_id, &junk));
+  }
+}
+
+TEST_F(TabletServerTest, TestCorruptBlockScan) {
+  // Ensure some rows get to disk.
+  InsertTestRowsDirect(0, 100);
+  ASSERT_OK(tablet_replica_->tablet()->Flush());
+  ASSERT_NO_FATAL_FAILURE(ShutdownAndRebuildTablet());
+
+  // Grab every block that was written and corrupt it.
+  //
+  // Setting the header sizes to kMaxHeaderFooterPBSize + 1 should lead to a
+  // corruption error when opening the cfile.
+  FsManager* fs_manager = mini_server_->server()->fs_manager();
+  vector<string> tablets;
+  ASSERT_OK(fs_manager->ListTabletIds(&tablets));
+  ASSERT_EQ(1, tablets.size());
+  unique_ptr<RowSetDataPB> rowset_pb(new RowSetDataPB());
+  unique_ptr<TabletSuperBlockPB> superblock_pb(new TabletSuperBlockPB());
+  ReadPBFromPath(env_, fs_manager->GetTabletMetadataPath(tablets[0]), superblock_pb.get());
+  for (int rowset_no = 0; rowset_no < superblock_pb->rowsets_size(); rowset_no++) {
+    const RowSetDataPB rowset_pb = superblock_pb->rowsets(rowset_no);
+    for (int col_no = 0; col_no < rowset_pb.columns_size(); col_no++) {
+      const BlockIdPB& block_pb = rowset_pb.columns(col_no).block();
+    }
+  }
+
+  // Now open a scanner for the server.
+  ScanRequestPB req;
+  ScanResponsePB resp;
+  RpcController rpc;
+
+  NewScanRequestPB* scan = req.mutable_new_scan_request();
+  scan->set_tablet_id(kTabletId);
+  req.set_batch_size_bytes(0); // so it won't return data right away
+  ASSERT_OK(SchemaToColumnPBs(schema_, scan->mutable_projected_columns()));
+
+  // Set up a range predicate: "hello 50" < string_val <= "hello 59"
+  ColumnRangePredicatePB* pred = scan->add_deprecated_range_predicates();
+  pred->mutable_column()->CopyFrom(scan->projected_columns(2));
+
+  pred->set_lower_bound("hello 50");
+  pred->set_inclusive_upper_bound("hello 59");
+
+  // Send the call
+  {
+    SCOPED_TRACE(SecureDebugString(req));
+    ASSERT_OK(proxy_->Scan(req, &resp, &rpc));
+    SCOPED_TRACE(SecureDebugString(resp));
+    ASSERT_TRUE(resp.has_error());
   }
 }
 

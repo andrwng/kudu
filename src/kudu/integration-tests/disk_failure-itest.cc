@@ -178,24 +178,6 @@ class DiskFailureITest : public ExternalMiniClusterITestBase,
     NO_PENDING_FATALS();
   }
 
-  // Upserts a payload of a specific range of rows, useful to create deltas.
-  void UpsertPayload(const string& table_name, int start_row, int num_rows, int size = 10) {
-    shared_ptr<KuduTable> table;
-    ASSERT_OK(client_->OpenTable(table_name, &table));
-    shared_ptr<KuduSession> session = client_->NewSession();
-    ASSERT_OK(session->SetFlushMode(KuduSession::MANUAL_FLUSH));
-    string payload(size, 'x');
-    for (int i = 0; i < num_rows; i++) {
-      unique_ptr<KuduUpsert> upsert(table->NewUpsert());
-      KuduPartialRow* row = upsert->mutable_row();
-      ASSERT_OK(row->SetInt32(0, i + start_row));
-      ASSERT_OK(row->SetInt32(1, 0));
-      ASSERT_OK(row->SetStringCopy(2, payload));
-      ASSERT_OK(session->Apply(upsert.release()));
-    }
-    ignore_result(session->Flush());
-  }
-
   // Sets the specified tablet server to inject failures on the specified 'glob'.
   Status SetInjectionFlags(ExternalTabletServer* ts, const string& glob) {
     RETURN_NOT_OK(cluster_->SetFlag(ts, "env_inject_eio_globs", glob));
@@ -383,7 +365,7 @@ TEST_P(DiskFailureITest, TestFailDuringFlushDMS) {
     ASSERT_OK(client_->OpenTable(kTableId, &table));
     shared_ptr<KuduSession> session = client_->NewSession();
     ASSERT_OK(session->SetFlushMode(KuduSession::MANUAL_FLUSH));
-    string payload(size, 'x');
+    string payload(10, 'x');
     for (int i = 0; i < kNumRows; i++) {
       unique_ptr<KuduUpsert> upsert(table->NewUpsert());
       KuduPartialRow* row = upsert->mutable_row();
@@ -450,6 +432,7 @@ TEST_P(DiskFailureITest, TestFailDuringScan) {
                               GlobForBlocksInDataDir(paths_with_data[0])));
 
   // Read from the table and expect the first tserver to fail.
+  // TODO(awong): is there a way to enforce ts0 is always scanned?
   read_workload.Start();
   NO_FATALS(WaitForDiskFailures(cluster_->tablet_server(0)));
   ClusterVerifier v(cluster_.get());

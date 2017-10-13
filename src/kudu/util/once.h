@@ -42,7 +42,9 @@ template<typename T>
 void InitCb(void* arg) {
   MemberFunc<T>* mf = reinterpret_cast<MemberFunc<T>*>(arg);
   mf->once->status_ = (mf->instance->*mf->member_func)();
-  mf->once->set_initted();
+  if (PREDICT_TRUE(mf->once->status_.ok())) {
+    mf->once->set_initted();
+  }
 }
 
 } // namespace internal

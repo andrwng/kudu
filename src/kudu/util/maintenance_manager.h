@@ -221,9 +221,7 @@ class MaintenanceOp {
   }
 
   // Cancel this operation, which prevents new instances of it from being scheduled
-  // regardless of whether the statistics indicate it is runnable. Instances may also
-  // optionally poll 'cancelled()' on a periodic basis to know if they should abort a
-  // lengthy operation in the middle of Perform().
+  // regardless of whether the statistics indicate it is runnable.
   void CancelAndDisable() {
     cancel_.Store(true);
   }
