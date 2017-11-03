@@ -22,7 +22,6 @@
 #include <gtest/gtest.h>
 
 #include "kudu/fs/block_id.h"
-#include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/rowset_metadata.h"
@@ -31,6 +30,7 @@
 #include "kudu/util/test_macros.h"
 #include "kudu/util/test_util.h"
 
+using std::unique_ptr;
 using std::vector;
 using std::string;
 using strings::Substitute;
@@ -54,7 +54,7 @@ class MetadataTest : public KuduTest {
  protected:
   vector<BlockId> all_blocks_;
   scoped_refptr<TabletMetadata> tablet_meta_;
-  gscoped_ptr<RowSetMetadata> meta_;
+  unique_ptr<RowSetMetadata> meta_;
 };
 
 // Swap out some deltas from the middle of the list

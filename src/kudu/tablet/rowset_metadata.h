@@ -14,8 +14,8 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_TABLET_ROWSET_METADATA_H
-#define KUDU_TABLET_ROWSET_METADATA_H
+
+#pragma once
 
 #include <cstdint>
 #include <map>
@@ -30,7 +30,6 @@
 #include "kudu/common/schema.h"
 #include "kudu/fs/block_id.h"
 #include "kudu/fs/fs_manager.h"
-#include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/tablet/tablet_metadata.h"
@@ -75,12 +74,13 @@ class RowSetMetadata {
   // Create a new RowSetMetadata
   static Status CreateNew(TabletMetadata* tablet_metadata,
                           int64_t id,
-                          gscoped_ptr<RowSetMetadata>* metadata);
+                          std::unique_ptr<RowSetMetadata>* metadata);
 
   // Load metadata from a protobuf which was previously read from disk.
   static Status Load(TabletMetadata* tablet_metadata,
                      const RowSetDataPB& pb,
-                     gscoped_ptr<RowSetMetadata>* metadata);
+                     BlockId* max_block_id,
+                     std::unique_ptr<RowSetMetadata>* metadata);
 
   Status Flush();
 
@@ -199,7 +199,9 @@ class RowSetMetadata {
       last_durable_redo_dms_id_(kNoDurableMemStore) {
   }
 
-  Status InitFromPB(const RowSetDataPB& pb);
+  // Initializes the rowset metadata from the given RowSetDataPB.
+  // 'max_block_id' is populated with the largest block ID seen.
+  Status InitFromPB(const RowSetDataPB& pb, BlockId* max_block_id);
 
   TabletMetadata* const tablet_metadata_;
   bool initted_;
@@ -270,4 +272,4 @@ class RowSetMetadataUpdate {
 
 } // namespace tablet
 } // namespace kudu
-#endif /* KUDU_TABLET_ROWSET_METADATA_H */
+

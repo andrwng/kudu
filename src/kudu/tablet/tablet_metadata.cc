@@ -69,6 +69,7 @@ using kudu::pb_util::SecureShortDebugString;
 using std::memory_order_relaxed;
 using std::shared_ptr;
 using std::string;
+using std::unique_ptr;
 using std::vector;
 using strings::Substitute;
 
@@ -391,18 +392,28 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
 
     tablet_data_state_ = superblock.tablet_data_state();
 
+    BlockId max_block_id;
     rowsets_.clear();
     for (const RowSetDataPB& rowset_pb : superblock.rowsets()) {
-      gscoped_ptr<RowSetMetadata> rowset_meta;
-      RETURN_NOT_OK(RowSetMetadata::Load(this, rowset_pb, &rowset_meta));
+      unique_ptr<RowSetMetadata> rowset_meta;
+      RETURN_NOT_OK(RowSetMetadata::Load(this, rowset_pb, &max_block_id, &rowset_meta));
       next_rowset_idx_ = std::max(next_rowset_idx_, rowset_meta->id() + 1);
       rowsets_.push_back(shared_ptr<RowSetMetadata>(rowset_meta.release()));
     }
 
     for (const BlockIdPB& block_pb : superblock.orphaned_blocks()) {
-      orphaned_blocks.push_back(BlockId::FromPB(block_pb));
+      BlockId orphaned_block_id = BlockId::FromPB(block_pb);
+      max_block_id = std::max(max_block_id, orphaned_block_id);
+      orphaned_blocks.push_back(orphaned_block_id);
     }
     AddOrphanedBlocksUnlocked(orphaned_blocks);
+
+    // Notify the block manager of the highest block ID seen. This is done to
+    // inform the block manager of blocks it may not be aware of (e.g. if a
+    // disk was not read). This is only relevant for block managers that assign
+    // sequential block IDs, and only the largest block ID is necessary to
+    // avoid reusing blocks it may have missed.
+    fs_manager()->block_manager()->NotifyBlockId(max_block_id);
 
     if (superblock.has_data_dir_group()) {
       RETURN_NOT_OK_PREPEND(fs_manager_->dd_manager()->LoadDataDirGroupFromPB(
@@ -666,7 +677,7 @@ Status TabletMetadata::ToSuperBlockUnlocked(TabletSuperBlockPB* super_block,
 Status TabletMetadata::CreateRowSet(shared_ptr<RowSetMetadata> *rowset,
                                     const Schema& schema) {
   AtomicWord rowset_idx = Barrier_AtomicIncrement(&next_rowset_idx_, 1) - 1;
-  gscoped_ptr<RowSetMetadata> scoped_rsm;
+  unique_ptr<RowSetMetadata> scoped_rsm;
   RETURN_NOT_OK(RowSetMetadata::CreateNew(this, rowset_idx, &scoped_rsm));
   rowset->reset(DCHECK_NOTNULL(scoped_rsm.release()));
   return Status::OK();

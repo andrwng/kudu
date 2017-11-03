@@ -30,6 +30,7 @@
 #include "kudu/gutil/map-util.h"
 #include "kudu/tablet/metadata.pb.h"
 
+using std::unique_ptr;
 using std::vector;
 using strings::Substitute;
 
@@ -41,16 +42,17 @@ namespace tablet {
 // ============================================================================
 Status RowSetMetadata::Load(TabletMetadata* tablet_metadata,
                             const RowSetDataPB& pb,
-                            gscoped_ptr<RowSetMetadata>* metadata) {
-  gscoped_ptr<RowSetMetadata> ret(new RowSetMetadata(tablet_metadata));
-  RETURN_NOT_OK(ret->InitFromPB(pb));
+                            BlockId* max_block_id,
+                            unique_ptr<RowSetMetadata>* metadata) {
+  unique_ptr<RowSetMetadata> ret(new RowSetMetadata(tablet_metadata));
+  RETURN_NOT_OK(ret->InitFromPB(pb, max_block_id));
   metadata->reset(ret.release());
   return Status::OK();
 }
 
 Status RowSetMetadata::CreateNew(TabletMetadata* tablet_metadata,
                                  int64_t id,
-                                 gscoped_ptr<RowSetMetadata>* metadata) {
+                                 unique_ptr<RowSetMetadata>* metadata) {
   metadata->reset(new RowSetMetadata(tablet_metadata, id));
   return Status::OK();
 }
@@ -59,7 +61,7 @@ Status RowSetMetadata::Flush() {
   return tablet_metadata_->Flush();
 }
 
-Status RowSetMetadata::InitFromPB(const RowSetDataPB& pb) {
+Status RowSetMetadata::InitFromPB(const RowSetDataPB& pb, BlockId* max_block_id) {
   CHECK(!initted_);
 
   id_ = pb.id();
@@ -67,29 +69,37 @@ Status RowSetMetadata::InitFromPB(const RowSetDataPB& pb) {
   // Load Bloom File
   if (pb.has_bloom_block()) {
     bloom_block_ = BlockId::FromPB(pb.bloom_block());
+    *max_block_id = std::max(*max_block_id, bloom_block_);
   }
 
   // Load AdHoc Index File
   if (pb.has_adhoc_index_block()) {
     adhoc_index_block_ = BlockId::FromPB(pb.adhoc_index_block());
+    *max_block_id = std::max(*max_block_id, adhoc_index_block_);
   }
 
   // Load Column Files
   for (const ColumnDataPB& col_pb : pb.columns()) {
     ColumnId col_id = ColumnId(col_pb.column_id());
-    blocks_by_col_id_[col_id] = BlockId::FromPB(col_pb.block());
+    BlockId block_id = BlockId::FromPB(col_pb.block());
+    *max_block_id = std::max(*max_block_id, block_id);
+    blocks_by_col_id_[col_id] = block_id;
   }
 
   // Load redo delta files
   for (const DeltaDataPB& redo_delta_pb : pb.redo_deltas()) {
-    redo_delta_blocks_.push_back(BlockId::FromPB(redo_delta_pb.block()));
+    BlockId block_id = BlockId::FromPB(redo_delta_pb.block());
+    *max_block_id = std::max(*max_block_id, block_id);
+    redo_delta_blocks_.push_back(block_id);
   }
 
   last_durable_redo_dms_id_ = pb.last_durable_dms_id();
 
   // Load undo delta files
   for (const DeltaDataPB& undo_delta_pb : pb.undo_deltas()) {
-    undo_delta_blocks_.push_back(BlockId::FromPB(undo_delta_pb.block()));
+    BlockId block_id = BlockId::FromPB(undo_delta_pb.block());
+    *max_block_id = std::max(*max_block_id, block_id);
+    undo_delta_blocks_.push_back(block_id);
   }
 
   initted_ = true;
