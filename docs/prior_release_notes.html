@@ -2,7 +2,7 @@
 title: Apache Kudu Prior Version Release Notes
 layout: default
 active_nav: docs
-last_updated: 'Last updated 2017-12-01 23:56:01 PST'
+last_updated: 'Last updated 2018-01-08 19:09:55 PST'
 ---
 <!--
 
@@ -128,12 +128,13 @@ as whether RPC authentication is required, or web server HTTPS encryption is
 enabled. Other types of configuration will be added in future releases.</p>
 </li>
 <li>
-<p>The <code>kudu</code> command line tool has two new features: <code>kudu tablet move</code> and
-<code>kudu local_replica data_size</code>. The 'tablet move' tool moves a tablet replica
-from one tablet server to another, under the condition that the tablet is
-healthy. An operator can use this tool to rebalance tablet replicas between
-tablet servers. The 'local replica data size' tool summarizes the space usage
-of a tablet, breaking it down by type of file, column, and rowset.</p>
+<p>The <code>kudu</code> command line tool has two new features: <code>kudu tablet change_config
+move_replica</code> and <code>kudu local_replica data_size</code>. The 'tablet change_config
+move_replica' tool moves a tablet replica from one tablet server to another,
+under the condition that the tablet is healthy. An operator can use this tool to
+rebalance tablet replicas between tablet servers. The 'local_replica data size'
+tool summarizes the space usage of a tablet, breaking it down by type of file,
+column, and rowset.</p>
 </li>
 <li>
 <p>kudu-client-tools now supports exporting CSV files and importing

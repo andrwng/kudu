@@ -2,7 +2,7 @@
 title: Apache Kudu Administration
 layout: default
 active_nav: docs
-last_updated: 'Last updated 2017-12-07 19:51:29 PST'
+last_updated: 'Last updated 2018-01-08 19:09:46 PST'
 ---
 <!--
 
@@ -1368,31 +1368,75 @@ will be created by Kudu upon starting up.</p>
 <div class="sect2">
 <h3 id="disk_failure_recovery"><a class="link" href="#disk_failure_recovery">Recovering from Disk Failure</a></h3>
 <div class="paragraph">
-<p>As of Kudu 1.6.0, Kudu master servers are not resilient to any types of disk
-failures. Kudu tablet servers are only resilient to disk failures if they occur
-on a disk storing only data blocks, so the failure of a disk where the
-write-ahead logs or tablet metadata are stored will result in a crash of the
-entire tablet server.</p>
+<p>Kudu nodes can only survive failures of disks on which certain Kudu directories
+are mounted. For more information about the different Kudu directory types, see
+the section on <a href="configuration.html#directory_configuration">Kudu Directory
+Configurations</a>. Below describes this behavior across different Apache Kudu
+releases.</p>
+</div>
+<table id="disk_failure_behavior" class="tableblock frame-all grid-all spread">
+<caption class="title">Table 1. Kudu Disk Failure Behavior</caption>
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Node Type</th>
+<th class="tableblock halign-left valign-top">Kudu Directory Type</th>
+<th class="tableblock halign-left valign-top">Kudu Releases that Crash on Disk Failure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Master</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Tablet Server</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Directory containing WALs</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Tablet Server</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Directory containing data blocks and tablet metadata</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Tablet Server</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Directory containing data blocks only</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Pre-1.6.0</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>If a node crashes due to a disk failure, the node must be emptied and rebuilt,
+replacing or removing the failed disk from Kudu&#8217;s configuration. See the
+section on <a href="#rebuilding_kudu">Rebuilding a Kudu Filesystem Layout</a> for
+instructions on how to do so.</p>
 </div>
 <div class="paragraph">
-<p>Failures in failure-intolerant directories will lead to a crash, upon which the
-server must be rebuilt, replacing or removing the failed disk from Kudu&#8217;s
-configuration. See the section on <a href="#rebuilding_kudu">Rebuilding a Kudu
-Filesystem Layout</a> for more details.</p>
-</div>
-<div class="paragraph">
-<p>In the case of a failure in a failure-tolerant directory, Kudu will
-automatically stop using the affected disk, shut down tablets with blocks on
-the affected disk, and re-replicate the affected tablets to other tablet
-servers. The affected server will remain alive and print messages to the log
-indicating the disk failure, for example:</p>
+<p>When a disk failure occurs that does not lead to a crash, Kudu will stop using
+the affected directory, shut down tablets with blocks on the affected
+directories, and automatically re-replicate the affected tablets to other
+tablet servers. The affected server will remain alive and print messages to the
+log indicating the disk failure, for example:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre>E1025 19:06:24.163748 27115 data_dirs.cc:1011] Directory /data/8/kudu/data marked as failed
+<pre>E1205 19:06:24.163748 27115 data_dirs.cc:1011] Directory /data/8/kudu/data marked as failed
 E1205 19:06:30.324795 27064 log_block_manager.cc:1822] Not using report from /data/8/kudu/data: IO error: Could not open container 0a6283cab82d4e75848f49772d2638fe: /data/8/kudu/data/0a6283cab82d4e75848f49772d2638fe.metadata: Read-only file system (error 30)
 E1205 19:06:33.564638 27220 ts_tablet_manager.cc:946] T 4957808439314e0d97795c1394348d80 P 70f7ee61ead54b1885d819f354eb3405: aborting tablet bootstrap: tablet has data in a failed directory</pre>
 </div>
+</div>
+<div class="paragraph">
+<p>While in this state, the affected node will avoid using the failed disk,
+leading to lower storage volume and reduced read parallelism. Since removing
+data directories is not currently supported in Kudu, the administrator should
+schedule a window to bring the node down for maintenance and
+<a href="#rebuilding_kudu">rebuild the node</a> at their convenience.</p>
 </div>
 </div>
 </div>

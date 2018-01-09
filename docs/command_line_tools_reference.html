@@ -2,7 +2,7 @@
 title: Apache Kudu Command Line Tools Reference
 layout: default
 active_nav: docs
-last_updated: 'Last updated 2017-12-07 19:52:46 PST'
+last_updated: 'Last updated 2018-01-08 19:31:50 PST'
 ---
 <!--
 
@@ -52,6 +52,9 @@ limitations under the License.
 </li>
 <li>
 <p><a href="#fs-format">format</a></p>
+</li>
+<li>
+<p><a href="#fs-list">list</a></p>
 </li>
 <li>
 <p><a href="#fs-dump">dump</a></p>
@@ -524,6 +527,102 @@ limitations under the License.
 <td class="tableblock halign-left valign-top"><p class="tableblock">The uuid to use in the filesystem. If not provided, one is generated</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p><br></p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="fs-list"><a class="link" href="#fs-list"><code>list</code>: List metadata for on-disk tablets, rowsets, blocks, and cfiles&#160;</a></h4>
+<div class="paragraph">
+<p>This tool is useful for discovering and gathering information about on-disk data. Many field types can be added to the results with the --columns flag, and results can be filtered to a specific table, tablet, rowset, column, or block through flags.</p>
+</div>
+<div class="paragraph">
+<p>Note: adding any of the 'cfile' fields to --columns will cause the tool to read on-disk metadata for each CFile in the result set, which could require large amounts of I/O when many results are returned.<br>
+<strong>Usage:</strong><br>
+<code>kudu fs list [-fs_wal_dir=&lt;dir&gt;] [-fs_data_dirs=&lt;dirs&gt;] [-table_id=&lt;id&gt;] [-tablet_id=&lt;id&gt;] [-rowset_id=&lt;id&gt;] [-column_id=&lt;id&gt;] [-block_id=&lt;id&gt;] [-columns=&lt;columns&gt;] [-format=&lt;format&gt;] [-noh]</code>
+<br>
+<strong>Arguments:</strong></p>
+</div>
+<table class="tableblock frame-topbot grid-all spread">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">fs_wal_dir (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Directory with write-ahead logs. If this is not specified, the program will not start. May be the same as fs_data_dirs</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">fs_data_dirs (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Comma-separated list of directories with data blocks. If this is not specified, fs_wal_dir will be used as the sole data block directory.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">table_id (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Restrict output to a specific table</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">tablet_id (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Restrict output to a specific tablet</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">rowset_id (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Restrict output to a specific rowset</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">int64</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-1</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">column_id (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Restrict output to a specific column</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">int32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-1</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">block_id (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Restrict output to a specific block</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">uint64</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>0</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">columns (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Comma-separated list of fields to include in output.
+Possible values: table, table-id, tablet-id, partition, rowset-id, block-id, block-kind, column, column-id, cfile-data-type, cfile-nullable, cfile-encoding, cfile-compression, cfile-num-values, cfile-size, cfile-incompatible-features, cfile-compatible-features, cfile-min-key, cfile-max-key, cfile-delta-stats</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>tablet-id, rowset-id, block-id, block-kind</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">format (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Format to use for printing list output tables.
+Possible values: pretty, space, tsv, csv, and json</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pretty</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">h (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Pretty-print values in human-readable units</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">bool</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code></p></td>
 </tr>
 </tbody>
 </table>
