@@ -885,6 +885,7 @@ unique_ptr<Mode> BuildDumpMode() {
       .AddRequiredParameter({ kTabletIdArg, kTabletIdArgDesc })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Action> dump_meta =
@@ -893,6 +894,7 @@ unique_ptr<Mode> BuildDumpMode() {
       .AddRequiredParameter({ kTabletIdArg, kTabletIdArgDesc })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Action> dump_rowset =
@@ -902,6 +904,7 @@ unique_ptr<Mode> BuildDumpMode() {
       .AddOptionalParameter("dump_data")
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("metadata_only")
       .AddOptionalParameter("nrows")
       .AddOptionalParameter("rowset_index")
@@ -914,6 +917,7 @@ unique_ptr<Mode> BuildDumpMode() {
       .AddRequiredParameter({ kTabletIdArg, kTabletIdArgDesc })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("print_entries")
       .AddOptionalParameter("print_meta")
       .AddOptionalParameter("truncate_data")
@@ -938,6 +942,7 @@ unique_ptr<Mode> BuildLocalReplicaMode() {
       .AddRequiredParameter({ kTabletIdArg, kTabletIdArgDesc })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Action> rewrite_raft_config =
@@ -949,6 +954,7 @@ unique_ptr<Mode> BuildLocalReplicaMode() {
         "form 'uuid:hostname:port'" })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Action> set_term =
@@ -959,6 +965,7 @@ unique_ptr<Mode> BuildLocalReplicaMode() {
         "than the current term)" })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Mode> cmeta =
@@ -978,6 +985,7 @@ unique_ptr<Mode> BuildLocalReplicaMode() {
         "form hostname:port" })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Action> list =
@@ -985,6 +993,7 @@ unique_ptr<Mode> BuildLocalReplicaMode() {
       .Description("Show list of tablet replicas in the local filesystem")
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("list_detail")
       .Build();
 
@@ -995,6 +1004,7 @@ unique_ptr<Mode> BuildLocalReplicaMode() {
       .AddRequiredParameter({ kTabletIdArg, kTabletIdArgDesc })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("clean_unsafe")
       .Build();
 
@@ -1004,6 +1014,7 @@ unique_ptr<Mode> BuildLocalReplicaMode() {
       .AddRequiredParameter({ kTabletIdGlobArg, kTabletIdGlobArgDesc })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("format")
       .Build();
 

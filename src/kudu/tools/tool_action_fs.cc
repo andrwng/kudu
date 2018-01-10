@@ -761,6 +761,7 @@ static unique_ptr<Mode> BuildFsDumpMode() {
       .AddRequiredParameter({ "block_id", "block identifier" })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("print_meta")
       .AddOptionalParameter("print_rows")
       .Build();
@@ -773,6 +774,7 @@ static unique_ptr<Mode> BuildFsDumpMode() {
       .AddRequiredParameter({ "block_id", "block identifier" })
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Action> dump_tree =
@@ -780,6 +782,7 @@ static unique_ptr<Mode> BuildFsDumpMode() {
       .Description("Dump the tree of a Kudu filesystem")
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Action> dump_uuid =
@@ -787,6 +790,7 @@ static unique_ptr<Mode> BuildFsDumpMode() {
       .Description("Dump the UUID of a Kudu filesystem")
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   return ModeBuilder("dump")
@@ -804,6 +808,7 @@ unique_ptr<Mode> BuildFsMode() {
       .Description("Check a Kudu filesystem for inconsistencies")
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("repair")
       .Build();
 
@@ -812,6 +817,7 @@ unique_ptr<Mode> BuildFsMode() {
       .Description("Format a new Kudu filesystem")
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("uuid")
       .Build();
 
@@ -821,6 +827,7 @@ unique_ptr<Mode> BuildFsMode() {
       .ExtraDescription("Cannot currently be used to remove data directories")
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .Build();
 
   unique_ptr<Action> list =
@@ -835,6 +842,7 @@ unique_ptr<Mode> BuildFsMode() {
                         "which could require large amounts of I/O when many results are returned.")
       .AddOptionalParameter("fs_wal_dir")
       .AddOptionalParameter("fs_data_dirs")
+      .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("table_id")
       .AddOptionalParameter("tablet_id")
       .AddOptionalParameter("rowset_id")
