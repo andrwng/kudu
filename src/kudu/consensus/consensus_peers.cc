@@ -315,13 +315,18 @@ void Peer::ProcessResponse() {
   if (response_.has_error()) {
     Status response_status = StatusFromPB(response_.error().status());
     PeerStatus ps;
-    if (response_.error().code() == TabletServerErrorPB::TABLET_FAILED) {
-      ps = PeerStatus::TABLET_FAILED;
-    } else if (response_.error().code() == TabletServerErrorPB::TABLET_NOT_FOUND) {
-      ps = PeerStatus::TABLET_NOT_FOUND;
-    } else {
-      // Unknown kind of error.
-      ps = PeerStatus::REMOTE_ERROR;
+    TabletServerErrorPB resp_error = response_.error();
+    switch (response_.error().code()) {
+      case TabletServerErrorPB::TABLET_FAILED:
+      case TabletServerErrorPB::WRONG_SERVER_UUID:
+        ps = PeerStatus::TABLET_FAILED;
+        break;
+      case TabletServerErrorPB::TABLET_NOT_FOUND:
+        ps = PeerStatus::TABLET_NOT_FOUND;
+        break;
+      default:
+        // Unknown kind of error.
+        ps = PeerStatus::REMOTE_ERROR;
     }
     queue_->UpdatePeerStatus(peer_pb_.permanent_uuid(), ps, response_status);
     ProcessResponseError(response_status);

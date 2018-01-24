@@ -70,8 +70,12 @@
 #include "kudu/tserver/tserver_service.proxy.h"
 #include "kudu/util/atomic.h"
 #include "kudu/util/countdown_latch.h"
+#include "kudu/util/env.h"
+#include "kudu/util/env_util.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/monotime.h"
+#include "kudu/util/net/net_util.h"
+#include "kudu/util/path_util.h"
 #include "kudu/util/pb_util.h"
 #include "kudu/util/random.h"
 #include "kudu/util/scoped_cleanup.h"
@@ -96,7 +100,10 @@ using kudu::client::KuduInsert;
 using kudu::client::KuduSession;
 using kudu::client::KuduTable;
 using kudu::client::sp::shared_ptr;
+using kudu::cluster::ExternalDaemonOptions;
 using kudu::cluster::ExternalTabletServer;
+using kudu::cluster::ExternalMiniCluster;
+using kudu::cluster::ExternalMiniClusterOptions;
 using kudu::consensus::ConsensusRequestPB;
 using kudu::consensus::ConsensusResponsePB;
 using kudu::consensus::ConsensusServiceProxy;
@@ -125,6 +132,7 @@ using kudu::itest::WaitUntilTabletInState;
 using kudu::itest::WriteSimpleTestRow;
 using kudu::master::TabletLocationsPB;
 using kudu::master::VOTER_REPLICA;
+using kudu::env_util::ListFilesInDir;
 using kudu::pb_util::SecureDebugString;
 using kudu::pb_util::SecureShortDebugString;
 using kudu::rpc::RpcController;
@@ -2739,5 +2747,70 @@ TEST_F(RaftConsensusITest, TestLogIOErrorIsFatal) {
   ASSERT_OK(ext_tservers[0]->WaitForFatal(MonoDelta::FromSeconds(10)));
 }
 
+// KUDU-1613: test that ensures when we start a new tablet server using the
+// same ports, existing tablets that previously used those ports will be
+// evicted and replicated elsewhere.
+TEST_F(RaftConsensusITest, TestRestartWithDifferentUUID) {
+  // Start a cluster and insert data.
+  ExternalMiniClusterOptions opts;
+  opts.num_tablet_servers = 5;
+  // Set a low timeout. If we can't re-replicate in a reasonable amount of
+  // time, it means we're not evicting at all.
+  opts.extra_tserver_flags.emplace_back("--follower_unavailable_considered_failed_sec=10");
+  opts.extra_tserver_flags.emplace_back("--raft_prepare_replacement_before_eviction=false");
+  opts.extra_master_flags.emplace_back("--raft_prepare_replacement_before_eviction=false");
+  cluster_.reset(new ExternalMiniCluster(std::move(opts)));
+  ASSERT_OK(cluster_->Start());
+
+  // Write some data. In writing many tablets, we're making it more likely that
+  // all tablet servers will have some tablets on them.
+  TestWorkload writes(cluster_.get());
+  writes.set_num_tablets(25);
+  writes.set_timeout_allowed(true);
+  writes.Setup();
+  writes.Start();
+  const auto wait_for_some_inserts = [&] {
+    const auto rows_init = writes.rows_inserted();
+    ASSERT_EVENTUALLY([&] {
+      ASSERT_GT(writes.rows_inserted() - rows_init, 1000);
+    });
+  };
+  wait_for_some_inserts();
+
+  // Completely shut down one of the tablet servers, keeping its ports so we
+  // can take over with another tablet server.
+  ExternalTabletServer* ts = cluster_->tablet_server(0);
+  vector<HostPort> master_hostports;
+  for (int i = 0; i < cluster_->num_masters(); i++) {
+    master_hostports.push_back(cluster_->master(i)->bound_rpc_hostport());
+  }
+  ExternalDaemonOptions ts_opts = ts->opts();
+  LOG(INFO) << Substitute("Storing port $0 for use by new tablet server",
+                          ts->bound_rpc_hostport().ToString());
+  ts_opts.rpc_bind_address = ts->bound_rpc_hostport();
+  ts->Shutdown();
+
+  // With one server down, we should be able to accept writes.
+  wait_for_some_inserts();
+  writes.StopAndJoin();
+
+  // Start up a new server with a new UUID bount to the old RPC port.
+  ts_opts.wal_dir = Substitute("$0-new", ts_opts.wal_dir);
+  ts_opts.data_dirs = { Substitute("$0-new", ts_opts.data_dirs[0]) };
+  env_->CreateDir(ts_opts.wal_dir);
+  env_->CreateDir(ts_opts.data_dirs[0]);
+  scoped_refptr<ExternalTabletServer> new_ts =
+    new ExternalTabletServer(ts_opts, master_hostports);
+  new_ts->Start();
+  LOG(INFO) << Substitute("Created new tablet server: $0 ($1)",
+      new_ts->uuid(), ts_opts.rpc_bind_address.ToString());
+
+  // Eventually the new server should be copied to.
+  ASSERT_EVENTUALLY([&] {
+    vector<string> files_in_wal_dir;
+    ASSERT_OK(ListFilesInDir(env_, JoinPathSegments(ts_opts.wal_dir, "wals"), &files_in_wal_dir));
+    ASSERT_FALSE(files_in_wal_dir.empty());
+  });
+}
 }  // namespace tserver
 }  // namespace kudu
