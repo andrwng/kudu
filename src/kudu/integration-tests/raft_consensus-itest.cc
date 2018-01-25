@@ -1064,10 +1064,11 @@ TEST_F(RaftConsensusITest, TestLMPMismatchOnRestartedReplica) {
 
   // The COMMIT messages end up in the WAL asynchronously, so loop reading the
   // tablet server's WAL until it shows up.
+  int replica_idx = cluster_->tablet_server_index_by_uuid(replica_ets->uuid());
   ASSERT_EVENTUALLY([&]() {
       LogVerifier lv(cluster_.get());
       OpId commit;
-      ASSERT_OK(lv.ScanForHighestCommittedOpIdInLog(replica_ets, tablet_id_, &commit));
+      ASSERT_OK(lv.ScanForHighestCommittedOpIdInLog(replica_idx, tablet_id_, &commit));
       ASSERT_EQ("2.2", OpIdToString(commit));
     });
 

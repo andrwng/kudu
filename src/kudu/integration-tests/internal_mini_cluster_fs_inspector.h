@@ -20,27 +20,27 @@
 
 #include "kudu/gutil/macros.h"
 #include "kudu/integration-tests/mini_cluster_fs_inspector.h"
-#include "kudu/mini-cluster/external_mini_cluster.h"
-#include "kudu/tserver/tablet_server.h"
+#include "kudu/mini-cluster/internal_mini_cluster.h"
+#include "kudu/tserver/mini_tablet_server.h"
 #include "kudu/util/env.h"
 
 namespace kudu {
 namespace itest {
 
-class ExternalMiniClusterFsInspector : public MiniClusterFsInspector {
+class InternalMiniClusterFsInspector : public MiniClusterFsInspector {
  public:
-  explicit ExternalMiniClusterFsInspector(cluster::ExternalMiniCluster* cluster)
+  explicit InternalMiniClusterFsInspector(cluster::InternalMiniCluster* cluster)
       : env_(Env::Default()),
         cluster_(cluster) {}
 
-  ~ExternalMiniClusterFsInspector() override {}
+  ~InternalMiniClusterFsInspector() override {}
 
   std::string WalRootForTS(int idx) const override {
-    return cluster_->tablet_server(idx)->wal_dir();
+    return cluster_->mini_tablet_server(idx)->options()->fs_opts.wal_root;
   }
 
   std::string UUIDforTS(int idx) const override {
-    return cluster_->tablet_server(idx)->uuid();
+    return cluster_->mini_tablet_server(idx)->uuid();
   }
 
   Env* env() const override { return env_; }
@@ -48,9 +48,11 @@ class ExternalMiniClusterFsInspector : public MiniClusterFsInspector {
 
  private:
   Env* const env_;
-  cluster::ExternalMiniCluster* const cluster_;
+  cluster::InternalMiniCluster* const cluster_;
 
-  DISALLOW_COPY_AND_ASSIGN(ExternalMiniClusterFsInspector);
+  DISALLOW_COPY_AND_ASSIGN(InternalMiniClusterFsInspector);
 };
+
 } // namespace itest
 } // namespace kudu
+

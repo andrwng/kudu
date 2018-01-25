@@ -36,14 +36,18 @@
 #include "kudu/consensus/log_reader.h"
 #include "kudu/consensus/log_util.h"
 #include "kudu/consensus/opid.pb.h"
-#include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/integration-tests/external_mini_cluster_fs_inspector.h"
+#include "kudu/integration-tests/internal_mini_cluster_fs_inspector.h"
+#include "kudu/integration-tests/mini_cluster_fs_inspector.h"
 #include "kudu/mini-cluster/external_mini_cluster.h"
+#include "kudu/mini-cluster/internal_mini_cluster.h"
+#include "kudu/mini-cluster/mini_cluster.h"
 #include "kudu/util/env.h"
 #include "kudu/util/metrics.h"
+#include "kudu/util/path_util.h"
 #include "kudu/util/status.h"
 
 using std::map;
@@ -57,38 +61,30 @@ using strings::Substitute;
 namespace kudu {
 
 using cluster::ExternalMiniCluster;
-using cluster::ExternalTabletServer;
+using cluster::InternalMiniCluster;
 using consensus::OpId;
 using log::LogReader;
 using itest::ExternalMiniClusterFsInspector;
+using itest::InternalMiniClusterFsInspector;
 
-LogVerifier::LogVerifier(ExternalMiniCluster* cluster)
-    : cluster_(cluster) {
+LogVerifier::LogVerifier(cluster::MiniCluster* cluster)
+    : env_(Env::Default()) {
+  if (ExternalMiniCluster* emc = dynamic_cast<ExternalMiniCluster*>(cluster)) {
+    inspector_.reset(new ExternalMiniClusterFsInspector(emc));
+  } else if (InternalMiniCluster* imc = dynamic_cast<InternalMiniCluster*>(cluster)) {
+    inspector_.reset(new InternalMiniClusterFsInspector(imc));
+  }
+  CHECK(inspector_);
 }
 
-LogVerifier::~LogVerifier() {
-}
+LogVerifier::~LogVerifier() {}
 
-Status LogVerifier::OpenFsManager(ExternalTabletServer* ets,
-                                  unique_ptr<FsManager>* fs) {
-  FsManagerOpts fs_opts;
-  fs_opts.read_only = true;
-  fs_opts.wal_root = ets->wal_dir();
-  fs_opts.data_roots = ets->data_dirs();
-  fs_opts.block_manager_type = cluster_->block_manager_type();
-
-  unique_ptr<FsManager> ret(new FsManager(Env::Default(), fs_opts));
-  RETURN_NOT_OK_PREPEND(ret->Open(),
-                        Substitute("Couldn't initialize FS Manager for $0", ets->wal_dir()));
-  fs->swap(ret);
-  return Status::OK();
-}
-
-Status LogVerifier::ScanForCommittedOpIds(FsManager* fs, const string& tablet_id,
+Status LogVerifier::ScanForCommittedOpIds(int ts_idx, const string& tablet_id,
                                           map<int64_t, int64_t>* index_to_term) {
 
   shared_ptr<LogReader> reader;
-  RETURN_NOT_OK(LogReader::Open(fs, scoped_refptr<log::LogIndex>(), tablet_id,
+  const string wal_dir = JoinPathSegments(inspector_->WalDirForTS(ts_idx), tablet_id);
+  RETURN_NOT_OK(LogReader::Open(env_, wal_dir, scoped_refptr<log::LogIndex>(), tablet_id,
                                 scoped_refptr<MetricEntity>(), &reader));
   log::SegmentSequence segs;
   RETURN_NOT_OK(reader->GetSegmentsSnapshot(&segs));
@@ -113,14 +109,13 @@ Status LogVerifier::ScanForCommittedOpIds(FsManager* fs, const string& tablet_id
   return Status::OK();
 }
 
-Status LogVerifier::ScanForHighestCommittedOpIdInLog(ExternalTabletServer* ets,
-                                                     const string& tablet_id,
-                                                     OpId* commit_id) {
-  unique_ptr<FsManager> fs;
-  RETURN_NOT_OK(OpenFsManager(ets, &fs));
-  const string& wal_dir = fs->GetTabletWalDir(tablet_id);
+Status LogVerifier::ScanForHighestCommittedOpIdInLog(int ts_idx,
+                                                              const string& tablet_id,
+                                                              OpId* commit_id) {
+  const string& wal_dir = inspector_->WalDirForTS(ts_idx);
   map<int64_t, int64_t> index_to_term;
-  RETURN_NOT_OK_PREPEND(ScanForCommittedOpIds(fs.get(), tablet_id, &index_to_term),
+
+  RETURN_NOT_OK_PREPEND(ScanForCommittedOpIds(ts_idx, tablet_id, &index_to_term),
                         Substitute("Couldn't scan log in dir $0", wal_dir));
   if (index_to_term.empty()) {
     return Status::NotFound("no COMMITs in log");
@@ -131,26 +126,21 @@ Status LogVerifier::ScanForHighestCommittedOpIdInLog(ExternalTabletServer* ets,
 }
 
 Status LogVerifier::VerifyCommittedOpIdsMatch() {
-  ExternalMiniClusterFsInspector inspect(cluster_);
-  Env* env = Env::Default();
-
-  for (const string& tablet_id : inspect.ListTablets()) {
+  for (const string& tablet_id : inspector_->ListTablets()) {
     LOG(INFO) << "Checking tablet " << tablet_id;
 
     // Union set of the op indexes seen on any server.
     set<int64_t> all_op_indexes;
     // For each server in the cluster, a map of [index->term].
-    vector<map<int64_t, int64_t>> maps_by_ts(cluster_->num_tablet_servers());
+    vector<map<int64_t, int64_t>> maps_by_ts(inspector_->num_tablet_servers());
 
     // Gather the [index->term] map for each of the tablet servers
     // hosting this tablet.
-    for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
-      unique_ptr<FsManager> fs;
-      RETURN_NOT_OK(OpenFsManager(cluster_->tablet_server(i), &fs));
-      const string& wal_dir = fs->GetTabletWalDir(tablet_id);
-      if (!env->FileExists(wal_dir)) continue;
+    for (int i = 0; i < inspector_->num_tablet_servers(); i++) {
+      const string& wal_dir = JoinPathSegments(inspector_->WalDirForTS(i), tablet_id);
+      if (!env_->FileExists(wal_dir)) continue;
       map<int64_t, int64_t> index_to_term;
-      RETURN_NOT_OK_PREPEND(ScanForCommittedOpIds(fs.get(), tablet_id, &index_to_term),
+      RETURN_NOT_OK_PREPEND(ScanForCommittedOpIds(i, tablet_id, &index_to_term),
                             Substitute("Couldn't scan log for TS $0", i));
       for (const auto& index_term : index_to_term) {
         all_op_indexes.insert(index_term.first);
@@ -164,22 +154,22 @@ Status LogVerifier::VerifyCommittedOpIdsMatch() {
     const int64_t kNotOnThisServer = -1;
     for (int64_t index : all_op_indexes) {
       committed_terms.clear();
-      for (int ts = 0; ts < cluster_->num_tablet_servers(); ts++) {
+      for (int ts = 0; ts < inspector_->num_tablet_servers(); ts++) {
         committed_terms.push_back(FindWithDefault(maps_by_ts[ts], index, kNotOnThisServer));
       }
       // 'committed_terms' entries should all be kNotOnThisServer or the same as each other.
       boost::optional<int64_t> expected_term;
-      for (int ts = 0; ts < cluster_->num_tablet_servers(); ts++) {
+      for (int ts = 0; ts < inspector_->num_tablet_servers(); ts++) {
         int64_t this_ts_term = committed_terms[ts];
         if (this_ts_term == kNotOnThisServer) continue; // this TS doesn't have the op
         if (expected_term == boost::none) {
           expected_term = this_ts_term;
         } else if (this_ts_term != expected_term) {
           string err = Substitute("Mismatch found for index $0, [", index);
-          for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
+          for (int i = 0; i < inspector_->num_tablet_servers(); i++) {
             if (i != 0) err += ", ";
             strings::SubstituteAndAppend(&err, "T $0=$1",
-                                         cluster_->tablet_server(i)->uuid(),
+                                         inspector_->UUIDforTS(i),
                                          committed_terms[i]);
           }
           err += "]";
