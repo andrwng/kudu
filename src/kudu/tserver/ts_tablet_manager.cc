@@ -594,13 +594,23 @@ void TSTabletManager::RunTabletCopy(
   if (replacing_tablet) {
     // Make sure the existing tablet replica is shut down and tombstoned.
     TabletDataState data_state = meta->tablet_data_state();
+    boost::optional<OpId> last_logged_opid = meta->tombstone_last_logged_opid();
     switch (data_state) {
       case TABLET_DATA_COPYING:
-        // This should not be possible due to the transition_in_progress_ "lock".
-        LOG(FATAL) << LogPrefix(tablet_id) << "Tablet Copy: "
-                   << "Found tablet in TABLET_DATA_COPYING state during StartTabletCopy()";
+        // If we get here, we must have failed to clean up a previous tablet
+        // copy, in which case, we should try to clean up again by deleting the
+        // stuff we previously copied.
+        LOG(INFO) << LogPrefix(tablet_id) << "Tablet Copy: "
+                  << "Found tablet in TABLET_DATA_COPYING state during StartTabletCopy()";
+        last_logged_opid = meta->tombstone_last_logged_opid();
+        if (last_logged_opid) {
+          Status s = DeleteTabletData(meta, cmeta_manager_, TABLET_DATA_TOMBSTONED,
+                                      last_logged_opid);
+          if (!s.ok()) {
+            CALLBACK_AND_RETURN(s);
+          }
+        }
       case TABLET_DATA_TOMBSTONED: {
-        boost::optional<OpId> last_logged_opid = meta->tombstone_last_logged_opid();
         if (last_logged_opid) {
           CALLBACK_RETURN_NOT_OK_WITH_ERROR(CheckLeaderTermNotLower(tablet_id, leader_term,
                                                                     last_logged_opid->term()),

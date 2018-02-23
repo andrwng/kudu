@@ -14,12 +14,11 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_TSERVER_TABLET_COPY_CLIENT_H
-#define KUDU_TSERVER_TABLET_COPY_CLIENT_H
+#pragma once
 
 #include <cstdint>
-#include <string>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest_prod.h>
@@ -125,7 +124,7 @@ class TabletCopyClient {
   Status Finish();
 
   // Abort an in-progress transfer and immediately delete the data blocks and
-  // WALs downloaded so far. Does nothing if called after Finish().
+  // WALs downloaded so far.
   Status Abort();
 
  private:
@@ -138,8 +137,24 @@ class TabletCopyClient {
   FRIEND_TEST(TabletCopyClientAbortTest, TestAbort);
 
   enum State {
+    // The copy has yet to do anything.
     kInitialized,
+
+    // The copy has begun updating metadata, but has not begun receiving
+    // anything from the tablet copy source. This state implies that 'meta_' is
+    // non-null.
+    kStarting,
+
+    // The metadata has been updated to indicate the start of a new copy.
+    // Blocks, metadata, and WAL segments may be received from the tablet copy
+    // source in this state.
     kStarted,
+
+    // All files have been successfully copied from the tablet copy source, but
+    // the new replica still needs to be activated.
+    kFinishing,
+
+    // The copy is finished and needs no cleanup.
     kFinished,
   };
 
@@ -261,4 +276,3 @@ class TabletCopyClient {
 
 } // namespace tserver
 } // namespace kudu
-#endif /* KUDU_TSERVER_TABLET_COPY_CLIENT_H */
