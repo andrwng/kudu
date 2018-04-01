@@ -742,7 +742,7 @@ void AppendRowToString<RowBlockRow>(const RowBlockRow& row, string* buf) {
 template<bool IS_NULLABLE, bool IS_VARLEN>
 static void CopyColumn(const RowBlock& block, int col_idx, int dst_col_idx, uint8_t* dst_base,
                        faststring* indirect_data, const Schema* dst_schema, size_t row_stride,
-                       size_t schema_byte_size, size_t column_offset) {
+                       size_t schema_byte_size, size_t column_offset, bool use_columnar_format) {
   DCHECK(dst_schema);
   ColumnBlock column_block = block.column_block(col_idx);
   uint8_t* dst = dst_base + column_offset;
@@ -750,11 +750,37 @@ static void CopyColumn(const RowBlock& block, int col_idx, int dst_col_idx, uint
 
   size_t cell_size = column_block.stride();
   const uint8_t* src = column_block.cell_ptr(0);
+  size_t num_selected = block.selection_vector()->CountSelected();
 
   BitmapIterator selected_row_iter(block.selection_vector()->bitmap(), block.nrows());
   int run_size;
   bool selected;
   int row_idx = 0;
+
+  if (use_columnar_format) {
+    // XXX(awong): support other cases. Currently only supports fixed-length
+    // non-nulls, and serializes nothing otherwise.
+    uint8_t* dst = dst_base + column_offset;
+    offset_to_null_bitmap = column_offset + cell_size * num_selected;
+    while ((run_size = selected_row_iter.Next(&selected))) {
+      if (selected) {
+        // XXX(awong): all other cases are difficult for the following reasons.
+        // - IS_VARLEN && !IS_NULLABLE: need to copy all of the indirect data
+        // into a contiguous block, which it is not currently in. This is
+        // probably easier; it'll look like the row-wise case, and be just as
+        // non-performant.
+        // - IS_NULLABLE: need to splice together the selected chunks of the
+        // null bitmap.
+        if (!IS_VARLEN && !IS_NULLABLE) {
+          strings::memcpy_inlined(dst, src, cell_size * run_size);
+        }
+        src += run_size * cell_size;
+      }
+      dst += run_size * cell_size;
+    }
+    return;
+  }
+
   while ((run_size = selected_row_iter.Next(&selected))) {
     if (!selected) {
       src += run_size * cell_size;
@@ -796,6 +822,7 @@ void SerializeRowBlock(const RowBlock& block,
                        const Schema* projection_schema,
                        faststring* data_buf,
                        faststring* indirect_data,
+                       bool use_columnar_format,
                        bool pad_unixtime_micros_to_16_bytes) {
   DCHECK_GT(block.nrows(), 0);
   const Schema& tablet_schema = block.schema();
@@ -842,7 +869,12 @@ void SerializeRowBlock(const RowBlock& block,
     t_schema_idx = tablet_schema.find_column(col.name());
     DCHECK_NE(t_schema_idx, -1);
 
-    size_t column_offset = projection_schema->column_offset(p_schema_idx) + padding_so_far;
+    // If we're returning entire column blocks, each column will take
+    // col_size * num_rows (data) + num_rows (bitmap).
+    size_t column_offset = use_columnar_format ?
+        (projection_schema->column_size(p_schema_idx) + padding_so_far) * num_rows +
+            num_rows / 8 + num_rows > 0 :
+        projection_schema->column_offset(p_schema_idx) + padding_so_far;
 
     // Generating different functions for each of these cases makes them much less
     // branch-heavy -- we do the branch once outside the loop, and then have a
@@ -852,16 +884,20 @@ void SerializeRowBlock(const RowBlock& block,
     // offsets.
     if (col.is_nullable() && col.type_info()->physical_type() == BINARY) {
       CopyColumn<true, true>(block, t_schema_idx, p_schema_idx, base, indirect_data,
-                             projection_schema, row_stride, schema_byte_size, column_offset);
+                             projection_schema, row_stride, schema_byte_size, column_offset,
+                             use_columnar_format);
     } else if (col.is_nullable() && col.type_info()->physical_type() != BINARY) {
       CopyColumn<true, false>(block, t_schema_idx, p_schema_idx, base, indirect_data,
-                              projection_schema, row_stride, schema_byte_size, column_offset);
+                              projection_schema, row_stride, schema_byte_size, column_offset,
+                              use_columnar_format);
     } else if (!col.is_nullable() && col.type_info()->physical_type() == BINARY) {
       CopyColumn<false, true>(block, t_schema_idx, p_schema_idx, base, indirect_data,
-                              projection_schema, row_stride, schema_byte_size, column_offset);
+                              projection_schema, row_stride, schema_byte_size, column_offset,
+                              use_columnar_format);
     } else if (!col.is_nullable() && col.type_info()->physical_type() != BINARY) {
       CopyColumn<false, false>(block, t_schema_idx, p_schema_idx, base, indirect_data,
-                               projection_schema, row_stride, schema_byte_size, column_offset);
+                               projection_schema, row_stride, schema_byte_size, column_offset,
+                               use_columnar_format);
     } else {
       LOG(FATAL) << "cannot reach here";
     }

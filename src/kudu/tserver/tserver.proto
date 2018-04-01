@@ -214,6 +214,7 @@ message ColumnRangePredicateListPB {
 enum RowFormatFlags {
   NO_FLAGS = 0;
   PAD_UNIX_TIME_MICROS_TO_16_BYTES = 1;
+  RETURN_COLUMNAR = 2;
 }
 
 message NewScanRequestPB {
@@ -389,4 +390,6 @@ enum TabletServerFeatures {
   COLUMN_PREDICATES = 1;
   // Whether the server supports padding UNIXTIME_MICROS slots to 16 bytes.
   PAD_UNIXTIME_MICROS_TO_16_BYTES = 2;
+  // Whether the server supports returning columnar data.
+  RETURN_COLUMNAR_TO_CLIENT = 3;
 }

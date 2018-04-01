@@ -478,7 +478,8 @@ class ScanResultCopier : public ScanResultCollector {
         rows_data_(DCHECK_NOTNULL(rows_data)),
         indirect_data_(DCHECK_NOTNULL(indirect_data)),
         num_rows_returned_(0),
-        pad_unixtime_micros_to_16_bytes_(false) {}
+        pad_unixtime_micros_to_16_bytes_(false),
+        return_columnar_(false) {}
 
   void HandleRowBlock(const Schema* client_projection_schema,
                               const RowBlock& row_block) override {
@@ -505,6 +506,9 @@ class ScanResultCopier : public ScanResultCollector {
     if (row_format_flags & RowFormatFlags::PAD_UNIX_TIME_MICROS_TO_16_BYTES) {
       pad_unixtime_micros_to_16_bytes_ = true;
     }
+    if (row_format_flags & RowFormatFlags::RETURN_COLUMNAR) {
+      return_columnar_ = true;
+    }
   }
 
  private:
@@ -514,6 +518,7 @@ class ScanResultCopier : public ScanResultCollector {
   int64_t num_rows_returned_;
   faststring last_primary_key_;
   bool pad_unixtime_micros_to_16_bytes_;
+  bool return_columnar_;
 
   DISALLOW_COPY_AND_ASSIGN(ScanResultCopier);
 };
@@ -1449,6 +1454,7 @@ bool TabletServiceImpl::SupportsFeature(uint32_t feature) const {
   switch (feature) {
     case TabletServerFeatures::COLUMN_PREDICATES:
     case TabletServerFeatures::PAD_UNIXTIME_MICROS_TO_16_BYTES:
+    case TabletServerFeatures::RETURN_COLUMNAR_TO_CLIENT:
       return true;
     default:
       return false;

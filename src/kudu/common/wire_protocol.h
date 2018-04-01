@@ -152,6 +152,7 @@ Status ColumnPredicateFromPB(const Schema& schema,
 void SerializeRowBlock(const RowBlock& block, RowwiseRowBlockPB* rowblock_pb,
                        const Schema* projection_schema,
                        faststring* data_buf, faststring* indirect_data,
+                       bool use_columnar_format = false,
                        bool pad_unixtime_micros_to_16_bytes = false);
 
 // Rewrites the data pointed-to by row data slice 'row_data_slice' by replacing

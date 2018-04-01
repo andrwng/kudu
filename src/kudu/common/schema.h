@@ -513,6 +513,15 @@ class Schema {
     return col_offsets_[col_idx];
   }
 
+  // Return the size of the column cell.
+  size_t column_size(size_t col_idx) const {
+    DCHECK_LT(col_idx, cols_.size());
+    if (col_idx == 0) {
+      return col_offsets_[0];
+    }
+    return col_offsets_[col_idx] - col_offsets_[col_idx - 1];
+  }
+
   // Return the ColumnSchema corresponding to the given column index.
   inline const ColumnSchema &column(size_t idx) const {
     DCHECK_LT(idx, cols_.size());

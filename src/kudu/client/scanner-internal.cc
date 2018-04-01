@@ -611,6 +611,11 @@ Status KuduScanBatch::Data::Reset(RpcController* controller,
     pad_unixtime_micros_to_16_bytes = true;
   }
 
+  if (row_format_flags_ & KuduScanner::USE_COLUMNAR_FORMAT) { 
+    // XXX(awong): strings not supported, just return.
+    return Status::OK();
+  }
+
   return RewriteRowBlockPointers(*projection_, resp_data_, indirect_data_, &direct_data_,
                                  pad_unixtime_micros_to_16_bytes);
 }

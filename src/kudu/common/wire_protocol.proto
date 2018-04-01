@@ -136,6 +136,11 @@ message RowwiseRowBlockPB {
   //
   // See rpc/rpc_sidecar.h for more information on where the data is
   // actually stored.
+  //
+  // COLUMNAR:
+  // If returning data in the Apache Arrow format, the rows sidecar will
+  // contain the contiguous block of fixed-length data or pointers into
+  // indirect data, followed by a null bitmap, per column.
   optional int32 rows_sidecar = 2;
 
   // Sidecar index for the indirect data.
@@ -145,6 +150,9 @@ message RowwiseRowBlockPB {
   // stored using the normal Slice in-memory format, except that
   // instead of being pointers in RAM, the pointer portion will be an
   // offset into this protobuf field.
+  //
+  // COLUMNAR:
+  // Pretty much the same as without arrow.
   optional int32 indirect_data_sidecar = 3;
 }
 

@@ -2063,6 +2063,7 @@ class KUDU_EXPORT KuduScanner {
   ///   data for further decoding. Using KuduScanBatch::Row() might yield incorrect/corrupt
   ///   results and might even cause the client to crash.
   static const uint64_t PAD_UNIXTIME_MICROS_TO_16_BYTES = 1 << 0;
+  static const uint64_t USE_COLUMNAR_FORMAT = 1 << 1;
   /// Optionally set row format modifier flags.
   ///
   /// If flags is RowFormatFlags::NO_FLAGS, then no modifications will be made to the row
