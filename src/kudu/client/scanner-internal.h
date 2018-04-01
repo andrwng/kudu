@@ -47,6 +47,10 @@
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
+namespace arrow {
+class Table;
+}
+
 namespace kudu {
 
 class MonoTime;
@@ -309,6 +313,7 @@ class KuduScanBatch::Data {
   }
 
   void ExtractRows(std::vector<KuduScanBatch::RowPtr>* rows);
+  void ExtractArrow(std::unique_ptr<arrow::Table>* table);
 
   void Clear();
 

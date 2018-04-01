@@ -872,8 +872,7 @@ void SerializeRowBlock(const RowBlock& block,
     // If we're returning entire column blocks, each column will take
     // col_size * num_rows (data) + num_rows (bitmap).
     size_t column_offset = use_columnar_format ?
-        (projection_schema->column_size(p_schema_idx) + padding_so_far) * num_rows +
-            num_rows / 8 + num_rows > 0 :
+        (projection_schema->column_size(p_schema_idx) + padding_so_far) * num_rows :
         projection_schema->column_offset(p_schema_idx) + padding_so_far;
 
     // Generating different functions for each of these cases makes them much less

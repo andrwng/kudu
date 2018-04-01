@@ -99,6 +99,7 @@ else
       "bison")        F_BISON=1 ;;
       "hadoop")       F_HADOOP=1 ;;
       "hive")         F_HIVE=1 ;;
+      "arrow")        F_ARROW=1 ;;
       *)              echo "Unknown module: $arg"; exit 1 ;;
     esac
   done
@@ -297,6 +298,10 @@ fi
 
 if [ -n "$OS_LINUX" ] && [ -n "$F_UNINSTRUMENTED" -o -n "$F_NVML" ]; then
   build_nvml
+fi
+
+if [ -n "$F_UNINSTRUMENTED" -o -n "$F_ARROW" ]; then
+  build_arrow
 fi
 
 restore_env

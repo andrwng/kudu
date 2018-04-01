@@ -25,6 +25,9 @@
 #include <utility>
 #include <vector>
 
+#include <arrow/array.h>
+#include <arrow/buffer.h>
+#include <arrow/table.h>
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/message.h>
 
@@ -645,6 +648,17 @@ void KuduScanBatch::Data::ExtractRows(vector<KuduScanBatch::RowPtr>* rows) {
     n_rows--;
   }
   VLOG(2) << "Extracted " << rows->size() << " rows";
+}
+
+void KuduScanBatch::Data::ExtractArrow(std::unique_ptr<arrow::Table>* table) {
+  std::unique_ptr<arrow::Table> a_table;
+  vector<std::shared_ptr<arrow::Array>> a_arrays;
+  for (int i = 0; i < projection_->num_columns(); i++) {
+    int offset = i * projection_->column_size(i);
+    arrow::Buffer buffer(direct_data_.data() + offset,
+        resp_data_.num_rows() * projection_->column_size(i));
+    // XXX(awong): need to specialize each buffer into an Array.
+  }
 }
 
 void KuduScanBatch::Data::Clear() {

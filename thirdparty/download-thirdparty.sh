@@ -388,5 +388,9 @@ fetch_and_patch \
  $HADOOP_SOURCE \
  $HADOOP_PATCHLEVEL
 
+if [ ! -d "$ARROW_SOURCE" ]; then
+  fetch_and_expand apache-arrow-${ARROW_VERSION}.tar.gz
+fi
+
 echo "---------------"
 echo "Thirdparty dependencies downloaded successfully"
