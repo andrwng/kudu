@@ -678,6 +678,7 @@ cdef extern from "kudu/client/client.h" namespace "kudu::client" nogil:
         Status SetFaultTolerant()
         Status AddLowerBound(const KuduPartialRow& key)
         Status AddExclusiveUpperBound(const KuduPartialRow& key)
+        Status SetLimit (int64_t limit)
         Status KeepAlive()
         Status GetCurrentServer(KuduTabletServer** server)
 
@@ -710,6 +711,7 @@ cdef extern from "kudu/client/client.h" namespace "kudu::client" nogil:
         Status AddConjunctPredicate(KuduPredicate* pred)
         Status AddLowerBound(const KuduPartialRow& key)
         Status AddUpperBound(const KuduPartialRow& key)
+        Status SetLimitPerToken(int64_t limit)
         Status SetCacheBlocks(c_bool cache_blocks)
         Status Build(vector[KuduScanToken*]* tokens)
 
