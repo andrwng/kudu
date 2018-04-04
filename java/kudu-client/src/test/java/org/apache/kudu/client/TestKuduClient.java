@@ -490,6 +490,31 @@ public class TestKuduClient extends BaseKuduTest {
   }
 
   /**
+   * Test scanning with limits.
+   */
+  @Test
+  public void testScanWithLimit() throws Exception {
+    syncClient.createTable(tableName, basicSchema, getBasicTableOptionsWithNonCoveredRange());
+    KuduTable table = syncClient.openTable(tableName);
+    KuduSession session = syncClient.newSession();
+    int num_rows = 100;
+    for (int key = 0; key < num_rows; key++) {
+      session.apply(createBasicSchemaInsert(table, key));
+    }
+    int limits[] = { num_rows - 1, num_rows, num_rows + 1 };
+    for (int limit : limits) {
+      KuduScanner scanner = syncClient.newScannerBuilder(table)
+                                      .limit(limit)
+                                      .build();
+      int count = 0;
+      while (scanner.hasMoreRows()) {
+        count += scanner.nextRows().getNumRows();
+      }
+      assertEquals(Math.min(num_rows, limit), count);
+    }
+  }
+
+  /**
    * Test scanning with predicates.
    */
   @Test
