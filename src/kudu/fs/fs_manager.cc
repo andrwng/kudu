@@ -216,6 +216,7 @@ Status FsManager::Init() {
     // dirname, however, must exist.
     string canonicalized;
     Status s = env_->Canonicalize(DirName(root), &canonicalized);
+    LOG(INFO) << "init root: " << DirName(root) << " : " << s.ToString();
     if (PREDICT_FALSE(!s.ok())) {
       if (s.IsDiskFailure()) {
         // If the directory fails to canonicalize due to disk failure, store
@@ -324,10 +325,17 @@ Status FsManager::Open(FsReport* report) {
     gscoped_ptr<InstanceMetadataPB> pb(new InstanceMetadataPB);
     Status s = pb_util::ReadPBContainerFromPath(env_, GetInstanceMetadataPath(root.path),
                                                 pb.get());
+    LOG(INFO) << "opening " << root.path << " : " << s.ToString();
     if (PREDICT_FALSE(!s.ok())) {
       if (s.IsNotFound() &&
-          opts_.consistency_check != ConsistencyCheckBehavior::ENFORCE_CONSISTENCY) {
+          opts_.consistency_check == ConsistencyCheckBehavior::UPDATE_ON_DISK) {
         missing_roots.emplace_back(root);
+        continue;
+      } else if (s.IsNotFound()) {
+        // If we can't find the instance, either:
+        // - we're in ENFORCE_CONSISTENCY and we should make an effort to open
+        // the FS layout with missing directories, treating them as failed.
+        // - we're in IGNORE_INCONSISTENCY and not found errors don't matter.
         continue;
       }
       if (s.IsDiskFailure()) {
@@ -348,7 +356,7 @@ Status FsManager::Open(FsReport* report) {
   }
 
   if (!metadata_) {
-    return Status::Corruption("All instance files are missing");
+    return Status::NotFound("All instance files are missing");
   }
 
   // Ensure all of the ancillary directories exist.
@@ -521,6 +529,7 @@ Status FsManager::CreateFileSystemRoots(
   vector<string> non_empty_roots;
   for (const auto& root : canonicalized_roots) {
     if (!root.status.ok()) {
+      LOG(INFO) << "root: " << root.path << " : " << root.status.ToString();
       return Status::IOError("cannot create FS layout; at least one directory "
                              "failed to canonicalize", root.path);
     }

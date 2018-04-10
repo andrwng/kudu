@@ -440,7 +440,9 @@ Status DataDirManager::Create() {
   vector<string> all_uuids;
   vector<pair<string, string>> root_uuid_pairs_to_create;
   for (const auto& r : canonicalized_data_fs_roots_) {
-    RETURN_NOT_OK_PREPEND(r.status, "Could not create directory manager with disks failed");
+    if (r.status.IsDiskFailure()) {
+      return r.status.CloneAndPrepend("Could not create directory manager with disks failed");
+    }
     string uuid = gen.Next();
     all_uuids.emplace_back(uuid);
     root_uuid_pairs_to_create.emplace_back(r.path, std::move(uuid));
@@ -594,14 +596,17 @@ Status DataDirManager::LoadInstances(
     } else {
       // This may return OK and mark 'instance' as failed.
       Status s = instance->LoadFromDisk();
-      if (s.IsNotFound() &&
-          opts_.consistency_check != ConsistencyCheckBehavior::ENFORCE_CONSISTENCY) {
-        // A missing instance is not tolerated if we've been asked to enforce
-        // consistency checks.
-        missing_roots_tmp.emplace_back(root.path);
-        continue;
+      if (s.IsNotFound()) {
+        // A missing instance is treated as failed if enforcing consistency.
+        if (opts_.consistency_check == ConsistencyCheckBehavior::ENFORCE_CONSISTENCY) {
+          instance->SetInstanceFailed(s);
+        } else {
+          missing_roots_tmp.emplace_back(root.path);
+          continue;
+        }
+      } else {
+        RETURN_NOT_OK_PREPEND(s, Substitute("could not load $0", instance_filename));
       }
-      RETURN_NOT_OK_PREPEND(s, Substitute("could not load $0", instance_filename));
     }
 
     // Try locking the instance.

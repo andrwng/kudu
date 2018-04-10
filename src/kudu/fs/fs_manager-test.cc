@@ -598,8 +598,8 @@ TEST_F(FsManagerTestBase, TestAddRemoveDataDirs) {
   opts.data_roots = { fs_root_, new_path1 };
   ReinitFsManagerWithOpts(opts);
   Status s = fs_manager()->Open();
-  ASSERT_TRUE(s.IsNotFound());
-  ASSERT_STR_CONTAINS(s.ToString(), fs_manager()->GetInstanceMetadataPath(new_path1));
+  // ASSERT_STR_CONTAINS(s.ToString(), fs_manager()->GetInstanceMetadataPath(new_path1));
+  ASSERT_TRUE(s.IsIOError());
 
   // This time allow new data directories to be created.
   opts.consistency_check = ConsistencyCheckBehavior::UPDATE_ON_DISK;
@@ -750,8 +750,8 @@ TEST_F(FsManagerTestBase, TestAddRemoveSpeculative) {
       ASSERT_EQ(2, fs_manager()->dd_manager()->GetDataDirs().size());
     } else {
       // The third data directory has no instance file.
-      ASSERT_TRUE(s.IsNotFound()) << s.ToString();
-      ASSERT_STR_CONTAINS(s.ToString(), "No such file or directory");
+      ASSERT_TRUE(s.IsIOError()) << s.ToString();
+      ASSERT_STR_CONTAINS(s.ToString(), "could not verify integrity");
     }
   }
 }
