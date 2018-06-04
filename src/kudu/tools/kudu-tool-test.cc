@@ -96,6 +96,7 @@
 #include "kudu/tablet/tablet-harness.h"
 #include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet.pb.h"
+#include "kudu/tablet/tablet_meta_manager.h"
 #include "kudu/tablet/tablet_metadata.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/thrift/client.h"
@@ -172,6 +173,7 @@ using kudu::tablet::Tablet;
 using kudu::tablet::TabletDataState;
 using kudu::tablet::TabletHarness;
 using kudu::tablet::TabletMetadata;
+using kudu::tablet::TabletMetadataManager;
 using kudu::tablet::TabletReplica;
 using kudu::tablet::TabletSuperBlockPB;
 using kudu::tserver::DeleteTabletRequestPB;
@@ -756,7 +758,8 @@ TEST_F(ToolTest, TestFsCheck) {
     FsManager fs(env_, kTestDir);
     FsReport report;
     ASSERT_OK(fs.Open(&report));
-    ASSERT_OK(env_->DeleteFile(fs.GetTabletMetadataPath(kTabletId)));
+    TabletMetadataManager tmeta_manager(&fs);
+    tmeta_manager.Delete(kTabletId);
   }
   for (int i = 0; i < 2; i++) {
     NO_FATALS(RunFsCheck(Substitute("fs check --fs_wal_dir=$0", kTestDir),
@@ -1192,12 +1195,13 @@ TEST_F(ToolTest, TestLocalReplicaDumpDataDirs) {
   FsManager fs(env_, opts);
   ASSERT_OK(fs.CreateInitialFileSystemLayout());
   ASSERT_OK(fs.Open());
+  TabletMetadataManager tmeta_manager(&fs);
 
   pair<PartitionSchema, Partition> partition = tablet::CreateDefaultPartition(
         kSchemaWithIds);
   scoped_refptr<TabletMetadata> meta;
   ASSERT_OK(TabletMetadata::CreateNew(
-      &fs, kTestTablet, kTestTableName, kTestTableId,
+      &fs, &tmeta_manager, kTestTablet, kTestTableName, kTestTableId,
       kSchemaWithIds, partition.first, partition.second,
       tablet::TABLET_DATA_READY,
       /*tombstone_last_logged_opid=*/ boost::none,
@@ -1227,11 +1231,12 @@ TEST_F(ToolTest, TestLocalReplicaDumpMeta) {
   FsManager fs(env_, kTestDir);
   ASSERT_OK(fs.CreateInitialFileSystemLayout());
   ASSERT_OK(fs.Open());
+  TabletMetadataManager tmeta_manager(&fs);
 
   pair<PartitionSchema, Partition> partition = tablet::CreateDefaultPartition(
         kSchemaWithIds);
   scoped_refptr<TabletMetadata> meta;
-  TabletMetadata::CreateNew(&fs, kTestTablet, kTestTableName, kTestTableId,
+  TabletMetadata::CreateNew(&fs, &tmeta_manager, kTestTablet, kTestTableName, kTestTableId,
                   kSchemaWithIds, partition.first, partition.second,
                   tablet::TABLET_DATA_READY,
                   /*tombstone_last_logged_opid=*/ boost::none,

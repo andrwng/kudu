@@ -46,6 +46,7 @@
 #include "kudu/rpc/rpc_controller.h"
 #include "kudu/rpc/rpc_header.pb.h"
 #include "kudu/tablet/metadata.pb.h"
+#include "kudu/tablet/tablet_meta_manager.h"
 #include "kudu/tablet/tablet_metadata.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tserver/tablet_copy.pb.h"
@@ -137,6 +138,7 @@ using tablet::RowSetDataPB;
 using tablet::TabletDataState;
 using tablet::TabletDataState_Name;
 using tablet::TabletMetadata;
+using tablet::TabletMetadataManager;
 using tablet::TabletReplica;
 using tablet::TabletSuperBlockPB;
 
@@ -148,11 +150,13 @@ TabletCopyClientMetrics::TabletCopyClientMetrics(const scoped_refptr<MetricEntit
 TabletCopyClient::TabletCopyClient(std::string tablet_id,
     FsManager* fs_manager,
     scoped_refptr<ConsensusMetadataManager> cmeta_manager,
+    scoped_refptr<TabletMetadataManager> tmeta_manager,
     shared_ptr<Messenger> messenger,
     TabletCopyClientMetrics* tablet_copy_metrics)
     : tablet_id_(std::move(tablet_id)),
       fs_manager_(fs_manager),
       cmeta_manager_(std::move(cmeta_manager)),
+      tmeta_manager_(std::move(tmeta_manager)),
       messenger_(std::move(messenger)),
       state_(kInitialized),
       replace_tombstoned_tablet_(false),
@@ -352,7 +356,7 @@ Status TabletCopyClient::Start(const HostPort& copy_source_addr,
                                           schema, &partition_schema));
 
     // Create the superblock on disk.
-    RETURN_NOT_OK(TabletMetadata::CreateNew(fs_manager_, tablet_id_,
+    RETURN_NOT_OK(TabletMetadata::CreateNew(fs_manager_, tmeta_manager_.get(), tablet_id_,
                                             superblock_->table_name(),
                                             superblock_->table_id(),
                                             schema,

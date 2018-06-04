@@ -42,8 +42,8 @@
 #include "kudu/gutil/stl_util.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/rowset_metadata.h"
+#include "kudu/tablet/tablet_meta_manager.h"
 #include "kudu/util/debug/trace_event.h"
-#include "kudu/util/env.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/logging.h"
 #include "kudu/util/pb_util.h"
@@ -82,6 +82,7 @@ const int64_t kNoDurableMemStore = -1;
 // ============================================================================
 
 Status TabletMetadata::CreateNew(FsManager* fs_manager,
+                                 TabletMetadataManager* tmeta_manager,
                                  const string& tablet_id,
                                  const string& table_name,
                                  const string& table_id,
@@ -93,7 +94,7 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
                                  scoped_refptr<TabletMetadata>* metadata) {
 
   // Verify that no existing tablet exists with the same ID.
-  if (fs_manager->env()->FileExists(fs_manager->GetTabletMetadataPath(tablet_id))) {
+  if (tmeta_manager->Exists(tablet_id)) {
     return Status::AlreadyPresent("Tablet already exists", tablet_id);
   }
 
@@ -103,6 +104,7 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
     fs_manager->dd_manager()->DeleteDataDirGroup(tablet_id);
   });
   scoped_refptr<TabletMetadata> ret(new TabletMetadata(fs_manager,
+                                                       tmeta_manager,
                                                        tablet_id,
                                                        table_name,
                                                        table_id,
@@ -118,16 +120,14 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
   return Status::OK();
 }
 
-Status TabletMetadata::Load(FsManager* fs_manager,
+Status TabletMetadata::Load(TabletMetadataManager* tmeta_manager,
                             const string& tablet_id,
                             scoped_refptr<TabletMetadata>* metadata) {
-  scoped_refptr<TabletMetadata> ret(new TabletMetadata(fs_manager, tablet_id));
-  RETURN_NOT_OK(ret->LoadFromDisk());
-  metadata->swap(ret);
-  return Status::OK();
+  return tmeta_manager->Load(tablet_id, metadata);
 }
 
 Status TabletMetadata::LoadOrCreate(FsManager* fs_manager,
+                                    TabletMetadataManager* tmeta_manager,
                                     const string& tablet_id,
                                     const string& table_name,
                                     const string& table_id,
@@ -137,7 +137,7 @@ Status TabletMetadata::LoadOrCreate(FsManager* fs_manager,
                                     const TabletDataState& initial_tablet_data_state,
                                     boost::optional<OpId> tombstone_last_logged_opid,
                                     scoped_refptr<TabletMetadata>* metadata) {
-  Status s = Load(fs_manager, tablet_id, metadata);
+  Status s = Load(tmeta_manager, tablet_id, metadata);
   if (s.ok()) {
     if (!(*metadata)->schema().Equals(schema)) {
       return Status::Corruption(Substitute("Schema on disk ($0) does not "
@@ -147,7 +147,7 @@ Status TabletMetadata::LoadOrCreate(FsManager* fs_manager,
     return Status::OK();
   }
   if (s.IsNotFound()) {
-    return CreateNew(fs_manager, tablet_id, table_name, table_id, schema,
+    return CreateNew(fs_manager, tmeta_manager, tablet_id, table_name, table_id, schema,
                      partition_schema, partition, initial_tablet_data_state,
                      std::move(tombstone_last_logged_opid), metadata);
   }
@@ -255,23 +255,22 @@ Status TabletMetadata::DeleteSuperBlock() {
                    tablet_data_state_));
   }
 
-  string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
-  RETURN_NOT_OK_PREPEND(fs_manager_->env()->DeleteFile(path),
-                        "Unable to delete superblock for tablet " + tablet_id_);
+  RETURN_NOT_OK(tmeta_manager_->Delete(tablet_id_));
   return Status::OK();
 }
 
-TabletMetadata::TabletMetadata(FsManager* fs_manager, string tablet_id,
-                               string table_name, string table_id,
+TabletMetadata::TabletMetadata(FsManager* fs_manager,
+                               TabletMetadataManager* tmeta_manager,
+                               string tablet_id, string table_name, string table_id,
                                const Schema& schema, PartitionSchema partition_schema,
                                Partition partition,
                                const TabletDataState& tablet_data_state,
                                boost::optional<OpId> tombstone_last_logged_opid)
-    : state_(kNotWrittenYet),
-      tablet_id_(std::move(tablet_id)),
+    : tablet_id_(std::move(tablet_id)),
       table_id_(std::move(table_id)),
       partition_(std::move(partition)),
       fs_manager_(fs_manager),
+      tmeta_manager_(tmeta_manager),
       next_rowset_idx_(0),
       last_durable_mrs_id_(kNoDurableMemStore),
       schema_(new Schema(schema)),
@@ -293,10 +292,12 @@ TabletMetadata::~TabletMetadata() {
   delete schema_;
 }
 
-TabletMetadata::TabletMetadata(FsManager* fs_manager, string tablet_id)
-    : state_(kNotLoadedYet),
-      tablet_id_(std::move(tablet_id)),
+TabletMetadata::TabletMetadata(FsManager* fs_manager,
+                               TabletMetadataManager* tmeta_manager,
+                               string tablet_id)
+    : tablet_id_(std::move(tablet_id)),
       fs_manager_(fs_manager),
+      tmeta_manager_(tmeta_manager),
       next_rowset_idx_(0),
       schema_(nullptr),
       num_flush_pins_(0),
@@ -304,25 +305,9 @@ TabletMetadata::TabletMetadata(FsManager* fs_manager, string tablet_id)
       flush_count_for_tests_(0),
       pre_flush_callback_(Bind(DoNothingStatusClosure)) {}
 
-Status TabletMetadata::LoadFromDisk() {
-  TRACE_EVENT1("tablet", "TabletMetadata::LoadFromDisk",
-               "tablet_id", tablet_id_);
-
-  CHECK_EQ(state_, kNotLoadedYet);
-
-  TabletSuperBlockPB superblock;
-  RETURN_NOT_OK(ReadSuperBlockFromDisk(&superblock));
-  RETURN_NOT_OK_PREPEND(LoadFromSuperBlock(superblock),
-                        "Failed to load data from superblock protobuf");
-  RETURN_NOT_OK(UpdateOnDiskSize());
-  state_ = kInitialized;
-  return Status::OK();
-}
-
 Status TabletMetadata::UpdateOnDiskSize() {
-  string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
   uint64_t on_disk_size;
-  RETURN_NOT_OK(fs_manager()->env()->GetFileSize(path, &on_disk_size));
+  RETURN_NOT_OK(tmeta_manager_->GetSize(tablet_id_, &on_disk_size));
   on_disk_size_.store(on_disk_size, memory_order_relaxed);
   return Status::OK();
 }
@@ -367,7 +352,8 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
     // Some metadata fields are assumed to be immutable and thus are
     // only read from the protobuf when the tablet metadata is loaded
     // for the very first time. See KUDU-1500 for more details.
-    if (state_ == kNotLoadedYet) {
+    if (table_id_.empty()) {
+      // XXX(awong): DCHECK on the things being empty?
       table_id_ = superblock.table_id();
       RETURN_NOT_OK(PartitionSchema::FromPB(superblock.partition_schema(),
                                             *schema_, &partition_schema_));
@@ -562,7 +548,6 @@ Status TabletMetadata::UpdateUnlocked(
     const RowSetMetadataVector& to_add,
     int64_t last_durable_mrs_id) {
   DCHECK(data_lock_.is_locked());
-  CHECK_NE(state_, kNotLoadedYet);
   if (last_durable_mrs_id != kNoMrsFlushed) {
     DCHECK_GE(last_durable_mrs_id, last_durable_mrs_id_);
     last_durable_mrs_id_ = last_durable_mrs_id;
@@ -603,12 +588,7 @@ Status TabletMetadata::ReplaceSuperBlock(const TabletSuperBlockPB &pb) {
 
 Status TabletMetadata::ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb) {
   flush_lock_.AssertAcquired();
-
-  string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
-  RETURN_NOT_OK_PREPEND(pb_util::WritePBContainerToPath(
-                            fs_manager_->env(), path, pb,
-                            pb_util::OVERWRITE, pb_util::SYNC),
-                        Substitute("Failed to write tablet metadata $0", tablet_id_));
+  RETURN_NOT_OK(tmeta_manager_->Flush(pb));
   flush_count_for_tests_++;
   RETURN_NOT_OK(UpdateOnDiskSize());
 
@@ -623,14 +603,6 @@ void TabletMetadata::SetPreFlushCallback(StatusClosure callback) {
 boost::optional<consensus::OpId> TabletMetadata::tombstone_last_logged_opid() const {
   std::lock_guard<LockType> l(data_lock_);
   return tombstone_last_logged_opid_;
-}
-
-Status TabletMetadata::ReadSuperBlockFromDisk(TabletSuperBlockPB* superblock) const {
-  string path = fs_manager_->GetTabletMetadataPath(tablet_id_);
-  RETURN_NOT_OK_PREPEND(
-      pb_util::ReadPBContainerFromPath(fs_manager_->env(), path, superblock),
-      Substitute("Could not load tablet metadata from $0", path));
-  return Status::OK();
 }
 
 Status TabletMetadata::ToSuperBlock(TabletSuperBlockPB* super_block) const {
@@ -735,13 +707,11 @@ void TabletMetadata::SetTableName(const string& table_name) {
 
 string TabletMetadata::table_name() const {
   std::lock_guard<LockType> l(data_lock_);
-  DCHECK_NE(state_, kNotLoadedYet);
   return table_name_;
 }
 
 uint32_t TabletMetadata::schema_version() const {
   std::lock_guard<LockType> l(data_lock_);
-  DCHECK_NE(state_, kNotLoadedYet);
   return schema_version_;
 }
 

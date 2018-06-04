@@ -64,6 +64,7 @@
 #include "kudu/tablet/metadata.pb.h"
 #include "kudu/tablet/rowset_metadata.h"
 #include "kudu/tablet/tablet.pb.h"
+#include "kudu/tablet/tablet_meta_manager.h"
 #include "kudu/tablet/tablet_metadata.h"
 #include "kudu/tools/tool_action.h"
 #include "kudu/tools/tool_action_common.h"
@@ -122,6 +123,7 @@ using strings::Substitute;
 using tablet::RowSetMetadata;
 using tablet::TabletDataState;
 using tablet::TabletMetadata;
+using tablet::TabletMetadataManager;
 
 namespace {
 
@@ -129,6 +131,7 @@ Status Check(const RunnerContext& /*context*/) {
   FsManagerOpts fs_opts;
   fs_opts.read_only = !FLAGS_repair;
   FsManager fs_manager(Env::Default(), std::move(fs_opts));
+  TabletMetadataManager tmeta_manager(&fs_manager);
   FsReport report;
   RETURN_NOT_OK(fs_manager.Open(&report));
 
@@ -146,7 +149,7 @@ Status Check(const RunnerContext& /*context*/) {
   RETURN_NOT_OK(fs_manager.ListTabletIds(&tablet_ids));
   for (const auto& t : tablet_ids) {
     scoped_refptr<TabletMetadata> meta;
-    RETURN_NOT_OK(TabletMetadata::Load(&fs_manager, t, &meta));
+    RETURN_NOT_OK(TabletMetadata::Load(&tmeta_manager, t, &meta));
     vector<BlockId> tablet_live_block_ids = meta->CollectBlockIds();
     live_block_ids.insert(live_block_ids.end(),
                           tablet_live_block_ids.begin(),
@@ -326,12 +329,13 @@ Status CheckForTabletsThatWillFailWithUpdate() {
   opts.consistency_check = ConsistencyCheckBehavior::IGNORE_INCONSISTENCY;
   FsManager fs(Env::Default(), std::move(opts));
   RETURN_NOT_OK(fs.Open());
+  TabletMetadataManager tmeta_manager(&fs);
 
   vector<string> tablet_ids;
   RETURN_NOT_OK(fs.ListTabletIds(&tablet_ids));
   for (const auto& t : tablet_ids) {
     scoped_refptr<TabletMetadata> meta;
-    RETURN_NOT_OK(TabletMetadata::Load(&fs, t, &meta));
+    RETURN_NOT_OK(TabletMetadata::Load(&tmeta_manager, t, &meta));
     DataDirGroupPB group;
     Status s = fs.dd_manager()->GetDataDirGroupPB(t, &group);
     if (meta->tablet_data_state() == TabletDataState::TABLET_DATA_TOMBSTONED) {
@@ -725,6 +729,7 @@ Status List(const RunnerContext& /*context*/) {
   fs_opts.read_only = true;
   FsManager fs_manager(Env::Default(), std::move(fs_opts));
   RETURN_NOT_OK(fs_manager.Open());
+  TabletMetadataManager tmeta_manager(&fs_manager);
 
   // Build the list of tablets to inspect.
   vector<string> tablet_ids;
@@ -745,7 +750,7 @@ Status List(const RunnerContext& /*context*/) {
 
   for (const string& tablet_id : tablet_ids) {
     scoped_refptr<TabletMetadata> tablet_metadata;
-    RETURN_NOT_OK(TabletMetadata::Load(&fs_manager, tablet_id, &tablet_metadata));
+    RETURN_NOT_OK(TabletMetadata::Load(&tmeta_manager, tablet_id, &tablet_metadata));
     const TabletMetadata& tablet = *tablet_metadata.get();
 
     if (!table_name.empty() && table_name != tablet.table_name()) {

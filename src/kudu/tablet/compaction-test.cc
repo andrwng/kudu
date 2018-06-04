@@ -65,6 +65,7 @@
 #include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet.pb.h"
 #include "kudu/tablet/tablet_mem_trackers.h"
+#include "kudu/tablet/tablet_meta_manager.h"
 #include "kudu/tablet/tablet_metadata.h"
 #include "kudu/util/env.h"
 #include "kudu/util/faststring.h"
@@ -438,8 +439,9 @@ class TestCompaction : public KuduRowSetTest {
     } else {
       string tablet_id = "KuduCompactionBenchTablet";
       FsManager fs_manager(env_, FLAGS_merge_benchmark_input_dir);
+      scoped_refptr<TabletMetadataManager> tmeta_manager(new TabletMetadataManager(&fs_manager));
       scoped_refptr<TabletMetadata> input_meta;
-      ASSERT_OK(TabletMetadata::Load(&fs_manager, tablet_id, &input_meta));
+      ASSERT_OK(TabletMetadata::Load(tmeta_manager.get(), tablet_id, &input_meta));
 
       for (const shared_ptr<RowSetMetadata>& meta : input_meta->rowsets()) {
         shared_ptr<DiskRowSet> rs;

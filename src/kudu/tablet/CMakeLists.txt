@@ -44,6 +44,7 @@ set(TABLET_SRCS
   rowset_tree.cc
   svg_dump.cc
   tablet_metadata.cc
+  tablet_meta_manager.cc
   rowset_metadata.cc
   deltafile.cc
   deltamemstore.cc

@@ -14,8 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_TABLET_TABLET_REPLICA_HARNESS_H
-#define KUDU_TABLET_TABLET_REPLICA_HARNESS_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -30,6 +29,7 @@
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/tablet/tablet.h"
+#include "kudu/tablet/tablet_meta_manager.h"
 #include "kudu/util/env.h"
 #include "kudu/util/mem_tracker.h"
 #include "kudu/util/metrics.h"
@@ -90,9 +90,13 @@ class TabletHarness {
       RETURN_NOT_OK(fs_manager_->CreateInitialFileSystemLayout());
     }
     RETURN_NOT_OK(fs_manager_->Open());
+    scoped_refptr<TabletMetadataManager> tmeta_manager(
+        new TabletMetadataManager(fs_manager_.get()));
+    tmeta_manager_ = std::move(tmeta_manager);
 
     scoped_refptr<TabletMetadata> metadata;
     RETURN_NOT_OK(TabletMetadata::LoadOrCreate(fs_manager_.get(),
+                                               tmeta_manager_.get(),
                                                options_.tablet_id,
                                                "KuduTableTest",
                                                "KuduTableTestId",
@@ -153,9 +157,9 @@ class TabletHarness {
   scoped_refptr<clock::Clock> clock_;
   Schema schema_;
   gscoped_ptr<FsManager> fs_manager_;
+  scoped_refptr<TabletMetadataManager> tmeta_manager_;
   std::shared_ptr<Tablet> tablet_;
 };
 
 } // namespace tablet
 } // namespace kudu
-#endif /* KUDU_TABLET_TABLET_REPLICA_HARNESS_H */

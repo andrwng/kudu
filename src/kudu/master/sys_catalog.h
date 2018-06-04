@@ -48,6 +48,7 @@ class ConsensusMetadataManager;
 
 namespace tablet {
 class TabletMetadata;
+class TabletMetadataManager;
 }
 
 namespace tserver {
@@ -286,6 +287,7 @@ class SysCatalogTable {
   Master* master_;
 
   const scoped_refptr<consensus::ConsensusMetadataManager> cmeta_manager_;
+  const scoped_refptr<tablet::TabletMetadataManager> tmeta_manager_;
 
   ElectedLeaderCallback leader_cb_;
 

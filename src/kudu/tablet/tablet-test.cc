@@ -59,6 +59,7 @@
 #include "kudu/tablet/tablet-test-base.h"
 #include "kudu/tablet/tablet-test-util.h"
 #include "kudu/tablet/tablet.pb.h"
+#include "kudu/tablet/tablet_meta_manager.h"
 #include "kudu/tablet/tablet_metadata.h"
 #include "kudu/tablet/tablet_metrics.h" // IWYU pragma: keep
 #include "kudu/util/faststring.h"

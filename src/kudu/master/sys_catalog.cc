@@ -72,6 +72,7 @@
 #include "kudu/tablet/metadata.pb.h"
 #include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet_bootstrap.h"
+#include "kudu/tablet/tablet_meta_manager.h"
 #include "kudu/tablet/tablet_metadata.h"
 #include "kudu/tablet/transactions/transaction.h"
 #include "kudu/tablet/transactions/write_transaction.h"
@@ -103,6 +104,7 @@ using kudu::log::Log;
 using kudu::pb_util::SecureShortDebugString;
 using kudu::tablet::LatchTransactionCompletionCallback;
 using kudu::tablet::Tablet;
+using kudu::tablet::TabletMetadataManager;
 using kudu::tablet::TabletReplica;
 using kudu::tserver::WriteRequestPB;
 using kudu::tserver::WriteResponsePB;
@@ -161,6 +163,7 @@ SysCatalogTable::SysCatalogTable(Master* master,
     : metric_registry_(master->metric_registry()),
       master_(master),
       cmeta_manager_(new ConsensusMetadataManager(master_->fs_manager())),
+      tmeta_manager_(new TabletMetadataManager(master_->fs_manager())),
       leader_cb_(std::move(leader_cb)) {
 }
 
@@ -176,7 +179,8 @@ void SysCatalogTable::Shutdown() {
 Status SysCatalogTable::Load(FsManager *fs_manager) {
   // Load Metadata Information from disk
   scoped_refptr<tablet::TabletMetadata> metadata;
-  RETURN_NOT_OK(tablet::TabletMetadata::Load(fs_manager, kSysCatalogTabletId, &metadata));
+  RETURN_NOT_OK(tablet::TabletMetadata::Load(
+      tmeta_manager_.get(), kSysCatalogTabletId, &metadata));
 
   // Verify that the schema is the current one
   if (!metadata->schema().Equals(BuildTableSchema())) {
@@ -245,6 +249,7 @@ Status SysCatalogTable::CreateNew(FsManager *fs_manager) {
   DCHECK_EQ(1, partitions.size());
 
   RETURN_NOT_OK(tablet::TabletMetadata::CreateNew(fs_manager,
+                                                  tmeta_manager_.get(),
                                                   kSysCatalogTabletId,
                                                   table_name(),
                                                   table_id(),
