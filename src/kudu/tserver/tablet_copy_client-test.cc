@@ -52,6 +52,7 @@
 #include "kudu/rpc/messenger.h"
 #include "kudu/tablet/metadata.pb.h"
 #include "kudu/tablet/tablet_metadata.h"
+#include "kudu/tablet/tablet_metadata_manager.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tserver/tablet_copy.pb.h"
 #include "kudu/tserver/tablet_copy_client.h"
@@ -90,6 +91,7 @@ using std::tuple;
 using std::unique_ptr;
 using strings::Substitute;
 using tablet::TabletMetadata;
+using tablet::TabletMetadataManager;
 
 class TabletCopyClientTest : public TabletCopyTest {
  public:
@@ -117,12 +119,15 @@ class TabletCopyClientTest : public TabletCopyTest {
   Status ResetTabletCopyClient() {
     scoped_refptr<ConsensusMetadataManager> cmeta_manager(
         new ConsensusMetadataManager(fs_manager_.get()));
+    scoped_refptr<TabletMetadataManager> tmeta_manager(
+        new TabletMetadataManager(fs_manager_.get()));
 
     tablet_replica_->WaitUntilConsensusRunning(MonoDelta::FromSeconds(10.0));
     rpc::MessengerBuilder(CURRENT_TEST_NAME()).Build(&messenger_);
     client_.reset(new TabletCopyClient(GetTabletId(),
                                        fs_manager_.get(),
                                        cmeta_manager,
+                                       tmeta_manager,
                                        messenger_,
                                        nullptr /* no metrics */));
     RaftPeerPB* cstate_leader;

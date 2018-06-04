@@ -62,6 +62,7 @@
 #include "kudu/tablet/metadata.pb.h"
 #include "kudu/tablet/tablet.pb.h"
 #include "kudu/tablet/tablet_metadata.h"
+#include "kudu/tablet/tablet_metadata_manager.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tserver/tablet_copy_client.h"
 #include "kudu/tserver/tserver.pb.h"
@@ -118,6 +119,7 @@ using kudu::tablet::TABLET_DATA_DELETED;
 using kudu::tablet::TABLET_DATA_READY;
 using kudu::tablet::TABLET_DATA_TOMBSTONED;
 using kudu::tablet::TabletDataState;
+using kudu::tablet::TabletMetadataManager;
 using kudu::tablet::TabletSuperBlockPB;
 using kudu::tserver::ListTabletsResponsePB;
 using kudu::tserver::ListTabletsResponsePB_StatusAndSchemaPB;
@@ -511,11 +513,13 @@ TEST_F(TabletCopyITest, TestDeleteTabletDuringTabletCopy) {
   ASSERT_OK(fs_manager->Open());
   scoped_refptr<ConsensusMetadataManager> cmeta_manager(
       new ConsensusMetadataManager(fs_manager.get()));
+  scoped_refptr<TabletMetadataManager> tmeta_manager(
+      new TabletMetadataManager(fs_manager.get()));
 
   {
     // Start up a TabletCopyClient and open a tablet copy session.
     TabletCopyClient tc_client(tablet_id, fs_manager.get(),
-                               cmeta_manager, cluster_->messenger(),
+                               cmeta_manager, tmeta_manager, cluster_->messenger(),
                                nullptr /* no metrics */);
     scoped_refptr<tablet::TabletMetadata> meta;
     ASSERT_OK(tc_client.Start(cluster_->tablet_server(kTsIndex)->bound_rpc_hostport(),

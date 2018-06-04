@@ -69,6 +69,7 @@
 #include "kudu/tablet/tablet.pb.h"
 #include "kudu/tablet/tablet_bootstrap.h"
 #include "kudu/tablet/tablet_metadata.h"
+#include "kudu/tablet/tablet_metadata_manager.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tserver/tserver.pb.h"
 #include "kudu/util/env.h"
@@ -111,6 +112,7 @@ class BootstrapTest : public LogTestBase {
   void SetUp() OVERRIDE {
     LogTestBase::SetUp();
     cmeta_manager_.reset(new ConsensusMetadataManager(fs_manager_.get()));
+    tmeta_manager_.reset(new TabletMetadataManager(fs_manager_.get()));
   }
 
   Status LoadTestTabletMetadata(int mrs_id, int delta_id, scoped_refptr<TabletMetadata>* meta) {
@@ -118,6 +120,7 @@ class BootstrapTest : public LogTestBase {
     std::pair<PartitionSchema, Partition> partition = CreateDefaultPartition(schema);
 
     RETURN_NOT_OK(TabletMetadata::LoadOrCreate(fs_manager_.get(),
+                                               tmeta_manager_.get(),
                                                log::kTestTablet,
                                                log::kTestTable,
                                                log::kTestTableId,
@@ -212,6 +215,7 @@ class BootstrapTest : public LogTestBase {
   }
 
   scoped_refptr<ConsensusMetadataManager> cmeta_manager_;
+  scoped_refptr<TabletMetadataManager> tmeta_manager_;
 };
 
 // Tests a normal bootstrap scenario
@@ -674,6 +678,9 @@ TEST_F(BootstrapTest, TestConsensusOnlyOperationOutOfOrderTimestamp) {
   IterateTabletRows(tablet.get(), &results);
   ASSERT_EQ(1, results.size());
 }
+
+// XXX(awong): Test that when replaying alter schemas, we don't flush new
+// rowsets.
 
 } // namespace tablet
 } // namespace kudu

@@ -76,6 +76,7 @@
 #include "kudu/tablet/metadata.pb.h"
 #include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet_metadata.h"
+#include "kudu/tablet/tablet_metadata_manager.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tserver/heartbeater.h"
 #include "kudu/tserver/mini_tablet_server.h"
@@ -121,6 +122,8 @@ using kudu::rpc::MessengerBuilder;
 using kudu::rpc::RpcController;
 using kudu::tablet::RowSetDataPB;
 using kudu::tablet::Tablet;
+using kudu::tablet::TabletMetadata;
+using kudu::tablet::TabletMetadataManager;
 using kudu::tablet::TabletReplica;
 using kudu::tablet::TabletSuperBlockPB;
 using std::set;
@@ -3227,16 +3230,11 @@ TEST_F(TabletServerTest, TestDataDirGroupsCreated) {
   DataDirGroupPB orig_group = superblock.data_dir_group();
 
   // Remove the DataDirGroupPB on-disk.
+  FsManager* fs_manager = mini_server_->server()->fs_manager();
+  TabletMetadataManager tmeta_manager(fs_manager);
   superblock.clear_data_dir_group();
   ASSERT_FALSE(superblock.has_data_dir_group());
-  string tablet_meta_path = JoinPathSegments(GetTestPath("TabletServerTest-fsroot"), "tablet-meta");
-  string pb_path = JoinPathSegments(tablet_meta_path, tablet_replica_->tablet_id());
-  ASSERT_OK(pb_util::WritePBContainerToPath(Env::Default(),
-      pb_path, superblock, pb_util::OVERWRITE, pb_util::SYNC));
-
-  // Verify that the on-disk copy has its DataDirGroup missing.
-  ASSERT_OK(tablet_replica_->tablet()->metadata()->ReadSuperBlockFromDisk(&superblock));
-  ASSERT_FALSE(superblock.has_data_dir_group());
+  tmeta_manager.Flush(superblock);
 
   // Restart the server and check that a new group is created. By default, the
   // group will be created with all data directories and should be identical to

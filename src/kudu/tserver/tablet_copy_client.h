@@ -53,6 +53,7 @@ class RpcController;
 
 namespace tablet {
 class TabletMetadata;
+class TabletMetadataManager;
 class TabletReplica;
 class TabletSuperBlockPB;
 } // namespace tablet
@@ -83,6 +84,7 @@ class TabletCopyClient {
   // 'fs_manager' and 'messenger' must remain valid until this object is destroyed.
   TabletCopyClient(std::string tablet_id, FsManager* fs_manager,
                    scoped_refptr<consensus::ConsensusMetadataManager> cmeta_manager,
+                   scoped_refptr<tablet::TabletMetadataManager> tmeta_manager,
                    std::shared_ptr<rpc::Messenger> messenger,
                    TabletCopyClientMetrics* tablet_copy_metrics);
 
@@ -243,6 +245,7 @@ class TabletCopyClient {
   const std::string tablet_id_;
   FsManager* const fs_manager_;
   const scoped_refptr<consensus::ConsensusMetadataManager> cmeta_manager_;
+  const scoped_refptr<tablet::TabletMetadataManager> tmeta_manager_;
   const std::shared_ptr<rpc::Messenger> messenger_;
 
   // State of the progress of the tablet copy operation.

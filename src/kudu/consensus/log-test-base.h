@@ -310,7 +310,7 @@ class LogTestBase : public KuduTest {
       ASSERT_OK(s.Wait());
     } else {
       ASSERT_OK(log_->AsyncAppendCommit(std::move(commit),
-                                               Bind(&LogTestBase::CheckCommitResult)));
+                                        Bind(&LogTestBase::CheckCommitResult)));
     }
   }
 

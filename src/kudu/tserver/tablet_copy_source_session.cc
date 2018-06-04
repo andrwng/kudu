@@ -139,8 +139,9 @@ Status TabletCopySourceSession::InitOnce() {
       MinimumOpId().index(), anchor_owner_token, &log_anchor_);
 
   // Read the SuperBlock from disk.
+  // XXX(awong): consider putting into tmeta_manager
   const scoped_refptr<TabletMetadata>& metadata = tablet_replica_->tablet_metadata();
-  RETURN_NOT_OK_PREPEND(metadata->ReadSuperBlockFromDisk(&tablet_superblock_),
+  RETURN_NOT_OK_PREPEND(metadata->ToSuperBlock(&tablet_superblock_),
                         Substitute("Unable to access superblock for tablet $0",
                                    tablet_id));
 

@@ -52,6 +52,7 @@ class OpId;
 namespace tablet {
 
 class RowSetMetadata;
+class TabletMetadataManager;
 
 typedef std::vector<std::shared_ptr<RowSetMetadata> > RowSetMetadataVector;
 typedef std::unordered_set<int64_t> RowSetMetadataIds;
@@ -73,6 +74,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // has not been written before, and writes out the initial superblock with
   // the provided parameters.
   static Status CreateNew(FsManager* fs_manager,
+                          TabletMetadataManager* tmeta_manager,
                           const std::string& tablet_id,
                           const std::string& table_name,
                           const std::string& table_id,
@@ -85,6 +87,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
 
   // Load existing metadata from disk.
   static Status Load(FsManager* fs_manager,
+                     TabletMetadataManager* tmeta_manager,
                      const std::string& tablet_id,
                      scoped_refptr<TabletMetadata>* metadata);
 
@@ -94,6 +97,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   //
   // This is mostly useful for tests which instantiate tablets directly.
   static Status LoadOrCreate(FsManager* fs_manager,
+                             TabletMetadataManager* tmeta_manager,
                              const std::string& tablet_id,
                              const std::string& table_name,
                              const std::string& table_id,
@@ -110,7 +114,6 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   std::vector<BlockId> CollectBlockIds();
 
   const std::string& tablet_id() const {
-    DCHECK_NE(state_, kNotLoadedYet);
     return tablet_id_;
   }
 
@@ -120,7 +123,6 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   }
 
   std::string table_id() const {
-    DCHECK_NE(state_, kNotLoadedYet);
     return table_id_;
   }
 
@@ -233,9 +235,6 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // Return the last-logged opid of a tombstoned tablet, if known.
   boost::optional<consensus::OpId> tombstone_last_logged_opid() const;
 
-  // Loads the currently-flushed superblock from disk into the given protobuf.
-  Status ReadSuperBlockFromDisk(TabletSuperBlockPB* superblock) const;
-
   // Sets *super_block to the serialized form of the current metadata.
   Status ToSuperBlock(TabletSuperBlockPB* super_block) const;
 
@@ -266,6 +265,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
  private:
   friend class RefCountedThreadSafe<TabletMetadata>;
   friend class MetadataTest;
+  friend class TabletMetadataManager;
 
   // Compile time assert that no one deletes TabletMetadata objects.
   ~TabletMetadata();
@@ -274,15 +274,18 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   //
   // TODO(todd): get rid of this many-arg constructor in favor of just passing
   // in a SuperBlock, which already contains all of these fields.
-  TabletMetadata(FsManager* fs_manager, std::string tablet_id,
-                 std::string table_name, std::string table_id,
+  TabletMetadata(FsManager* fs_manager, 
+                 TabletMetadataManager* tmeta_manager,
+                 std::string tablet_id, std::string table_name, std::string table_id,
                  const Schema& schema, PartitionSchema partition_schema,
                  Partition partition,
                  const TabletDataState& tablet_data_state,
                  boost::optional<consensus::OpId> tombstone_last_logged_opid);
 
   // Constructor for loading an existing tablet.
-  TabletMetadata(FsManager* fs_manager, std::string tablet_id);
+  TabletMetadata(FsManager* fs_manager,
+                 TabletMetadataManager* tmeta_manager,
+                 std::string tablet_id);
 
   void SetSchemaUnlocked(gscoped_ptr<Schema> schema, uint32_t version);
 
@@ -317,13 +320,6 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // Failures are logged, but are not fatal.
   void DeleteOrphanedBlocks(const std::vector<BlockId>& blocks);
 
-  enum State {
-    kNotLoadedYet,
-    kNotWrittenYet,
-    kInitialized
-  };
-  State state_;
-
   // Lock protecting the underlying data.
   typedef simple_spinlock LockType;
   mutable LockType data_lock_;
@@ -337,7 +333,14 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
 
   Partition partition_;
 
+  // The FsManager that owns the blocks and directories that this tablet
+  // metadata refers to.
   FsManager* const fs_manager_;
+
+  // The TabletMetadataManager that manages storage of this tablet metadata.
+  TabletMetadataManager* const tmeta_manager_;
+
+  // The rowsets that belong to the tablet.
   RowSetMetadataVector rowsets_;
 
   base::subtle::Atomic64 next_rowset_idx_;

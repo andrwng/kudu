@@ -44,6 +44,7 @@ set(TABLET_SRCS
   rowset_tree.cc
   svg_dump.cc
   tablet_metadata.cc
+  tablet_metadata_manager.cc
   rowset_metadata.cc
   deltafile.cc
   deltamemstore.cc
@@ -109,6 +110,7 @@ ADD_KUDU_TEST(tablet-schema-test)
 ADD_KUDU_TEST(tablet-test)
 ADD_KUDU_TEST(tablet_bootstrap-test)
 ADD_KUDU_TEST(tablet_history_gc-test)
+ADD_KUDU_TEST(tablet_metadata-stress-test)
 ADD_KUDU_TEST(tablet_metadata-test)
 ADD_KUDU_TEST(tablet_mm_ops-test)
 ADD_KUDU_TEST(tablet_random_access-test)

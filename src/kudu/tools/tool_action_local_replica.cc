@@ -62,6 +62,7 @@
 #include "kudu/tablet/rowset_metadata.h"
 #include "kudu/tablet/tablet_mem_trackers.h"
 #include "kudu/tablet/tablet_metadata.h"
+#include "kudu/tablet/tablet_metadata_manager.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tools/tool_action.h"
 #include "kudu/tools/tool_action_common.h"
@@ -119,6 +120,7 @@ using strings::Substitute;
 using tablet::DiskRowSet;
 using tablet::RowSetMetadata;
 using tablet::TabletMetadata;
+using tablet::TabletMetadataManager;
 using tablet::TabletDataState;
 using tserver::TabletCopyClient;
 using tserver::TSTabletManager;
@@ -336,10 +338,11 @@ Status CopyFromRemote(const RunnerContext& context) {
   FsManager fs_manager(Env::Default(), FsManagerOpts());
   RETURN_NOT_OK(fs_manager.Open());
   scoped_refptr<ConsensusMetadataManager> cmeta_manager(new ConsensusMetadataManager(&fs_manager));
+  scoped_refptr<TabletMetadataManager> tmeta_manager(new TabletMetadataManager(&fs_manager));
   MessengerBuilder builder("tablet_copy_client");
   shared_ptr<Messenger> messenger;
   builder.Build(&messenger);
-  TabletCopyClient client(tablet_id, &fs_manager, cmeta_manager,
+  TabletCopyClient client(tablet_id, &fs_manager, cmeta_manager, tmeta_manager,
                           messenger, nullptr /* no metrics */);
   RETURN_NOT_OK(client.Start(hp, nullptr));
   RETURN_NOT_OK(client.FetchAll(nullptr));
@@ -373,9 +376,10 @@ Status DeleteLocalReplica(const RunnerContext& context) {
     }
   }
 
+  TabletMetadataManager tmeta_manager(&fs_manager);
   // Force the specified tablet on this node to be in 'state'.
   scoped_refptr<TabletMetadata> meta;
-  RETURN_NOT_OK(TabletMetadata::Load(&fs_manager, tablet_id, &meta));
+  RETURN_NOT_OK(TabletMetadata::Load(&fs_manager, &tmeta_manager, tablet_id, &meta));
   RETURN_NOT_OK(TSTabletManager::DeleteTabletData(meta, cmeta_manager, state, last_logged_opid));
   return Status::OK();
 }
@@ -446,6 +450,7 @@ Status SummarizeDataSize(const RunnerContext& context) {
   const string& tablet_id_pattern = FindOrDie(context.required_args, kTabletIdGlobArg);
   unique_ptr<FsManager> fs;
   RETURN_NOT_OK(FsInit(&fs));
+  TabletMetadataManager tmeta_manager(fs.get());
 
   vector<string> tablets;
   RETURN_NOT_OK(fs->ListTabletIds(&tablets));
@@ -458,7 +463,7 @@ Status SummarizeDataSize(const RunnerContext& context) {
     TabletSizeStats tablet_stats;
     if (!MatchPattern(tablet_id, tablet_id_pattern)) continue;
     scoped_refptr<TabletMetadata> meta;
-    RETURN_NOT_OK_PREPEND(TabletMetadata::Load(fs.get(), tablet_id, &meta),
+    RETURN_NOT_OK_PREPEND(TabletMetadata::Load(fs.get(), &tmeta_manager, tablet_id, &meta),
                           Substitute("could not load tablet metadata for $0", tablet_id));
     const string& table_id = meta->table_id();
     for (const shared_ptr<RowSetMetadata>& rs_meta : meta->rowsets()) {
@@ -553,10 +558,11 @@ Status ListBlocksInRowSet(const Schema& schema,
 Status DumpBlockIdsForLocalReplica(const RunnerContext& context) {
   unique_ptr<FsManager> fs_manager;
   RETURN_NOT_OK(FsInit(&fs_manager));
+  TabletMetadataManager tmeta_manager(fs_manager.get());
   const string& tablet_id = FindOrDie(context.required_args, kTabletIdArg);
 
   scoped_refptr<TabletMetadata> meta;
-  RETURN_NOT_OK(TabletMetadata::Load(fs_manager.get(), tablet_id, &meta));
+  RETURN_NOT_OK(TabletMetadata::Load(fs_manager.get(), &tmeta_manager, tablet_id, &meta));
 
   if (meta->rowsets().empty()) {
     cout << "No rowsets found on disk for tablet "
@@ -579,9 +585,10 @@ Status DumpBlockIdsForLocalReplica(const RunnerContext& context) {
 }
 
 Status DumpTabletMeta(FsManager* fs_manager,
-                       const string& tablet_id, int indent) {
+                      TabletMetadataManager* tmeta_manager,
+                      const string& tablet_id, int indent) {
   scoped_refptr<TabletMetadata> meta;
-  RETURN_NOT_OK(TabletMetadata::Load(fs_manager, tablet_id, &meta));
+  RETURN_NOT_OK(TabletMetadata::Load(fs_manager, tmeta_manager, tablet_id, &meta));
 
   const Schema& schema = meta->schema();
 
@@ -605,13 +612,14 @@ Status DumpTabletMeta(FsManager* fs_manager,
 Status ListLocalReplicas(const RunnerContext& context) {
   unique_ptr<FsManager> fs_manager;
   RETURN_NOT_OK(FsInit(&fs_manager));
+  TabletMetadataManager tmeta_manager(fs_manager.get());
 
   vector<string> tablets;
   RETURN_NOT_OK(fs_manager->ListTabletIds(&tablets));
   for (const string& tablet : tablets) {
     if (FLAGS_list_detail) {
       cout << "Tablet: " << tablet << endl;
-      RETURN_NOT_OK(DumpTabletMeta(fs_manager.get(), tablet, 2));
+      RETURN_NOT_OK(DumpTabletMeta(fs_manager.get(), &tmeta_manager, tablet, 2));
     } else {
       cout << tablet << endl;
     }
@@ -645,10 +653,11 @@ Status DumpRowSetInternal(const shared_ptr<RowSetMetadata>& rs_meta,
 Status DumpRowSet(const RunnerContext& context) {
   unique_ptr<FsManager> fs_manager;
   RETURN_NOT_OK(FsInit(&fs_manager));
+  TabletMetadataManager tmeta_manager(fs_manager.get());
   const string& tablet_id = FindOrDie(context.required_args, kTabletIdArg);
 
   scoped_refptr<TabletMetadata> meta;
-  RETURN_NOT_OK(TabletMetadata::Load(fs_manager.get(), tablet_id, &meta));
+  RETURN_NOT_OK(TabletMetadata::Load(fs_manager.get(), &tmeta_manager, tablet_id, &meta));
   if (meta->rowsets().empty()) {
     cout << Indent(0) << "No rowsets found on disk for tablet "
          << tablet_id << endl;
@@ -679,8 +688,9 @@ Status DumpRowSet(const RunnerContext& context) {
 Status DumpMeta(const RunnerContext& context) {
   unique_ptr<FsManager> fs_manager;
   RETURN_NOT_OK(FsInit(&fs_manager));
+  TabletMetadataManager tmeta_manager(fs_manager.get());
   const string& tablet_id = FindOrDie(context.required_args, kTabletIdArg);
-  RETURN_NOT_OK(DumpTabletMeta(fs_manager.get(), tablet_id, 0));
+  RETURN_NOT_OK(DumpTabletMeta(fs_manager.get(), &tmeta_manager, tablet_id, 0));
   return Status::OK();
 }
 

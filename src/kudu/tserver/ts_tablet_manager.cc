@@ -58,6 +58,7 @@
 #include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet_bootstrap.h"
 #include "kudu/tablet/tablet_metadata.h"
+#include "kudu/tablet/tablet_metadata_manager.h"
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tserver/heartbeater.h"
 #include "kudu/tserver/tablet_server.h"
@@ -205,6 +206,7 @@ using tablet::TABLET_DATA_READY;
 using tablet::TABLET_DATA_TOMBSTONED;
 using tablet::TabletDataState;
 using tablet::TabletMetadata;
+using tablet::TabletMetadataManager;
 using tablet::TabletReplica;
 using tserver::TabletCopyClient;
 
@@ -213,6 +215,7 @@ namespace tserver {
 TSTabletManager::TSTabletManager(TabletServer* server)
   : fs_manager_(server->fs_manager()),
     cmeta_manager_(new ConsensusMetadataManager(fs_manager_)),
+    tmeta_manager_(new TabletMetadataManager(fs_manager_)),
     server_(server),
     metric_registry_(server->metric_registry()),
     tablet_copy_metrics_(server->metric_entity()),
@@ -299,6 +302,8 @@ TSTabletManager::~TSTabletManager() {
 
 Status TSTabletManager::Init() {
   CHECK_EQ(state(), MANAGER_INITIALIZING);
+  // XXX(awong): implement, check dirs and stuff
+  RETURN_NOT_OK(tmeta_manager_->Init());
 
   // Start the tablet copy thread pool. We set a max queue size of 0 so that if
   // the number of requests exceeds the number of threads, a
@@ -428,6 +433,7 @@ Status TSTabletManager::CreateNewTablet(const string& table_id,
   scoped_refptr<TabletMetadata> meta;
   RETURN_NOT_OK_PREPEND(
     TabletMetadata::CreateNew(fs_manager_,
+                              tmeta_manager_.get(),
                               tablet_id,
                               table_name,
                               table_id,
@@ -702,7 +708,7 @@ void TSTabletManager::RunTabletCopy(
   //   to the leader.
   //
   // TODO(aserbin): make this robust and more optimal than it is now.
-  TabletCopyClient tc_client(tablet_id, fs_manager_, cmeta_manager_,
+  TabletCopyClient tc_client(tablet_id, fs_manager_, cmeta_manager_, tmeta_manager_,
                              server_->messenger(), &tablet_copy_metrics_);
 
   // Download and persist the remote superblock in TABLET_DATA_COPYING state.
@@ -1005,9 +1011,7 @@ Status TSTabletManager::OpenTabletMeta(const string& tablet_id,
   LOG(INFO) << LogPrefix(tablet_id) << "Loading tablet metadata";
   TRACE("Loading metadata...");
   scoped_refptr<TabletMetadata> meta;
-  RETURN_NOT_OK_PREPEND(TabletMetadata::Load(fs_manager_, tablet_id, &meta),
-                        strings::Substitute("Failed to load tablet metadata for tablet id $0",
-                                            tablet_id));
+  RETURN_NOT_OK(tmeta_manager_->Load(tablet_id, &meta));
   TRACE("Metadata loaded");
   metadata->swap(meta);
   return Status::OK();

@@ -69,6 +69,7 @@ class TabletReportPB;
 
 namespace tablet {
 class TabletMetadata;
+class TabletMetadataManager;
 class TabletReplica;
 }
 
@@ -331,6 +332,8 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   FsManager* const fs_manager_;
 
   const scoped_refptr<consensus::ConsensusMetadataManager> cmeta_manager_;
+
+  const scoped_refptr<tablet::TabletMetadataManager> tmeta_manager_;
 
   TabletServer* server_;
 
