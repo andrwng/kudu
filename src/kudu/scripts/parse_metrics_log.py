@@ -89,7 +89,7 @@ PARSE_METRIC_KEYS.add("server.block_cache_hits_caching")
 PARSE_METRIC_KEYS.add("server.block_cache_misses_caching")
 
 NaN = float('nan')
-UNKNOWN_PERCENTILES = dict(p50=NaN, p95=NaN, p99=NaN, p999=NaN, max=NaN)
+UNKNOWN_PERCENTILES = dict(p50=0, p95=0, p99=0, p999=0, max=0)
 
 def merge_delta(m, delta):
   """
@@ -97,7 +97,7 @@ def merge_delta(m, delta):
 
   Counts and sums are simply added.
   Histograms require more complex processing: the 'values' array needs to be
-  merged and the then the delta's counts added to the corresponding buckets.
+  merged and then the delta's counts added to the corresponding buckets.
   """
 
   for k, v in delta.iteritems():
@@ -143,34 +143,62 @@ def json_to_map(j):
 
 def delta(prev, cur, m):
   """ Compute the delta in metric 'm' between two metric snapshots. """
-  if m not in prev or m not in cur:
-    return 0
-  return cur[m]['value'] - prev[m]['value']
+  # Update the current metric in case we have missing entries.
+  if not m in cur:
+    if m in prev:
+      cur[m] = { 'value': prev[m]['value'] }
+    else:
+      cur[m]['value'] = 0
+
+  # Calculate the delta.
+  if m in prev:
+    return cur[m]['value'] - prev[m]['value']
+  return cur[m]['value']
 
 def histogram_stats(prev, cur, m):
   """
   Compute percentile stats for the metric 'm' in the window between two
   metric snapshots.
   """
-  if m not in prev or m not in cur or 'values' not in cur[m]:
+  if not m in prev:
     return UNKNOWN_PERCENTILES
+
+  # If there's nothing in the current metrics snapshot, it means none of the
+  # metrics changed, so pull the previous metrics.
+  if not m in cur or not 'values' in cur[m]:
+    cur[m] = prev[m]
+
   prev = prev[m]
   cur = cur[m]
 
+  # Ensure that the current histogram has at least all of the keys contained by
+  # the previous one so we can properly count each bucket.
   p_dict = dict(zip(prev.get('values', []),
                     prev.get('counts', [])))
-  c_zip = zip(cur.get('values', []),
-              cur.get('counts', []))
-  delta_total = cur['total_count'] - prev['total_count']
-  if delta_total == 0:
-    return UNKNOWN_PERCENTILES
+  c_dict = dict(zip(cur.get('values', []),
+                    cur.get('counts', [])))
+  for val, count in p_dict.iteritems():
+    if not val in c_dict:
+      c_dict[val] = 0
+
+  # Determine the total count we should expect between the current and previous
+  # snapshots.
+  window_total = cur['total_count'] + prev['total_count']
   res = dict()
   cum_count = 0
-  for cur_val, cur_count in c_zip:
+
+  # Iterate over all of the buckets for the current and previous snapshots,
+  # summing them up, and assigning percentiles to the bucket as appropriate.
+  for cur_val, cur_count in sorted(c_dict.iteritems()):
     prev_count = p_dict.get(cur_val, 0)
-    delta_count = cur_count - prev_count
-    cum_count += delta_count
-    percentile = float(cum_count) / delta_total
+
+    # Determine the total count for this bucket across the current and the
+    # previous snapshot.
+    bucket_count = cur_count + prev_count
+    cum_count += bucket_count
+
+    # Determine which percentiles this bucket belongs to.
+    percentile = float(cum_count) / window_total
     if 'p50' not in res and percentile > 0.50:
       res['p50'] = cur_val
     if 'p95' not in res and percentile > 0.95:
@@ -179,7 +207,7 @@ def histogram_stats(prev, cur, m):
       res['p99'] = cur_val
     if 'p999' not in res and percentile > 0.999:
       res['p999'] = cur_val
-    if cum_count == delta_total and delta_count != 0:
+    if cum_count == window_total:
       res['max'] = cur_val
   return res
 
@@ -202,10 +230,20 @@ def process(prev, cur):
   cache_ratio = cache_hit_ratio(prev, cur)
   calc_vals = []
   for metric, _ in SIMPLE_METRICS:
-    if metric in cur:
-      calc_vals.append(cur[metric]['value'])
-    else:
-      calc_vals.append(NaN)
+    if not metric in cur:
+      if metric in prev:
+        # The diagnostics log will only report metrics that have changed, so if
+        # we don't see a metric, assign it to its previous value.
+        cur[metric] = { 'value': prev[metric]['value'] }
+      else:
+        # The above means we may not see metrics that have remained 0 since the
+        # start of the server, so assign metrics that we haven't seen to 0.
+        #
+        # Note: this means that attempting to process metrics that don't exist
+        # will also yield plots that show all 0.
+        cur[metric]['value'] = 0
+    calc_vals.append(cur[metric]['value'])
+
   calc_vals.extend(delta(prev, cur, metric)/delta_ts for (metric, _) in RATE_METRICS)
   for metric, _ in HISTOGRAM_METRICS:
     stats = histogram_stats(prev, cur, metric)
@@ -234,7 +272,13 @@ def main(argv):
     else:
       f = file(path)
     for line_number, line in enumerate(f, start=1):
-      (_, ts, metrics_json) = line.split(" ", 2)
+      # Only parse out the "metrics" lines.
+      try:
+        (_, _, log_type, ts, metrics_json) = line.split(" ")
+      except ValueError:
+        continue
+      if not log_type == "metrics":
+        continue
       ts = float(ts) / 1000000.0
       prev_ts = prev_data['ts'] if prev_data else 0
       # Enforce that the samples come in time-sorted order.
