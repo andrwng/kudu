@@ -81,13 +81,6 @@ HISTOGRAM_METRICS = [
   #  ("tablet.write_op_duration_client_propagated_consistency", "op_dur")
 ]
 
-# Get the set of metrics we actuall want to bother parsing from the log.
-PARSE_METRIC_KEYS = set(key for (key, _) in (SIMPLE_METRICS + RATE_METRICS + HISTOGRAM_METRICS))
-
-# The script always reports cache-hit metrics.
-PARSE_METRIC_KEYS.add("server.block_cache_hits_caching")
-PARSE_METRIC_KEYS.add("server.block_cache_misses_caching")
-
 NaN = float('nan')
 UNKNOWN_PERCENTILES = dict(p50=0, p95=0, p99=0, p999=0, max=0)
 
@@ -111,16 +104,15 @@ def merge_delta(m, delta):
     d_zip = itertools.izip(delta.get('values', []), delta.get('counts', []))
     new_values = []
     new_counts = []
-    i = 0
-    for value, counts in itertools.groupby(heapq.merge(m_zip, d_zip), lambda x: x[0]):
-      new_values[i] = value
-      new_counts[i] = sum(c for v, c in counts)
-      i += 1
+    merged = itertools.groupby(heapq.merge(m_zip, d_zip), lambda x: x[0])
+    for value, counts in merged:
+      new_values.append(value)
+      new_counts.append(sum(c for v, c in counts))
     m['counts'] = new_counts
     m['values'] = new_values
 
 
-def json_to_map(j):
+def json_to_map(j, metric_keys):
   """
   Parse the JSON structure in the log into a python dictionary
   keyed by <entity>.<metric name>.
@@ -133,7 +125,7 @@ def json_to_map(j):
   for entity in j:
     for m in entity['metrics']:
       key = entity['type'] + "." + m['name']
-      if key not in PARSE_METRIC_KEYS:
+      if key not in metric_keys:
         continue
       if key in ret:
         merge_delta(ret[key], m)
@@ -224,12 +216,15 @@ def cache_hit_ratio(prev, cur):
     cache_ratio = NaN
   return cache_ratio
 
-def process(prev, cur):
+def process(prev, cur,
+            simple_metrics=SIMPLE_METRICS,
+            rate_metrics=RATE_METRICS,
+            histogram_metrics=HISTOGRAM_METRICS):
   """ Process a pair of metric snapshots, outputting a line of TSV. """
   delta_ts = cur['ts'] - prev['ts']
   cache_ratio = cache_hit_ratio(prev, cur)
   calc_vals = []
-  for metric, _ in SIMPLE_METRICS:
+  for metric, _ in simple_metrics:
     if not metric in cur:
       if metric in prev:
         # The diagnostics log will only report metrics that have changed, so if
@@ -244,54 +239,77 @@ def process(prev, cur):
         cur[metric]['value'] = 0
     calc_vals.append(cur[metric]['value'])
 
-  calc_vals.extend(delta(prev, cur, metric)/delta_ts for (metric, _) in RATE_METRICS)
-  for metric, _ in HISTOGRAM_METRICS:
+  calc_vals.extend(delta(prev, cur, metric)/delta_ts for (metric, _) in rate_metrics)
+  for metric, _ in histogram_metrics:
     stats = histogram_stats(prev, cur, metric)
     calc_vals.extend([stats['p50'], stats['p95'], stats['p99'], stats['p999'], stats['max']])
 
-  print (cur['ts'] + prev['ts'])/2, \
-        cache_ratio, \
-        " ".join(str(x) for x in calc_vals)
+  return tuple([(cur['ts'] + prev['ts'])/2, cache_ratio] + calc_vals)
+
+class MetricsLogIterator(object):
+  def __init__(self, paths,
+               min_interval_secs=GRANULARITY_SECS,
+               simple_metrics=SIMPLE_METRICS,
+               rate_metrics=RATE_METRICS,
+               histogram_metrics=HISTOGRAM_METRICS):
+    self.paths = paths
+    self.min_interval_secs = min_interval_secs
+    self.metric_keys = set(key for key, _ in simple_metrics + rate_metrics + histogram_metrics)
+    self.metric_keys.add("server.block_cache_hits_caching")
+    self.metric_keys.add("server.block_cache_misses_caching")
+
+    self.simple_metrics = simple_metrics
+    self.rate_metrics = rate_metrics
+    self.histogram_metrics = histogram_metrics
+
+    self.column_names = ["time", "cache_hit_ratio"]
+    self.column_names.extend([header for _, header in simple_metrics + rate_metrics])
+    for _, header in histogram_metrics:
+      self.column_names.append(header + "_p50")
+      self.column_names.append(header + "_p95")
+      self.column_names.append(header + "_p99")
+      self.column_names.append(header + "_p999")
+      self.column_names.append(header + "_max")
+
+  # Each iter of the log iterator returns a tuple of the form:
+  #   (timestamp, cache ratio, [metric_val])
+  def __iter__(self):
+    prev_data = None
+    for path in sorted(self.paths):
+      if path.endswith(".gz"):
+        f = gzip.GzipFile(path)
+      else:
+        f = file(path)
+      for line_number, line in enumerate(f, start=1):
+        # Only parse out the "metrics" lines.
+        try:
+          (_, _, log_type, ts, metrics_json) = line.split()
+        except ValueError:
+          continue
+        if not log_type == "metrics":
+          continue
+        ts = float(ts) / 1000000.0
+        prev_ts = prev_data['ts'] if prev_data else 0
+        # Enforce that the samples come in time-sorted order.
+        if ts <= prev_ts:
+          raise Exception("timestamps must be in ascending order (%f <= %f at %s:%d)"
+                          % (ts, prev_ts, path, line_number))
+        if prev_data and ts < prev_ts + self.min_interval_secs:
+          continue
+        data = json_to_map(json.loads(metrics_json), self.metric_keys)
+        data['ts'] = ts
+        if prev_data:
+          yield process(prev_data, data,
+                        self.simple_metrics,
+                        self.rate_metrics,
+                        self.histogram_metrics)
+        prev_data = data
 
 def main(argv):
-  prev_data = None
-
-  simple_headers = [header for _, header in SIMPLE_METRICS + RATE_METRICS]
-  for _, header in HISTOGRAM_METRICS:
-    simple_headers.append(header + "_p50")
-    simple_headers.append(header + "_p95")
-    simple_headers.append(header + "_p99")
-    simple_headers.append(header + "_p999")
-    simple_headers.append(header + "_max")
-
-  print "time cache_hit_ratio", " ".join(simple_headers)
-
-  for path in sorted(argv[1:]):
-    if path.endswith(".gz"):
-      f = gzip.GzipFile(path)
-    else:
-      f = file(path)
-    for line_number, line in enumerate(f, start=1):
-      # Only parse out the "metrics" lines.
-      try:
-        (_, _, log_type, ts, metrics_json) = line.split(" ")
-      except ValueError:
-        continue
-      if not log_type == "metrics":
-        continue
-      ts = float(ts) / 1000000.0
-      prev_ts = prev_data['ts'] if prev_data else 0
-      # Enforce that the samples come in time-sorted order.
-      if ts <= prev_ts:
-        raise Exception("timestamps must be in ascending order (%f <= %f at %s:%d)"
-                        % (ts, prev_ts, path, line_number))
-      if prev_data and ts < prev_ts + GRANULARITY_SECS:
-        continue
-      data = json_to_map(json.loads(metrics_json))
-      data['ts'] = ts
-      if prev_data:
-        process(prev_data, data)
-      prev_data = data
+  m = MetricsLogIterator(argv[1:])
+  for row in m:
+    print " ".join(str(x) for x in row)
+  print " ".join(m.column_names)
 
 if __name__ == "__main__":
   main(sys.argv)
