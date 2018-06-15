@@ -100,6 +100,8 @@ def merge_delta(m, delta):
 
   # Merge counts.
   if 'counts' in delta:
+    print m.get('values', []), m.get('counts', [])
+    print delta.get('values', []), delta.get('counts', [])
     m_zip = itertools.izip(m.get('values', []), m.get('counts', []))
     d_zip = itertools.izip(delta.get('values', []), delta.get('counts', []))
     new_values = []
@@ -110,6 +112,19 @@ def merge_delta(m, delta):
       new_counts.append(sum(c for v, c in counts))
     m['counts'] = new_counts
     m['values'] = new_values
+    print "merged", m['values'], m['counts']
+
+
+def strip_metric(m):
+  """
+  Strip the input metric string, returning only the values and counts for the
+  metric.
+  """
+  if 'value' in m:
+    return {'value' : m['value'] }
+
+  if 'counts' in m:
+    return { 'counts': m['counts'], 'values': m['values'] }
 
 
 def json_to_map(j, metric_keys):
@@ -124,28 +139,49 @@ def json_to_map(j, metric_keys):
   ret = {}
   for entity in j:
     for m in entity['metrics']:
+      entity_id = entity['id']
       key = entity['type'] + "." + m['name']
       if key not in metric_keys:
         continue
       if key in ret:
-        merge_delta(ret[key], m)
+        # Add the metric_id to the metrics map.
+        ret[key][entity_id] = strip_metric(m)
       else:
-        ret[key] = m
+        # Create an entry for the metrics map.
+        ret[key] = { entity_id : strip_metric(m) }
   return ret
 
 def delta(prev, cur, m):
   """ Compute the delta in metric 'm' between two metric snapshots. """
   # Update the current metric in case we have missing entries.
-  if not m in cur:
-    if m in prev:
-      cur[m] = { 'value': prev[m]['value'] }
-    else:
-      cur[m]['value'] = 0
+  return sum([val['value'] for eid, val in cur[m].iteritems()]) - \
+      sum([val['value'] for eid, val in prev[m].iteritems()])
 
-  # Calculate the delta.
-  if m in prev:
-    return cur[m]['value'] - prev[m]['value']
-  return cur[m]['value']
+def aggregate_metrics(m):
+  """ Aggregates metrics across entity ids """
+  ret = {}
+  for metric_name in m:
+    if metric_name == "ts":
+      continue
+    # Iterate through all the entities in for this metric.
+    for eid in m:
+      # Add singular values.
+      if 'value' in m[eid]:
+        if metric_name in ret:
+          ret += m[eid]
+        else:
+          ret = m[eid]
+      # Combine histogram values.
+      elif 'values' in m[eid]:
+        # Merge all of the counts.
+        added_hist = dict(zip(m[eid].get('values', []),
+                              m[eid].get('counts', [])))
+        for val, count in added_hist.iteritems():
+          if val in ret:
+            ret[val] += count
+          else:
+            ret[val] = count
+  return ret
 
 def histogram_stats(prev, cur, m):
   """
@@ -155,27 +191,16 @@ def histogram_stats(prev, cur, m):
   if not m in prev:
     return UNKNOWN_PERCENTILES
 
-  # If there's nothing in the current metrics snapshot, it means none of the
-  # metrics changed, so pull the previous metrics.
-  if not m in cur or not 'values' in cur[m]:
-    cur[m] = prev[m]
-
-  prev = prev[m]
-  cur = cur[m]
-
-  # Ensure that the current histogram has at least all of the keys contained by
-  # the previous one so we can properly count each bucket.
-  p_dict = dict(zip(prev.get('values', []),
-                    prev.get('counts', [])))
-  c_dict = dict(zip(cur.get('values', []),
-                    cur.get('counts', [])))
-  for val, count in p_dict.iteritems():
-    if not val in c_dict:
-      c_dict[val] = 0
+  p_dict = aggregate_metrics(prev[m])
+  c_dict = aggregate_metrics(cur[m])
 
   # Determine the total count we should expect between the current and previous
   # snapshots.
-  window_total = cur['total_count'] + prev['total_count']
+  window_total = sum([val for _, val in c_dict.iteritems()]) - \
+      sum([val for _, val in p_dict.iteritems()])
+
+  if window_total == 0:
+    return UNKNOWN_PERCENTILES
   res = dict()
   cum_count = 0
 
@@ -186,7 +211,7 @@ def histogram_stats(prev, cur, m):
 
     # Determine the total count for this bucket across the current and the
     # previous snapshot.
-    bucket_count = cur_count + prev_count
+    bucket_count = cur_count - prev_count
     cum_count += bucket_count
 
     # Determine which percentiles this bucket belongs to.
@@ -296,9 +321,31 @@ class MetricsLogIterator(object):
                           % (ts, prev_ts, path, line_number))
         if prev_data and ts < prev_ts + self.min_interval_secs:
           continue
+        # This map is { metric key => { entity id => metric } }
         data = json_to_map(json.loads(metrics_json), self.metric_keys)
+
+        # Merge with the previous one, pulling any missing entries from the
+        # previous metric map.
+
         data['ts'] = ts
         if prev_data:
+          # Copy missing metrics from prev_data.
+          for m, prev_eid_to_vals in prev_data.iteritems():
+            if m == 'ts':
+              continue
+
+            # The metric was missing entirely; copy it over.
+            if m not in data:
+              data[m] = prev_eid_to_vals
+            else:
+              # The metric was missing for a specific entity. Copy the metric
+              # from the previous snapshot.
+              for eid, prev_vals in prev_eid_to_vals.iteritems():
+                if eid not in data[m]:
+                  data[m][eid] = prev_vals
+
+          print "prev", prev_data
+          print "data", data
           yield process(prev_data, data,
                         self.simple_metrics,
                         self.rate_metrics,
