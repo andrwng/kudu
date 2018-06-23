@@ -395,5 +395,13 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   DISALLOW_COPY_AND_ASSIGN(TabletMetadata);
 };
 
+
+class TabletMetadataUpdate {
+  std::vector<int64_t> rowsets_to_remove;
+  std::vector<int64_t> rowsets;
+  std::vector<BlockId> new_orphaned_blocks;
+};
+
+
 } // namespace tablet
 } // namespace kudu
