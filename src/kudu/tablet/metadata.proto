@@ -74,6 +74,24 @@ enum TabletDataState {
   TABLET_DATA_TOMBSTONED = 3;
 }
 
+message SuperBlockUpdatePB {
+  optional int64 last_durable_dms_id = 1;
+  optional PartitionPB partition = 2;
+  optional string table_name = 3;
+  optional SchemaPB schema = 4;
+  optional uint32 schema_version = 5;
+  optional PartitionSchemaPB partition_schema = 6;
+  optional TabletDataState tablet_data_state = 7;
+  optional consensus.OpId tombstone_last_logged_opid = 8;
+  optional DataDirGroupPB data_dir_group = 9;
+
+  repeated uint64 removed_rowset_id = 10;
+  repeated RowSetDataPB added_rowsets = 11;
+
+  repeated BlockIdPB removed_orphaned_blocks = 12;
+  repeated BlockIdPB added_orphaned_blocks = 13;
+}
+
 // The super-block keeps track of the tablet data blocks.
 // A tablet contains one or more RowSets, which contain
 // a set of blocks (one for each column), a set of delta blocks
