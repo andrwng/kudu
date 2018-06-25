@@ -124,7 +124,7 @@ Status TabletMetadata::Load(FsManager* fs_manager,
                             TabletMetadataManager* tmeta_manager,
                             const string& tablet_id,
                             scoped_refptr<TabletMetadata>* metadata) {
-  return tmeta_manager->Load(tablet_id, metadata);
+  return tmeta_manager->Load(tablet_id, metadata, nullptr);
 }
 
 Status TabletMetadata::LoadOrCreate(FsManager* fs_manager,
@@ -188,8 +188,8 @@ vector<BlockId> TabletMetadata::CollectBlockIds() {
   return block_ids;
 }
 
-Status TabletMetadata::DeleteTabletData(TabletDataState delete_type,
-                                        const boost::optional<OpId>& last_logged_opid) {
+void TabletMetadata::ClearRowSets(TabletDataState delete_type,
+                  const boost::optional<OpId>& last_logged_opid) {
   DCHECK(!last_logged_opid || last_logged_opid->IsInitialized());
   CHECK(delete_type == TABLET_DATA_DELETED ||
         delete_type == TABLET_DATA_TOMBSTONED ||
@@ -214,29 +214,6 @@ Status TabletMetadata::DeleteTabletData(TabletDataState delete_type,
       tombstone_last_logged_opid_ = last_logged_opid;
     }
   }
-
-  // Unregister the tablet's data dir group in memory (it is stored on disk in
-  // the superblock). Even if we fail to flush below, the expectation is that
-  // we will no longer be writing to the tablet, and therefore don't need its
-  // data dir group.
-  fs_manager_->dd_manager()->DeleteDataDirGroup(tablet_id_);
-
-  // - Add all blocks to the orphaned blocks list.
-  // - Wipe the directory group.
-  // - Persist the orphaned blocks list and empty group.
-  // - Delete the orphaned blocks.
-  // - Update the empty orphaned blocks list.
-  // - Persist the empty orphaned blocks list.
-
-  // Flushing will sync the new tablet_data_state_ to disk and will now also
-  // delete all the data.
-  RETURN_NOT_OK(Flush());
-
-  // Re-sync to disk one more time.
-  // This call will typically re-sync with an empty orphaned blocks list
-  // (unless deleting any orphans failed during the last Flush()), so that we
-  // don't try to re-delete the deleted orphaned blocks on every startup.
-  return Flush();
 }
 
 bool TabletMetadata::IsTombstonedWithNoBlocks() const {
@@ -297,8 +274,6 @@ TabletMetadata::TabletMetadata(FsManager* fs_manager,
 }
 
 TabletMetadata::~TabletMetadata() {
-  STLDeleteElements(&old_schemas_);
-  delete schema_;
 }
 
 TabletMetadata::TabletMetadata(FsManager* fs_manager,
@@ -321,7 +296,8 @@ Status TabletMetadata::UpdateOnDiskSize() {
   return Status::OK();
 }
 
-Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) {
+Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock,
+                                          vector<BlockId>* orphaned_blocks_list) {
   vector<BlockId> orphaned_blocks;
 
   VLOG(2) << "Loading TabletMetadata from SuperBlockPB:" << std::endl
@@ -342,7 +318,7 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
     table_name_ = superblock.table_name();
 
     uint32_t schema_version = superblock.schema_version();
-    gscoped_ptr<Schema> schema(new Schema());
+    unique_ptr<Schema> schema(new Schema());
     RETURN_NOT_OK_PREPEND(SchemaFromPB(superblock.schema(), schema.get()),
                           "Failed to parse Schema from superblock " +
                           SecureShortDebugString(superblock));
@@ -440,8 +416,11 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
 
   // Now is a good time to clean up any orphaned blocks that may have been
   // left behind from a crash just after replacing the superblock.
-  if (!fs_manager()->read_only()) {
-    DeleteOrphanedBlocks(orphaned_blocks);
+  // if (!fs_manager()->read_only()) {
+  //   DeleteOrphanedBlocks(orphaned_blocks);
+  // }
+  if (orphaned_blocks_list) {
+    orphaned_blocks_list->swap(orphaned_blocks);
   }
 
   return Status::OK();
@@ -452,7 +431,7 @@ Status TabletMetadata::UpdateAndFlush(const RowSetMetadataIds& to_remove,
                                       int64_t last_durable_mrs_id) {
   {
     std::lock_guard<LockType> l(data_lock_);
-    RETURN_NOT_OK(UpdateUnlocked(to_remove, to_add, last_durable_mrs_id));
+    UpdateUnlocked(to_remove, to_add, last_durable_mrs_id);
   }
   return Flush();
 }
@@ -528,7 +507,7 @@ Status TabletMetadata::Flush() {
     }
     needs_flush_ = false;
 
-    RETURN_NOT_OK(ToSuperBlockUnlocked(&pb, rowsets_));
+    RETURN_NOT_OK(ToSuperBlockUnlocked(&pb));
 
     // Make a copy of the orphaned blocks list which corresponds to the superblock
     // that we're writing. It's important to take this local copy to avoid a race
@@ -539,9 +518,16 @@ Status TabletMetadata::Flush() {
     orphaned.assign(orphaned_blocks_.begin(), orphaned_blocks_.end());
   }
   pre_flush_callback_.Run();
-  RETURN_NOT_OK(ReplaceSuperBlockUnlocked(std::move(pb)));
+
+  // XXX(awong):
+  // tmeta_manager_->Write()
+  // tmeta_manager_->WriteUpdate()
+  RETURN_NOT_OK(tmeta_manager_->Flush(pb));
+  flush_count_for_tests_++;
   TRACE("Metadata flushed");
   l_flush.Unlock();
+
+  RETURN_NOT_OK(UpdateOnDiskSize());
 
   // Now that the superblock is written, try to delete the orphaned blocks.
   //
@@ -552,7 +538,7 @@ Status TabletMetadata::Flush() {
   return Status::OK();
 }
 
-Status TabletMetadata::UpdateUnlocked(
+void TabletMetadata::UpdateUnlocked(
     const RowSetMetadataIds& to_remove,
     const RowSetMetadataVector& to_add,
     int64_t last_durable_mrs_id) {
@@ -579,29 +565,6 @@ Status TabletMetadata::UpdateUnlocked(
   rowsets_ = new_rowsets;
 
   TRACE("TabletMetadata updated");
-  return Status::OK();
-}
-
-Status TabletMetadata::ReplaceSuperBlock(const TabletSuperBlockPB& pb) {
-  {
-    MutexLock l(flush_lock_);
-    RETURN_NOT_OK_PREPEND(ReplaceSuperBlockUnlocked(pb), "Unable to replace superblock");
-    fs_manager_->dd_manager()->DeleteDataDirGroup(tablet_id_);
-  }
-
-  RETURN_NOT_OK_PREPEND(LoadFromSuperBlock(pb),
-                        "Failed to load data from superblock protobuf");
-
-  return Status::OK();
-}
-
-Status TabletMetadata::ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb) {
-  flush_lock_.AssertAcquired();
-  RETURN_NOT_OK(tmeta_manager_->Flush(pb));
-  flush_count_for_tests_++;
-  RETURN_NOT_OK(UpdateOnDiskSize());
-
-  return Status::OK();
 }
 
 void TabletMetadata::SetPreFlushCallback(StatusClosure callback) {
@@ -617,11 +580,10 @@ boost::optional<consensus::OpId> TabletMetadata::tombstone_last_logged_opid() co
 Status TabletMetadata::ToSuperBlock(TabletSuperBlockPB* super_block) const {
   // acquire the lock so that rowsets_ doesn't get changed until we're finished.
   std::lock_guard<LockType> l(data_lock_);
-  return ToSuperBlockUnlocked(super_block, rowsets_);
+  return ToSuperBlockUnlocked(super_block);
 }
 
-Status TabletMetadata::ToSuperBlockUnlocked(TabletSuperBlockPB* super_block,
-                                            const RowSetMetadataVector& rowsets) const {
+Status TabletMetadata::ToSuperBlockUnlocked(TabletSuperBlockPB* super_block) const {
   DCHECK(data_lock_.is_locked());
   // Convert to protobuf
   TabletSuperBlockPB pb;
@@ -633,7 +595,7 @@ Status TabletMetadata::ToSuperBlockUnlocked(TabletSuperBlockPB* super_block,
   partition_schema_.ToPB(pb.mutable_partition_schema());
   pb.set_table_name(table_name_);
 
-  for (const shared_ptr<RowSetMetadata>& meta : rowsets) {
+  for (const shared_ptr<RowSetMetadata>& meta : rowsets_) {
     meta->ToProtobuf(pb.add_rowsets());
   }
 
@@ -690,22 +652,18 @@ RowSetMetadata *TabletMetadata::GetRowSetForTests(int64_t id) {
 }
 
 void TabletMetadata::SetSchema(const Schema& schema, uint32_t version) {
-  gscoped_ptr<Schema> new_schema(new Schema(schema));
+  unique_ptr<Schema> new_schema(new Schema(schema));
   std::lock_guard<LockType> l(data_lock_);
   SetSchemaUnlocked(std::move(new_schema), version);
 }
 
-void TabletMetadata::SetSchemaUnlocked(gscoped_ptr<Schema> new_schema, uint32_t version) {
+void TabletMetadata::SetSchemaUnlocked(unique_ptr<Schema> new_schema, uint32_t version) {
   DCHECK(new_schema->has_column_ids());
 
-  Schema* old_schema = schema_;
-  // "Release" barrier ensures that, when we publish the new Schema object,
-  // all of its initialization is also visible.
-  base::subtle::Release_Store(reinterpret_cast<AtomicWord*>(&schema_),
-                              reinterpret_cast<AtomicWord>(new_schema.release()));
-  if (PREDICT_TRUE(old_schema)) {
-    old_schemas_.push_back(old_schema);
+  if (PREDICT_TRUE(schema_)) {
+    old_schemas_.push_back(std::move(schema_));
   }
+  schema_ = std::move(new_schema);
   schema_version_ = version;
 }
 

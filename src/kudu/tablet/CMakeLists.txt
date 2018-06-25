@@ -45,6 +45,7 @@ set(TABLET_SRCS
   svg_dump.cc
   tablet_metadata.cc
   tablet_metadata_manager.cc
+  rocksdb_tablet_metadata_manager.cc
   rowset_metadata.cc
   deltafile.cc
   deltamemstore.cc

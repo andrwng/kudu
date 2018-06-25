@@ -1202,6 +1202,11 @@ Status Tablet::AlterSchema(AlterSchemaTransactionState *tx_state) {
                         << " to " << tx_state->schema()->ToString()
                         << " version " << tx_state->schema_version();
   DCHECK(schema_lock_.is_locked());
+  // XXX(awong):
+  // SuperBlockUpdate update;
+  // update.SetSchema(*tx_state->schema());
+  // update.SetVersion(tx_state->schema_version());
+  // update.SetTableName(tx_state->new_table_name());
   metadata_->SetSchema(*tx_state->schema(), tx_state->schema_version());
   if (tx_state->has_new_table_name()) {
     metadata_->SetTableName(tx_state->new_table_name());
@@ -1209,9 +1214,13 @@ Status Tablet::AlterSchema(AlterSchemaTransactionState *tx_state) {
       metric_entity_->SetAttribute("table_name", tx_state->new_table_name());
     }
   }
+  // XXX(awong):
+  // metadata_->CommitUpdate(std::move(update));
 
   // If the current schema and the new one are equal, there is nothing to do.
   if (same_schema) {
+    // XXX(awong)
+    // delete blocks
     return metadata_->Flush();
   }
 
@@ -1228,6 +1237,10 @@ Status Tablet::RewindSchemaForBootstrap(const Schema& new_schema,
   // to flush.
   VLOG_WITH_PREFIX(1) << "Rewinding schema during bootstrap to " << new_schema.ToString();
 
+  // XXX(awong):
+  // SuperBlockUpdate update;
+  // update.SetSchema(*tx_state->schema());
+  // metadata_->CommitUpdate(std::move(update));
   metadata_->SetSchema(new_schema, schema_version);
   {
     std::lock_guard<rw_spinlock> lock(component_lock_);
@@ -1428,6 +1441,11 @@ Status Tablet::FlushMetadata(const RowSetVector& to_remove,
     to_remove_meta.insert(rowset->metadata()->id());
   }
 
+  // XXX(awong):
+  // SuperBlockUpdate update;
+  // update.SetRowsetsToRemove(to_remove);
+  // update.SetRowsetsToAdd(to_add);
+  // metadata_->UpdateAndFlush(std::move(update));
   return metadata_->UpdateAndFlush(to_remove_meta, to_add, mrs_being_flushed);
 }
 
@@ -1616,6 +1634,7 @@ Status Tablet::DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
     MAYBE_FAULT(FLAGS_fault_crash_before_flush_tablet_meta_after_flush_mrs);
   }
 
+  // XXX(awong)
   // Write out the new Tablet Metadata and remove old rowsets.
   RETURN_NOT_OK_PREPEND(FlushMetadata(input.rowsets(), new_drs_metas, mrs_being_flushed),
                         "Failed to flush new tablet metadata");
@@ -2174,6 +2193,7 @@ Status Tablet::DeleteAncientUndoDeltas(int64_t* blocks_deleted, int64_t* bytes_d
   // for performance reasons.
   if (tablet_blocks_deleted > 0) {
     RETURN_NOT_OK(metadata_->Flush());
+    // XXX(awong): delete blocks
   }
 
   MonoDelta tablet_delete_duration = MonoTime::Now() - tablet_delete_start;

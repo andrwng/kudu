@@ -55,6 +55,7 @@
 #include "kudu/master/master.pb.h"
 #include "kudu/rpc/result_tracker.h"
 #include "kudu/tablet/metadata.pb.h"
+#include "kudu/tablet/rocksdb_tablet_metadata_manager.h"
 #include "kudu/tablet/tablet.h"
 #include "kudu/tablet/tablet_bootstrap.h"
 #include "kudu/tablet/tablet_metadata.h"
@@ -1011,7 +1012,9 @@ Status TSTabletManager::OpenTabletMeta(const string& tablet_id,
   LOG(INFO) << LogPrefix(tablet_id) << "Loading tablet metadata";
   TRACE("Loading metadata...");
   scoped_refptr<TabletMetadata> meta;
-  RETURN_NOT_OK(tmeta_manager_->Load(tablet_id, &meta));
+  vector<BlockId> orphaned_blocks;
+  RETURN_NOT_OK(tmeta_manager_->Load(tablet_id, &meta, &orphaned_blocks));
+  meta->DeleteOrphanedBlocks(orphaned_blocks);
   TRACE("Metadata loaded");
   metadata->swap(meta);
   return Status::OK();
@@ -1381,7 +1384,12 @@ Status TSTabletManager::DeleteTabletData(
 
   // Note: Passing an unset 'last_logged_opid' will retain the last_logged_opid
   // that was previously in the metadata.
-  RETURN_NOT_OK(meta->DeleteTabletData(delete_type, last_logged_opid));
+  meta->ClearRowSets(delete_type, last_logged_opid);
+  meta->fs_manager()->dd_manager()->DeleteDataDirGroup(tablet_id);
+  RETURN_NOT_OK(meta->Flush().AndThen([&] {
+    return meta->Flush();
+  }));
+  // RETURN_NOT_OK(meta->DeleteTabletData(delete_type, last_logged_opid));
   last_logged_opid = meta->tombstone_last_logged_opid();
   LOG(INFO) << LogPrefix(tablet_id, meta->fs_manager())
             << "tablet deleted with delete type "

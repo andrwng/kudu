@@ -130,17 +130,15 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
 
   uint32_t schema_version() const;
 
-  void SetSchema(const Schema& schema, uint32_t version);
+  virtual void SetSchema(const Schema& schema, uint32_t version);
 
-  void SetTableName(const std::string& table_name);
+  virtual void SetTableName(const std::string& table_name);
 
   // Return a reference to the current schema.
   // This pointer will be valid until the TabletMetadata is destructed,
   // even if the schema is changed.
   const Schema& schema() const {
-    const Schema* s = reinterpret_cast<const Schema*>(
-        base::subtle::Acquire_Load(reinterpret_cast<const AtomicWord*>(&schema_)));
-    return *s;
+    return *schema_;
   }
 
   // Returns the partition schema of the tablet's table.
@@ -150,7 +148,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
 
   // Set / get the tablet copy / tablet data state.
   // If set to TABLET_DATA_READY, also clears 'tombstone_last_logged_opid_'.
-  void set_tablet_data_state(TabletDataState state);
+  virtual void set_tablet_data_state(TabletDataState state);
   TabletDataState tablet_data_state() const;
 
   // Increments flush pin count by one: if flush pin count > 0,
@@ -164,7 +162,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // this method.
   Status UnPinFlush();
 
-  Status Flush();
+  virtual Status Flush();
 
   // Updates the metadata in the following ways:
   // 1. Adds rowsets from 'to_add'.
@@ -173,9 +171,9 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // 4. Updates the last durable MRS ID from 'last_durable_mrs_id',
   //    assuming it's not kNoMrsFlushed.
   static const int64_t kNoMrsFlushed = -1;
-  Status UpdateAndFlush(const RowSetMetadataIds& to_remove,
-                        const RowSetMetadataVector& to_add,
-                        int64_t last_durable_mrs_id);
+  virtual Status UpdateAndFlush(const RowSetMetadataIds& to_remove,
+                                const RowSetMetadataVector& to_add,
+                                int64_t last_durable_mrs_id);
 
   // Adds the blocks referenced by 'block_ids' to 'orphaned_blocks_'.
   //
@@ -184,26 +182,14 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   //
   // Blocks are removed from this set after they are successfully deleted
   // in a call to DeleteOrphanedBlocks().
-  void AddOrphanedBlocks(const std::vector<BlockId>& block_ids);
+  virtual void AddOrphanedBlocks(const std::vector<BlockId>& block_ids);
 
-  // Mark the superblock to be in state 'delete_type', sync it to disk, and
-  // then delete all of the rowsets in this tablet.
-  // The metadata (superblock) is not deleted. For that, call DeleteSuperBlock().
-  //
-  // 'delete_type' must be one of TABLET_DATA_DELETED, TABLET_DATA_TOMBSTONED,
-  // or TABLET_DATA_COPYING.
-  //
-  // 'last_logged_opid' should be set to the last opid in the log, if any is known.
-  // If 'last_logged_opid' is not set, then the current value of
-  // last_logged_opid is not modified. This is important for roll-forward of
-  // partially-tombstoned tablets during crash recovery.
-  //
-  // Returns only once all data has been removed.
-  //
-  // Note: this will always update the in-memory state, but upon failure,
-  // may not update the on-disk state.
-  Status DeleteTabletData(TabletDataState delete_type,
-                          const boost::optional<consensus::OpId>& last_logged_opid);
+  virtual void ClearRowSets(TabletDataState delete_type,
+                            const boost::optional<consensus::OpId>& last_logged_opid);
+
+  void SetLastDurableMrsIdForTests(int64_t mrs_id) { last_durable_mrs_id_ = mrs_id; }
+
+  void SetPreFlushCallback(StatusClosure callback);
 
   // Return true if this metadata references no blocks (either live or orphaned) and is
   // already marked as tombstoned. If this is the case, then calling DeleteTabletData
@@ -211,7 +197,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   bool IsTombstonedWithNoBlocks() const;
 
   // Permanently deletes the superblock from the disk.
-  // DeleteTabletData() must first be called and the tablet data state must be
+  // ClearRowSets() must first be called and the tablet data state must be
   // TABLET_DATA_DELETED.
   // Returns Status::InvalidArgument if the list of orphaned blocks is not empty.
   // Returns Status::IllegalState if the tablet data state is not TABLET_DATA_DELETED.
@@ -228,21 +214,24 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
 
   int64_t last_durable_mrs_id() const { return last_durable_mrs_id_; }
 
-  void SetLastDurableMrsIdForTests(int64_t mrs_id) { last_durable_mrs_id_ = mrs_id; }
-
-  void SetPreFlushCallback(StatusClosure callback);
-
   // Return the last-logged opid of a tombstoned tablet, if known.
   boost::optional<consensus::OpId> tombstone_last_logged_opid() const;
 
   // Sets *super_block to the serialized form of the current metadata.
   Status ToSuperBlock(TabletSuperBlockPB* super_block) const;
 
-  // Replace the superblock (used for bootstrap) both in memory and on disk.
-  Status ReplaceSuperBlock(const TabletSuperBlockPB &pb);
-
   // Update the in-memory state of metadata to that of the given superblock PB.
-  Status LoadFromSuperBlock(const TabletSuperBlockPB& superblock);
+  // Optionally returns the orphaned blocks for the superblock.
+  Status LoadFromSuperBlock(const TabletSuperBlockPB& superblock,
+                            std::vector<BlockId>* orphaned_blocks_list = nullptr);
+
+  // Deletes the provided 'blocks' on disk.
+  //
+  // All blocks that are successfully deleted are removed from the
+  // 'orphaned_blocks_' set.
+  //
+  // Failures are logged, but are not fatal.
+  void DeleteOrphanedBlocks(const std::vector<BlockId>& blocks);
 
   int64_t on_disk_size() const {
     return on_disk_size_.load(std::memory_order_relaxed);
@@ -268,7 +257,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   friend class TabletMetadataManager;
 
   // Compile time assert that no one deletes TabletMetadata objects.
-  ~TabletMetadata();
+  virtual ~TabletMetadata();
 
   // Constructor for creating a new tablet.
   //
@@ -287,38 +276,21 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
                  TabletMetadataManager* tmeta_manager,
                  std::string tablet_id);
 
-  void SetSchemaUnlocked(gscoped_ptr<Schema> schema, uint32_t version);
-
-  Status LoadFromDisk();
+  void SetSchemaUnlocked(std::unique_ptr<Schema> schema, uint32_t version);
 
   // Updates the cached on-disk size of the tablet superblock.
   Status UpdateOnDiskSize();
 
-  Status ReadSuperBlock(TabletSuperBlockPB *pb);
-
-  // Fully replace superblock.
-  // Requires 'flush_lock_'.
-  Status ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb);
+  // Requires 'data_lock_'.
+  void UpdateUnlocked(const RowSetMetadataIds& to_remove,
+                      const RowSetMetadataVector& to_add,
+                      int64_t last_durable_mrs_id);
 
   // Requires 'data_lock_'.
-  Status UpdateUnlocked(const RowSetMetadataIds& to_remove,
-                        const RowSetMetadataVector& to_add,
-                        int64_t last_durable_mrs_id);
-
-  // Requires 'data_lock_'.
-  Status ToSuperBlockUnlocked(TabletSuperBlockPB* super_block,
-                              const RowSetMetadataVector& rowsets) const;
+  Status ToSuperBlockUnlocked(TabletSuperBlockPB* super_block) const;
 
   // Requires 'data_lock_'.
   void AddOrphanedBlocksUnlocked(const std::vector<BlockId>& block_ids);
-
-  // Deletes the provided 'blocks' on disk.
-  //
-  // All blocks that are successfully deleted are removed from the
-  // 'orphaned_blocks_' set.
-  //
-  // Failures are logged, but are not fatal.
-  void DeleteOrphanedBlocks(const std::vector<BlockId>& blocks);
 
   // Lock protecting the underlying data.
   typedef simple_spinlock LockType;
@@ -349,7 +321,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
 
   // The current schema version. This is owned by this class.
   // We don't use gscoped_ptr so that we can do an atomic swap.
-  Schema* schema_;
+  std::unique_ptr<Schema> schema_;
   uint32_t schema_version_;
   std::string table_name_;
   PartitionSchema partition_schema_;
@@ -359,7 +331,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // a given tablet won't have thousands of "alter table" calls.
   // They are kept alive so that callers of schema() don't need to
   // worry about reference counting or locking.
-  std::vector<Schema*> old_schemas_;
+  std::vector<std::unique_ptr<Schema>> old_schemas_;
 
   // Protected by 'data_lock_'.
   BlockIdSet orphaned_blocks_;

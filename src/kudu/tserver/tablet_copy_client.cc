@@ -422,7 +422,16 @@ Status TabletCopyClient::Finish() {
   superblock_->clear_tombstone_last_logged_opid();
   superblock_->set_tablet_data_state(tablet::TABLET_DATA_READY);
 
-  RETURN_NOT_OK(meta_->ReplaceSuperBlock(*superblock_));
+  // XXX(awong): tmeta_manager_->Write(tablet_id, *superblock_);
+  // maybe create an update from the superblock
+  // maybe expose an Write() instead of an Update()
+
+  // XXX(awong): ensure only one caller.
+  DCHECK(superblock_->has_data_dir_group());
+  RETURN_NOT_OK(tmeta_manager_->Flush(*superblock_));
+
+  fs_manager_->dd_manager()->DeleteDataDirGroup(tablet_id_);
+  RETURN_NOT_OK(meta_->LoadFromSuperBlock(*superblock_));
 
   if (FLAGS_tablet_copy_save_downloaded_metadata) {
     string meta_path = fs_manager_->GetTabletMetadataPath(tablet_id_);

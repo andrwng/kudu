@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "kudu/fs/block_id.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/metadata.pb.h"
@@ -12,6 +13,7 @@ namespace kudu {
 namespace tablet {
 
 using std::string;
+using std::vector;
 using strings::Substitute;
 
 TabletMetadataManager::TabletMetadataManager(FsManager* fs_manager)
@@ -23,7 +25,8 @@ Status TabletMetadataManager::Init() const {
 }
 
 Status TabletMetadataManager::Load(const string& tablet_id,
-                                   scoped_refptr<TabletMetadata>* tmeta) {
+                                   scoped_refptr<TabletMetadata>* tmeta,
+                                   vector<BlockId>* orphaned_blocks) {
   TabletSuperBlockPB superblock;
   const string& path = fs_manager_->GetTabletMetadataPath(tablet_id);
   RETURN_NOT_OK_PREPEND(
@@ -31,8 +34,7 @@ Status TabletMetadataManager::Load(const string& tablet_id,
       Substitute("Could not load tablet metadata from $0", path));
   scoped_refptr<TabletMetadata> metadata (new TabletMetadata(fs_manager_, this, tablet_id));
 
-  // Update the directory group.
-  metadata->LoadFromSuperBlock(superblock);
+  metadata->LoadFromSuperBlock(superblock, orphaned_blocks);
 
   // Update the size.
   metadata->UpdateOnDiskSize();

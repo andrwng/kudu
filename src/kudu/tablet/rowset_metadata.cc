@@ -57,6 +57,10 @@ Status RowSetMetadata::CreateNew(TabletMetadata* tablet_metadata,
 }
 
 void RowSetMetadata::AddOrphanedBlocks(const vector<BlockId>& blocks) {
+  // XXX(awong)
+  // SuperBlockUpdate update;
+  // update.SetOrphanedBlocksToAdd(blocks);
+  // tablet_metadata_->CommitUpdate(std::move(update));
   tablet_metadata_->AddOrphanedBlocks(blocks);
 }
 
@@ -266,6 +270,11 @@ void RowSetMetadata::CommitUpdate(const RowSetMetadataUpdate& update,
   }
 
   blocks_by_col_id_.shrink_to_fit();
+  // XXX(awong)
+  // SuperBlockUpdate update;
+  // update->SetRowSetToRemove(id_);
+  // update->SetRowSetToAdd(this);
+  // metadata_->CommitUpdate(std::move(update));
 }
 
 vector<BlockId> RowSetMetadata::GetAllBlocks() {
