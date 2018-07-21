@@ -14,9 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
-#ifndef KUDU_COMMON_ROWBLOCK_H
-#define KUDU_COMMON_ROWBLOCK_H
+#pragma once
 
 #include <cstdint>
 #include <cstring>
@@ -159,6 +157,10 @@ class SelectionVectorView {
   void ClearBits(size_t nrows) {
     DCHECK_LE(nrows, sel_vec_->nrows() - row_offset_);
     BitmapChangeBits(sel_vec_->mutable_bitmap(), row_offset_, nrows, false);
+  }
+  void ClearBits(size_t row_idx, size_t nrows) {
+    DCHECK_LE(nrows, sel_vec_->nrows() - row_offset_ + row_idx);
+    BitmapChangeBits(sel_vec_->mutable_bitmap(), row_offset_ + row_idx, nrows, false);
   }
  private:
   SelectionVector* sel_vec_;
@@ -376,5 +378,3 @@ inline RowBlockRow RowBlock::row(size_t idx) const {
 }
 
 } // namespace kudu
-
-#endif

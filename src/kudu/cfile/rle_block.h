@@ -14,9 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
-#ifndef KUDU_CFILE_RLE_BLOCK_H
-#define KUDU_CFILE_RLE_BLOCK_H
+#pragma once
 
 #include <algorithm>
 #include <string>
@@ -54,7 +52,7 @@ class RleBitMapBlockBuilder final : public BlockBuilder {
     Reset();
   }
 
-  virtual int Add(const uint8_t* vals, size_t count) OVERRIDE {
+  virtual int Add(const uint8_t* vals, size_t count) override {
      for (const uint8_t* val = vals;
           val < vals + count;
           ++val) {
@@ -70,30 +68,30 @@ class RleBitMapBlockBuilder final : public BlockBuilder {
     return encoder_.len() > options_->storage_attributes.cfile_block_size;
   }
 
-  virtual Slice Finish(rowid_t ordinal_pos) OVERRIDE {
+  virtual Slice Finish(rowid_t ordinal_pos) override {
     InlineEncodeFixed32(&buf_[0], count_);
     InlineEncodeFixed32(&buf_[4], ordinal_pos);
     encoder_.Flush();
     return Slice(buf_);
   }
 
-  virtual void Reset() OVERRIDE {
+  virtual void Reset() override {
     count_ = 0;
     encoder_.Clear();
     encoder_.Reserve(kRleBitmapBlockHeaderSize, 0);
   }
 
-  virtual size_t Count() const OVERRIDE {
+  virtual size_t Count() const override {
     return count_;
   }
 
   // TODO Implement this method
-  virtual Status GetFirstKey(void* key) const OVERRIDE {
+  virtual Status GetFirstKey(void* key) const override {
     return Status::NotSupported("BOOL keys not supported");
   }
 
   // TODO Implement this method
-  virtual Status GetLastKey(void* key) const OVERRIDE {
+  virtual Status GetLastKey(void* key) const override {
     return Status::NotSupported("BOOL keys not supported");
   }
 
@@ -117,7 +115,7 @@ class RleBitMapBlockDecoder final : public BlockDecoder {
         cur_idx_(0) {
   }
 
-  virtual Status ParseHeader() OVERRIDE {
+  virtual Status ParseHeader() override {
     CHECK(!parsed_);
 
     if (data_.size() < kRleBitmapBlockHeaderSize) {
@@ -138,7 +136,7 @@ class RleBitMapBlockDecoder final : public BlockDecoder {
     return Status::OK();
   }
 
-  virtual void SeekToPositionInBlock(uint pos) OVERRIDE {
+  virtual void SeekToPositionInBlock(uint pos) override {
     CHECK(parsed_) << "Must call ParseHeader()";
     DCHECK_LE(pos, num_elems_)
       << "Tried to seek to " << pos << " which is > number of elements ("
@@ -164,7 +162,7 @@ class RleBitMapBlockDecoder final : public BlockDecoder {
     cur_idx_ = pos;
   }
 
-  virtual Status CopyNextValues(size_t *n, ColumnDataView* dst) OVERRIDE {
+  virtual Status CopyNextValues(size_t *n, ColumnDataView* dst) override {
     DCHECK(parsed_);
 
     DCHECK_LE(*n, dst->nrows());
@@ -192,18 +190,49 @@ class RleBitMapBlockDecoder final : public BlockDecoder {
     return Status::OK();
   }
 
+  virtual Status CopyNextAndEval(size_t* n,
+                                 ColumnMaterializationContext* ctx,
+                                 SelectionVectorView* sel,
+                                 ColumnDataView* dst) override {
+    ctx->SetDecoderEvalSupported();
+    *n = std::min(*n, static_cast<size_t>(num_elems_ - cur_idx_));
+
+    bool val;
+    int run_start = 0;
+    uint8_t* data_ptr = dst->data();
+    while (run_start < *n) {
+      // If the run satisfies the predicate, materialize the data.
+      size_t run_length = rle_decoder_.GetNextRun(&val, *n - run_start);
+      if (ctx->pred()->EvaluateCell(BOOL, &val)) {
+        for (int i = 0; i < run_length; i++) {
+          // Don't materialize anything that's not been selected.
+          if (sel->TestBit(run_start + i)) {
+            *(reinterpret_cast<bool*>(data_ptr)) = val;
+            data_ptr += run_length;
+          }
+        }
+      } else {
+        // The predicate isn't satisfied; clear the selection vector.
+        sel->ClearBits(run_start, run_length);
+      }
+      run_start += run_length;
+    }
+    cur_idx_ += *n;
+    return Status::OK();
+  }
+
   virtual Status SeekAtOrAfterValue(const void *value,
-                                    bool *exact_match) OVERRIDE {
+                                    bool *exact_match) override {
     return Status::NotSupported("BOOL keys are not supported!");
   }
 
-  virtual bool HasNext() const OVERRIDE { return cur_idx_ < num_elems_; }
+  virtual bool HasNext() const override { return cur_idx_ < num_elems_; }
 
-  virtual size_t Count() const OVERRIDE { return num_elems_; }
+  virtual size_t Count() const override { return num_elems_; }
 
-  virtual size_t GetCurrentIndex() const OVERRIDE { return cur_idx_; }
+  virtual size_t GetCurrentIndex() const override { return cur_idx_; }
 
-  virtual rowid_t GetFirstRowId() const OVERRIDE { return ordinal_pos_base_; }
+  virtual rowid_t GetFirstRowId() const override { return ordinal_pos_base_; }
 
  private:
   Slice data_;
@@ -228,11 +257,11 @@ class RleIntBlockBuilder final : public BlockBuilder {
     Reset();
   }
 
-  virtual bool IsBlockFull() const OVERRIDE {
+  virtual bool IsBlockFull() const override {
     return rle_encoder_.len() > options_->storage_attributes.cfile_block_size;
   }
 
-  virtual int Add(const uint8_t* vals_void, size_t count) OVERRIDE {
+  virtual int Add(const uint8_t* vals_void, size_t count) override {
     DCHECK_EQ(reinterpret_cast<uintptr_t>(vals_void) & (alignof(CppType) - 1), 0)
         << "Pointer passed to Add() must be naturally-aligned";
 
@@ -250,24 +279,24 @@ class RleIntBlockBuilder final : public BlockBuilder {
     return count;
   }
 
-  virtual Slice Finish(rowid_t ordinal_pos) OVERRIDE {
+  virtual Slice Finish(rowid_t ordinal_pos) override {
     InlineEncodeFixed32(&buf_[0], count_);
     InlineEncodeFixed32(&buf_[4], ordinal_pos);
     rle_encoder_.Flush();
     return Slice(buf_);
   }
 
-  virtual void Reset() OVERRIDE {
+  virtual void Reset() override {
     count_ = 0;
     rle_encoder_.Clear();
     rle_encoder_.Reserve(kRleBitmapBlockHeaderSize, 0);
   }
 
-  virtual size_t Count() const OVERRIDE {
+  virtual size_t Count() const override {
     return count_;
   }
 
-  virtual Status GetFirstKey(void* key) const OVERRIDE {
+  virtual Status GetFirstKey(void* key) const override {
     if (PREDICT_FALSE(count_ == 0)) {
       return Status::NotFound("No keys in the block");
     }
@@ -275,7 +304,7 @@ class RleIntBlockBuilder final : public BlockBuilder {
     return Status::OK();
   }
 
-  virtual Status GetLastKey(void* key) const OVERRIDE {
+  virtual Status GetLastKey(void* key) const override {
     if (PREDICT_FALSE(count_ == 0)) {
       return Status::NotFound("No keys in the block");
     }
@@ -316,7 +345,7 @@ class RleIntBlockDecoder final : public BlockDecoder {
         cur_idx_(0) {
   }
 
-  virtual Status ParseHeader() OVERRIDE {
+  virtual Status ParseHeader() override {
     CHECK(!parsed_);
 
     if (data_.size() < kRleBitmapBlockHeaderSize) {
@@ -338,7 +367,7 @@ class RleIntBlockDecoder final : public BlockDecoder {
     return Status::OK();
   }
 
-  virtual void SeekToPositionInBlock(uint pos) OVERRIDE {
+  virtual void SeekToPositionInBlock(uint pos) override {
     CHECK(parsed_) << "Must call ParseHeader()";
     DCHECK_LE(pos, num_elems_)
         << "Tried to seek to " << pos << " which is > number of elements ("
@@ -363,7 +392,7 @@ class RleIntBlockDecoder final : public BlockDecoder {
     cur_idx_ = pos;
   }
 
-  virtual Status SeekAtOrAfterValue(const void *value_void, bool *exact_match) OVERRIDE {
+  virtual Status SeekAtOrAfterValue(const void *value_void, bool *exact_match) override {
     // Currently using linear search as we do not check whether a
     // mid-point of a buffer will fall on a literal or not.
     //
@@ -397,7 +426,7 @@ class RleIntBlockDecoder final : public BlockDecoder {
     return Status::NotFound("not in block");
   }
 
-  virtual Status CopyNextValues(size_t *n, ColumnDataView *dst) OVERRIDE {
+  virtual Status CopyNextValues(size_t *n, ColumnDataView *dst) override {
     DCHECK(parsed_);
 
     DCHECK_LE(*n, dst->nrows());
@@ -410,32 +439,67 @@ class RleIntBlockDecoder final : public BlockDecoder {
 
     size_t to_fetch = std::min(*n, static_cast<size_t>(num_elems_ - cur_idx_));
     size_t remaining = to_fetch;
+
+    // Start iterating over the data.
     uint8_t* data_ptr = dst->data();
     while (remaining > 0) {
+      // Materialize a single cell from the decoder.
       bool result = rle_decoder_.Get(reinterpret_cast<CppType*>(data_ptr));
       DCHECK(result);
       remaining--;
       data_ptr += kCppTypeSize;
     }
 
+    // Update the current index based on the number of rows fetched.
     cur_idx_ += to_fetch;
     *n = to_fetch;
     return Status::OK();
   }
 
-  virtual bool HasNext() const OVERRIDE {
+  virtual Status CopyNextAndEval(size_t* n,
+                                 ColumnMaterializationContext* ctx,
+                                 SelectionVectorView* sel,
+                                 ColumnDataView* dst) override {
+    ctx->SetDecoderEvalSupported();
+
+    CppType val;
+    uint8_t* data_ptr = dst->data();
+    int run_start = 0;
+    *n = std::min(*n, static_cast<size_t>(num_elems_ - cur_idx_));
+    while (run_start < *n) {
+      size_t run_length = rle_decoder_.GetNextRun(&val, *n - run_start);
+      // If the run satisfies the predicate, materialize the data.
+      if (ctx->pred()->EvaluateCell(IntType, &val)) {
+        for (int i = 0; i < run_length; i++) {
+          // Don't materialize anything that's not been selected.
+          if (sel->TestBit(run_start + i)) {
+            *(reinterpret_cast<CppType*>(data_ptr)) = val;
+            data_ptr += kCppTypeSize;
+          }
+        }
+      } else {
+        // The predicate isn't satisfied; clear the selection vector.
+        sel->ClearBits(run_start, run_length);
+      }
+      run_start += run_length;
+    }
+    cur_idx_ += *n;
+    return Status::OK();
+  }
+
+  virtual bool HasNext() const override {
     return cur_idx_ < num_elems_;
   }
 
-  virtual size_t Count() const OVERRIDE {
+  virtual size_t Count() const override {
     return num_elems_;
   }
 
-  virtual size_t GetCurrentIndex() const OVERRIDE {
+  virtual size_t GetCurrentIndex() const override {
     return cur_idx_;
   }
 
-  virtual rowid_t GetFirstRowId() const OVERRIDE {
+  virtual rowid_t GetFirstRowId() const override {
     return ordinal_pos_base_;
   };
  private:
@@ -455,5 +519,3 @@ class RleIntBlockDecoder final : public BlockDecoder {
 
 } // namespace cfile
 } // namespace kudu
-
-#endif
