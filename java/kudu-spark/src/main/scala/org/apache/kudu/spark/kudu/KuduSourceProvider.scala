@@ -68,7 +68,13 @@ class KuduSourceProvider extends DataSourceV2
   }
 
   override def createReader(options: DataSourceOptions): DataSourceReader = {
-
+    new KuduSourceReader(options.get(TABLE_KEY).orElse(""),
+      options.get(KUDU_MASTER).orElse(defaultMasterAddrs),
+      options.getBoolean(FAULT_TOLERANT_SCANNER, false),
+      getScanLocalityType(options.get(SCAN_LOCALITY).orElse("closest_replica")),
+      Option(options.getLong(SCAN_REQUEST_TIMEOUT_MS, 0)),
+      Option(options.getLong(SOCKET_READ_TIMEOUT_MS, 0)),
+      null)
   }
 
 

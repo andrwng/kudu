@@ -1,7 +1,6 @@
 package org.apache.kudu.spark.kudu
 
 import java.math.BigDecimal
-import java.net.InetAddress
 import java.util
 import java.sql.Timestamp
 
@@ -9,7 +8,6 @@ import org.apache.kudu.Type
 
 import scala.collection.JavaConverters._
 import org.apache.kudu.client.KuduPredicate.ComparisonOp
-import org.apache.kudu.client.KuduScanToken.KuduScanTokenBuilder
 import org.apache.kudu.client._
 import org.apache.kudu.spark.kudu.SparkUtil._
 import org.apache.spark.TaskContext
@@ -37,7 +35,7 @@ class KuduSourceReader(private val tableName: String,
   private val table: KuduTable = context.syncClient.openTable(tableName)
 
   override def readSchema(): StructType = {
-    sparkSchema(table.getSchema, userSchema.map(_.fieldNames))
+    sparkSchema(table.getSchema)
   }
 
   override def createDataReaderFactories(): util.List[DataReaderFactory[Row]] = {
