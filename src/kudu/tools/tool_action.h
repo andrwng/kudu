@@ -309,6 +309,7 @@ class Action {
 // Returns new nodes for each major mode.
 std::unique_ptr<Mode> BuildClusterMode();
 std::unique_ptr<Mode> BuildDiagnoseMode();
+std::unique_ptr<Mode> BuildFileMode();
 std::unique_ptr<Mode> BuildFsMode();
 std::unique_ptr<Mode> BuildHmsMode();
 std::unique_ptr<Mode> BuildLocalReplicaMode();

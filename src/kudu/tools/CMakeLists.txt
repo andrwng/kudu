@@ -102,6 +102,7 @@ target_link_libraries(kudu_tools_rebalance
 add_executable(kudu
   tool_action_cluster.cc
   tool_action_diagnose.cc
+  tool_action_file.cc
   tool_action_fs.cc
   tool_action_hms.cc
   tool_action_local_replica.cc
