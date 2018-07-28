@@ -64,6 +64,20 @@ class IndexTreeIterator;
 class TypeEncodingInfo;
 struct ReaderOptions;
 
+// A CFile is laid out as follows:
+// [header][data][footer]
+//
+// Header (total size: 12 + header_size)
+// [8-bytes of magic][4-bytes header_size][`header_size` bytes of header][header checksum]...
+//
+// Footer (total size: 12 + footer_size)
+// ...[8-bytes of magic][4-bytes footer_size][checksum][`footer_size` bytes of footer]
+//
+// CBlock data:
+// BlockPointer(offset, data_size)
+// |
+// v
+// [checksum][`data_size - kChecksumSize`]
 class CFileReader {
  public:
   // Fully open a cfile using a previously opened block.
@@ -401,7 +415,9 @@ class CFileIterator : public ColumnIterator {
   DISALLOW_COPY_AND_ASSIGN(CFileIterator);
 
   struct PreparedBlock {
+    // Points to the (offset, size) within the CFile's data.
     BlockPointer dblk_ptr_;
+
     BlockHandle dblk_data_;
     gscoped_ptr<BlockDecoder> dblk_;
 
@@ -447,12 +463,12 @@ class CFileIterator : public ColumnIterator {
   // into the given PreparedBlock structure.
   //
   // This does not advance the iterator.
-  Status ReadCurrentDataBlock(const IndexTreeIterator &idx_iter,
-                              PreparedBlock *prep_block);
+  Status ReadCurrentCBlock(const IndexTreeIterator &idx_iter,
+                           PreparedBlock *prep_block);
 
   // Read the data block currently pointed to by idx_iter_, and enqueue
   // it onto the end of the prepared_blocks_ deque.
-  Status QueueCurrentDataBlock(const IndexTreeIterator &idx_iter);
+  Status QueueCurrentCBlock(const IndexTreeIterator &idx_iter);
 
   // Fully initialize the underlying cfile reader if needed, and clear any
   // seek-related state.

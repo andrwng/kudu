@@ -55,6 +55,7 @@
 #include "kudu/util/compression/compression_codec.h"
 #include "kudu/util/crc.h"
 #include "kudu/util/debug/trace_event.h"
+#include "kudu/util/debug-util.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/logging.h"
 #include "kudu/util/malloc.h"
@@ -322,6 +323,7 @@ Status CFileReader::VerifyChecksum(ArrayView<const Slice> data, const Slice& che
     checksum_value = crc::Crc32c(d.data(), d.size(), checksum_value);
   }
   if (PREDICT_FALSE(checksum_value != expected_checksum)) {
+    LOG(ERROR) << GetStackTrace();
     return Status::Corruption(
         Substitute("Checksum does not match: $0 vs expected $1",
                    checksum_value, expected_checksum));
@@ -697,7 +699,7 @@ Status CFileIterator::SeekToOrdinal(rowid_t ord_idx) {
 
     pblock_pool_scoped_ptr b = prepared_block_pool_.make_scoped_ptr(
       prepared_block_pool_.Construct());
-    RETURN_NOT_OK(ReadCurrentDataBlock(*posidx_iter_, b.get()));
+    RETURN_NOT_OK(ReadCurrentCBlock(*posidx_iter_, b.get()));
 
     // If the data block doesn't actually contain the data
     // we're looking for, then we're probably in the last
@@ -768,7 +770,7 @@ Status CFileIterator::SeekToFirst() {
 
   pblock_pool_scoped_ptr b = prepared_block_pool_.make_scoped_ptr(
     prepared_block_pool_.Construct());
-  RETURN_NOT_OK(ReadCurrentDataBlock(*idx_iter, b.get()));
+  RETURN_NOT_OK(ReadCurrentCBlock(*idx_iter, b.get()));
   b->dblk_->SeekToPositionInBlock(0);
   last_prepare_idx_ = 0;
   last_prepare_count_ = 0;
@@ -801,7 +803,7 @@ Status CFileIterator::SeekAtOrAfter(const EncodedKey &key,
 
   pblock_pool_scoped_ptr b = prepared_block_pool_.make_scoped_ptr(
     prepared_block_pool_.Construct());
-  RETURN_NOT_OK(ReadCurrentDataBlock(*validx_iter_, b.get()));
+  RETURN_NOT_OK(ReadCurrentCBlock(*validx_iter_, b.get()));
 
   Status dblk_seek_status;
   if (key.num_key_columns() > 1) {
@@ -825,7 +827,7 @@ Status CFileIterator::SeekAtOrAfter(const EncodedKey &key,
                               KUDU_REDACT(key.encoded_key().ToDebugString()));
     }
     RETURN_NOT_OK(validx_iter_->Next());
-    RETURN_NOT_OK(ReadCurrentDataBlock(*validx_iter_, b.get()));
+    RETURN_NOT_OK(ReadCurrentCBlock(*validx_iter_, b.get()));
     SeekToPositionInBlock(b.get(), 0);
   } else {
     // It's possible we got some other error seeking in our data block --
@@ -911,9 +913,12 @@ Status DecodeNullInfo(Slice *data_block, uint32_t *num_rows_in_block, Slice *nul
   return Status::OK();
 }
 
-Status CFileIterator::ReadCurrentDataBlock(const IndexTreeIterator &idx_iter,
+Status CFileIterator::ReadCurrentCBlock(const IndexTreeIterator &idx_iter,
                                            PreparedBlock *prep_block) {
   prep_block->dblk_ptr_ = idx_iter.GetCurrentBlockPointer();
+  // XXX(awong): add a prepared_block impl whose data is garbage.
+  // Use the positional index to determine the mapping of cblocks to ordinal
+  // values to get the number of blocks.
   RETURN_NOT_OK(reader_->ReadBlock(prep_block->dblk_ptr_, cache_control_, &prep_block->dblk_data_));
 
   uint32_t num_rows_in_block = 0;
@@ -952,10 +957,18 @@ Status CFileIterator::ReadCurrentDataBlock(const IndexTreeIterator &idx_iter,
   return Status::OK();
 }
 
-Status CFileIterator::QueueCurrentDataBlock(const IndexTreeIterator &idx_iter) {
+Status CFileIterator::QueueCurrentCBlock(const IndexTreeIterator &idx_iter) {
   pblock_pool_scoped_ptr b = prepared_block_pool_.make_scoped_ptr(
     prepared_block_pool_.Construct());
-  RETURN_NOT_OK(ReadCurrentDataBlock(idx_iter, b.get()));
+  Status s = ReadCurrentCBlock(idx_iter, b.get());
+  if (s.IsCorruption()) {
+    LOG(ERROR) << "Skipping cblock " << idx_iter.GetCurrentBlockPointer().ToString();
+    return Status::OK();
+  }
+  RETURN_NOT_OK(s);
+  LOG(INFO) << b->first_row_idx();
+  LOG(INFO) << b->last_row_idx();
+
   prepared_blocks_.push_back(b.release());
   return Status::OK();
 }
@@ -986,7 +999,7 @@ Status CFileIterator::PrepareBatch(size_t *n) {
     } else if (!s.ok()) {
       return s;
     }
-    RETURN_NOT_OK(QueueCurrentDataBlock(*seeked_));
+    RETURN_NOT_OK(QueueCurrentCBlock(*seeked_));
   }
 
   // Seek the first block in the queue such that the first value to be read

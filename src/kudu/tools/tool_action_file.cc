@@ -177,6 +177,7 @@ unique_ptr<Mode> BuildFileMode() {
           .Description("Read a CFile")
           .AddRequiredParameter({kPathArg, "path to a CFile"})
           .AddOptionalParameter("cfile_verify_checksums")
+          .AddOptionalParameter("skip_corrupted_cfile_blocks")
           .Build();
 
   return ModeBuilder("file")
