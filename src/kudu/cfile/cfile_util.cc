@@ -25,6 +25,8 @@
 #include <glog/logging.h>
 
 #include "kudu/cfile/cfile_reader.h"
+#include "kudu/cfile/cfile_writer.h"
+#include "kudu/cfile/type_encodings.h"
 #include "kudu/common/column_materialization_context.h"
 #include "kudu/common/columnblock.h"
 #include "kudu/common/rowblock.h"
@@ -48,6 +50,55 @@ WriterOptions::WriterOptions()
     write_validx(false),
     optimize_index_keys(true),
     validx_key_encoder(boost::none) {
+}
+
+Status DumpToCFileWriter(const CFileReader& reader,
+                         CFileIterator* it,
+                         std::unique_ptr<fs::WritableBlock> block,
+                         std::unique_ptr<CFileWriter>* writer) {
+  // Currently we don't support rewriting key CFiles.
+  if (reader.has_validx()) {
+    return Status::NotSupported("Rewriting value-indexed CFile not supported");
+  }
+  if (reader.is_nullable()) {
+    return Status::NotSupported("Rewriting nullable CFile not supported");
+  }
+  Arena arena(8192);
+  uint8_t buf[kBufSize];
+  const TypeInfo* type = reader.type_info();
+  size_t max_rows = kBufSize/type->size();
+  WriterOptions writer_options;
+  writer_options.storage_attributes.encoding = reader.type_encoding_info()->encoding_type();
+  writer_options.write_posidx = reader.has_posidx();
+  if (reader.is_compressed()) {
+    writer_options.storage_attributes.compression = reader.footer().compression();
+  }
+
+  ColumnBlock cb(type, nullptr, buf, max_rows, &arena);
+  SelectionVector sel(max_rows);
+  ColumnMaterializationContext ctx(0, nullptr, &cb, &sel);
+  std::unique_ptr<CFileWriter> cfile_writer(new CFileWriter(std::move(writer_options),
+                                                            reader.type_info(),
+                                                            reader.is_nullable(),
+                                                            std::move(block)));
+  RETURN_NOT_OK(cfile_writer->Start());
+  int rows_dumped = 0;
+  while (it->HasNext()) {
+    size_t n = max_rows - rows_dumped;
+    if (n == 0) break;
+
+    RETURN_NOT_OK(it->CopyNextValues(&n, &ctx));
+    if (reader.is_nullable()) {
+      // TODO(awong): not reachable; make sure this is correct.
+      cfile_writer->AppendNullableEntries(ctx.block()->null_bitmap(),
+                                          ctx.block()->data(),
+                                          ctx.block()->nrows());
+    } else {
+      cfile_writer->AppendEntries(cb.data(), cb.nrows());
+    }
+  }
+  *writer = std::move(cfile_writer);
+  return Status::OK();
 }
 
 Status DumpIterator(const CFileReader& reader,
@@ -103,7 +154,8 @@ Status DumpIterator(const CFileReader& reader,
 }
 
 ReaderOptions::ReaderOptions()
-  : parent_mem_tracker(MemTracker::GetRootTracker()) {
+  : parent_mem_tracker(MemTracker::GetRootTracker()),
+    fill_corrupt_values(false) {
 }
 
 size_t CommonPrefixLength(const Slice& slice_a, const Slice& slice_b) {

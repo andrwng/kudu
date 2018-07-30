@@ -44,6 +44,7 @@ class BlockDeletionTransaction;
 class BlockManager;
 class FsErrorManager;
 struct FsReport;
+class WritableBlock;
 
 // The smallest unit of Kudu data that is backed by the local filesystem.
 //
@@ -61,81 +62,6 @@ class Block {
   virtual const BlockId& id() const = 0;
 };
 
-// A block that has been opened for writing. There may only be a single
-// writing thread, and data may only be appended to the block.
-//
-// Close() is an expensive operation, as it must flush both dirty block data
-// and metadata to disk. The block manager API provides two ways to improve
-// Close() performance:
-// 1. Finalize() before Close(). When 'block_manager_preflush_control' is set
-//    to 'finalize', if there's enough work to be done between the two calls,
-//    there will be less outstanding I/O to wait for during Close().
-// 2. CloseBlocks() on a group of blocks. This ensures: 1) flushing of dirty
-//    blocks are grouped together if possible, resulting in less I/O.
-//    2) when waiting on outstanding I/O, the waiting is done in parallel.
-//
-// NOTE: if a WritableBlock is not explicitly Close()ed, it will be aborted
-// (i.e. deleted).
-class WritableBlock : public Block {
- public:
-  enum State {
-    // There is no dirty data in the block.
-    CLEAN,
-
-    // There is some dirty data in the block.
-    DIRTY,
-
-    // No more data may be written to the block, but it is not yet guaranteed
-    // to be durably stored on disk.
-    FINALIZED,
-
-    // The block is closed. No more operations can be performed on it.
-    CLOSED
-  };
-
-  // Destroy the WritableBlock. If it was not explicitly closed using Close(),
-  // this will Abort() the block.
-  virtual ~WritableBlock() {}
-
-  // Destroys the in-memory representation of the block and synchronizes
-  // dirty block data and metadata with the disk. On success, guarantees
-  // that the entire block is durable.
-  virtual Status Close() = 0;
-
-  // Like Close() but does not synchronize dirty data or metadata to disk.
-  // Meaning, after a successful Abort(), the block no longer exists.
-  virtual Status Abort() = 0;
-
-  // Get a pointer back to this block's manager.
-  virtual BlockManager* block_manager() const = 0;
-
-  // Appends the chunk of data referenced by 'data' to the block.
-  //
-  // Does not guarantee durability of 'data'; Close() must be called for all
-  // outstanding data to reach the disk.
-  virtual Status Append(const Slice& data) = 0;
-
-  // Appends multiple chunks of data referenced by 'data' to the block.
-  //
-  // Does not guarantee durability of 'data'; Close() must be called for all
-  // outstanding data to reach the disk.
-  virtual Status AppendV(ArrayView<const Slice> data) = 0;
-
-  // Signals that the block will no longer receive writes. Does not guarantee
-  // durability; Close() must still be called for that.
-  //
-  // When 'block_manager_preflush_control' is set to 'finalize', it also begins an
-  // asynchronous flush of dirty block data to disk. If there is other work
-  // to be done between the final Append() and the future Close(),
-  // Finalize() will reduce the amount of time spent waiting for outstanding
-  // I/O to complete in Close(). This is analogous to readahead or prefetching.
-  virtual Status Finalize() = 0;
-
-  // Returns the number of bytes successfully appended via Append().
-  virtual size_t BytesAppended() const = 0;
-
-  virtual State state() const = 0;
-};
 
 // A block that has been opened for reading. Multiple in-memory blocks may
 // be constructed for the same logical block, and the same in-memory block
@@ -313,6 +239,87 @@ class BlockDeletionTransaction {
   //
   // Returns the first deletion failure that was seen, if any.
   virtual Status CommitDeletedBlocks(std::vector<BlockId>* deleted) = 0;
+};
+
+// A block that has been opened for writing. There may only be a single
+// writing thread, and data may only be appended to the block.
+//
+// Close() is an expensive operation, as it must flush both dirty block data
+// and metadata to disk. The block manager API provides two ways to improve
+// Close() performance:
+// 1. Finalize() before Close(). When 'block_manager_preflush_control' is set
+//    to 'finalize', if there's enough work to be done between the two calls,
+//    there will be less outstanding I/O to wait for during Close().
+// 2. CloseBlocks() on a group of blocks. This ensures: 1) flushing of dirty
+//    blocks are grouped together if possible, resulting in less I/O.
+//    2) when waiting on outstanding I/O, the waiting is done in parallel.
+//
+// NOTE: if a WritableBlock is not explicitly Close()ed, it will be aborted
+// (i.e. deleted).
+class WritableBlock : public Block {
+ public:
+  enum State {
+    // There is no dirty data in the block.
+    CLEAN,
+
+    // There is some dirty data in the block.
+    DIRTY,
+
+    // No more data may be written to the block, but it is not yet guaranteed
+    // to be durably stored on disk.
+    FINALIZED,
+
+    // The block is closed. No more operations can be performed on it.
+    CLOSED
+  };
+
+  // Destroy the WritableBlock. If it was not explicitly closed using Close(),
+  // this will Abort() the block.
+  virtual ~WritableBlock() {}
+
+  // Destroys the in-memory representation of the block and synchronizes
+  // dirty block data and metadata with the disk. On success, guarantees
+  // that the entire block is durable.
+  virtual Status Close() = 0;
+
+  // Like Close() but does not synchronize dirty data or metadata to disk.
+  // Meaning, after a successful Abort(), the block no longer exists.
+  virtual Status Abort() = 0;
+
+  // Get a pointer back to this block's manager.
+  virtual BlockManager* block_manager() const = 0;
+
+  // Appends the chunk of data referenced by 'data' to the block.
+  //
+  // Does not guarantee durability of 'data'; Close() must be called for all
+  // outstanding data to reach the disk.
+  virtual Status Append(const Slice& data) = 0;
+
+  // Appends multiple chunks of data referenced by 'data' to the block.
+  //
+  // Does not guarantee durability of 'data'; Close() must be called for all
+  // outstanding data to reach the disk.
+  virtual Status AppendV(ArrayView<const Slice> data) = 0;
+
+  // Signals that the block will no longer receive writes. Does not guarantee
+  // durability; Close() must still be called for that.
+  //
+  // When 'block_manager_preflush_control' is set to 'finalize', it also begins an
+  // asynchronous flush of dirty block data to disk. If there is other work
+  // to be done between the final Append() and the future Close(),
+  // Finalize() will reduce the amount of time spent waiting for outstanding
+  // I/O to complete in Close(). This is analogous to readahead or prefetching.
+  virtual Status Finalize() = 0;
+
+  // Returns the number of bytes successfully appended via Append().
+  virtual size_t BytesAppended() const = 0;
+
+  virtual State state() const = 0;
+
+  virtual void NewCreationTransaction(
+      std::unique_ptr<BlockCreationTransaction>* transaction) const {
+    *transaction = block_manager()->NewCreationTransaction();
+  }
 };
 
 // Compute an upper bound for a file cache embedded within a block manager

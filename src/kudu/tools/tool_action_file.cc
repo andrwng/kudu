@@ -36,6 +36,7 @@
 
 #include "kudu/cfile/cfile_reader.h"
 #include "kudu/cfile/cfile_util.h"
+#include "kudu/cfile/cfile_writer.h"
 #include "kudu/fs/block_manager.h"
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/map-util.h"
@@ -58,6 +59,8 @@ using cfile::CFileIterator;
 using cfile::CFileReader;
 using cfile::ReaderOptions;
 using fs::ReadableBlock;
+using fs::WritableBlock;
+using fs::BlockCreationTransaction;
 using std::cout;
 using std::endl;
 using std::shared_ptr;
@@ -69,6 +72,70 @@ using strings::Substitute;
 namespace {
 
 const char *const kPathArg = "path";
+const char *const kReadCFileArg = "read_path";
+const char *const kWriteCFileArg = "write_path";
+
+class DirectBlockCreationTransaction : public BlockCreationTransaction {
+ public:
+  virtual void AddCreatedBlock(unique_ptr<WritableBlock> block) override {
+    created_blocks_.emplace_back(std::move(block));
+  }
+
+  virtual Status CommitCreatedBlocks() override {
+    for (const auto& block : created_blocks_) {
+      RETURN_NOT_OK(block->Close());
+    }
+    return Status::OK();
+  }
+ private:
+  vector<unique_ptr<WritableBlock>> created_blocks_;
+};
+
+
+class DirectWritableBlock : public WritableBlock {
+ public:
+  DirectWritableBlock(unique_ptr<WritableFile> writer)
+    : writer_(std::move(writer)),
+      state_(CLEAN),
+      id_(BlockId()),
+      bytes_appended_(0) {}
+
+  virtual Status Close() override { return Status::OK(); }
+
+  virtual Status Abort() override { return Status::OK(); }
+
+  virtual fs::BlockManager* block_manager() const override { return nullptr; }
+
+  virtual const BlockId& id() const override { return id_; }
+
+  virtual Status Append(const Slice& data) override {
+    return AppendV(ArrayView<const Slice>(&data, 1));
+  }
+
+  virtual Status AppendV(ArrayView<const Slice> data) override {
+    RETURN_NOT_OK(writer_->AppendV(data));
+    return Status::OK();
+  }
+
+  virtual Status Finalize() override { return Status::OK(); }
+
+  virtual size_t BytesAppended() const override { return 0; }
+
+  virtual State state() const override { return state_; }
+
+  virtual void NewCreationTransaction(
+      unique_ptr<BlockCreationTransaction>* transaction) const override {
+    transaction->reset(new DirectBlockCreationTransaction());
+  }
+
+ private:
+  unique_ptr<WritableFile> writer_;
+  State state_;
+  BlockId id_;
+  size_t bytes_appended_;
+
+  DISALLOW_COPY_AND_ASSIGN(DirectWritableBlock);
+};
 
 ////////////////////////////////////////////////////////////
 // FileReadableBlock
@@ -81,18 +148,18 @@ class DirectFileReadableBlock : public ReadableBlock {
 
   virtual ~DirectFileReadableBlock();
 
-  virtual Status Close() OVERRIDE;
+  virtual Status Close() override;
 
-  virtual const BlockId &id() const OVERRIDE;
+  virtual const BlockId &id() const override;
 
-  virtual Status Size(uint64_t *sz) const OVERRIDE;
+  virtual Status Size(uint64_t *sz) const override;
 
-  virtual Status Read(uint64_t offset, Slice result) const OVERRIDE;
+  virtual Status Read(uint64_t offset, Slice result) const override;
 
   virtual Status
-  ReadV(uint64_t offset, ArrayView<Slice> results) const OVERRIDE;
+  ReadV(uint64_t offset, ArrayView<Slice> results) const override;
 
-  virtual size_t memory_footprint() const OVERRIDE;
+  virtual size_t memory_footprint() const override;
 
   void HandleError(const Status &s) const;
 
@@ -169,20 +236,63 @@ Status ReadCFile(const RunnerContext &context) {
   return Status::OK();
 }
 
+// From a CFileReader, creates a CFileWriter.
+Status RewriteCFile(const RunnerContext& context) {
+  const string& read_path = FindOrDie(context.required_args, kReadCFileArg);
+  Env* env = Env::Default();
+  unique_ptr<RandomAccessFile> rfile;
+  env->NewRandomAccessFile(read_path, &rfile);
+
+  unique_ptr<fs::ReadableBlock> rblock;
+  rblock.reset(new DirectFileReadableBlock(std::move(rfile)));
+
+  ReaderOptions reader_opts;
+  reader_opts.fill_corrupt_values = true;
+  unique_ptr<CFileReader> cfile_reader;
+  RETURN_NOT_OK(CFileReader::Open(std::move(rblock), reader_opts, &cfile_reader));
+
+  CFileIterator* it_ptr;
+  RETURN_NOT_OK(cfile_reader->NewIterator(&it_ptr, CFileReader::DONT_CACHE_BLOCK));
+  unique_ptr<CFileIterator> it(it_ptr);
+  // TODO(awong): If SeekToFirst() fails because of some corruption, but we
+  // successfully read the CFile footer and know how many rows are in the
+  // CFile, we could use a DefaultColumnValueIterator instead.
+  RETURN_NOT_OK(it->SeekToFirst());
+
+  // Create a bare WritableBlock file to write to.
+  const string& write_path = FindOrDie(context.required_args, kWriteCFileArg);
+  unique_ptr<WritableFile> wfile;
+  env->NewWritableFile(write_path, &wfile);
+  unique_ptr<WritableBlock> wblock;
+  wblock.reset(new DirectWritableBlock(std::move(wfile)));
+
+  unique_ptr<cfile::CFileWriter> cfile_writer;
+  RETURN_NOT_OK(DumpToCFileWriter(*cfile_reader, it.get(), std::move(wblock), &cfile_writer));
+  RETURN_NOT_OK(cfile_writer->Finish());
+  return Status::OK();
+}
+
 } // anonymous namespace
 
 unique_ptr<Mode> BuildFileMode() {
   unique_ptr<Action> dump =
-      ActionBuilder("read", &ReadCFile)
+      ActionBuilder("read_cfile", &ReadCFile)
           .Description("Read a CFile")
           .AddRequiredParameter({kPathArg, "path to a CFile"})
           .AddOptionalParameter("cfile_verify_checksums")
-          .AddOptionalParameter("skip_corrupted_cfile_blocks")
+          .Build();
+
+  unique_ptr<Action> rewrite =
+      ActionBuilder("rewrite_cfile", &RewriteCFile)
+          .Description("Read a CFile")
+          .AddRequiredParameter({kReadCFileArg, "path to a src CFile"})
+          .AddRequiredParameter({kWriteCFileArg, "path to a dst CFile"})
           .Build();
 
   return ModeBuilder("file")
       .Description("Operate on Kudu files")
       .AddAction(std::move(dump))
+      .AddAction(std::move(rewrite))
       .Build();
 }
 

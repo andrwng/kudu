@@ -128,7 +128,8 @@ CFileReader::CFileReader(ReaderOptions options,
   file_size_(file_size),
   codec_(nullptr),
   mem_consumption_(std::move(options.parent_mem_tracker),
-                   memory_footprint()) {
+                   memory_footprint()),
+  fill_corrupt_values_(options.fill_corrupt_values) {
 }
 
 Status CFileReader::Open(unique_ptr<ReadableBlock> block,
@@ -961,7 +962,14 @@ Status CFileIterator::QueueCurrentCBlock(const IndexTreeIterator &idx_iter) {
   pblock_pool_scoped_ptr b = prepared_block_pool_.make_scoped_ptr(
     prepared_block_pool_.Construct());
   Status s = ReadCurrentCBlock(idx_iter, b.get());
-  if (s.IsCorruption()) {
+  // TODO(awong): actually have this return corrupted values instead of
+  // skipping rows.
+  //
+  // XXX(awong): A possible approach would be first collect the expected ranges
+  // for each cblock and finding any gaps that may be due to corruption, and
+  // creating "corruption" decoders where there exist gaps that fill in default
+  // values.
+  if (s.IsCorruption() && reader_->fill_corrupt_values()) {
     LOG(ERROR) << "Skipping cblock " << idx_iter.GetCurrentBlockPointer().ToString();
     return Status::OK();
   }

@@ -197,6 +197,7 @@ class CFileReader {
   // Can be called before Init().
   std::string ToString() const { return block_->id().ToString(); }
 
+  bool fill_corrupt_values() const { return fill_corrupt_values_; }
  private:
   DISALLOW_COPY_AND_ASSIGN(CFileReader);
 
@@ -231,6 +232,8 @@ class CFileReader {
   KuduOnceDynamic init_once_;
 
   ScopedTrackedConsumption mem_consumption_;
+
+  bool fill_corrupt_values_;
 };
 
 // Column Iterator interface used by the CFileSet.

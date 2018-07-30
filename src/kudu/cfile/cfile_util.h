@@ -33,10 +33,15 @@ namespace kudu {
 class MemTracker;
 class faststring;
 
+namespace fs {
+class WritableBlock;
+}  // namespace fs
+
 namespace cfile {
 
-class CFileReader;
 class CFileIterator;
+class CFileReader;
+class CFileWriter;
 
 // Used to set the CFileFooterPB bitset tracking incompatible features
 enum IncompatibleFeatures {
@@ -95,7 +100,19 @@ struct ReaderOptions {
   //
   // Default: the root tracker.
   std::shared_ptr<MemTracker> parent_mem_tracker;
+
+  // Whether, when iterating through values, the CFileReader should return some
+  // default values if a corrupted cblock is encountered. The CFile must not be
+  // a key reader CFile.
+  //
+  // Default: false, a corrupted cblock will yield an error.
+  bool fill_corrupt_values;
 };
+
+Status DumpToCFileWriter(const CFileReader& reader,
+                         CFileIterator* it,
+                         std::unique_ptr<fs::WritableBlock> block,
+                         std::unique_ptr<CFileWriter>* writer);
 
 // Dumps the contents of a cfile to 'out'; 'reader' and 'iterator'
 // must be initialized. If 'num_rows' is 0, all rows will be printed.
