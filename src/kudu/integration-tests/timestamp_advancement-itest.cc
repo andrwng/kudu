@@ -226,8 +226,29 @@ class NonAdvancedTimestampsITest : public MiniClusterITestBase {
   }
 };
 
-// Test that bootstrapping a Raft no-op from the WAL will leave advance the
-// replica's MVCC timestamps.
+// Test that an empty single replica will immediately bump its MVCC timestamp,
+// so it can be scanned.
+TEST_F(NonAdvancedTimestampsITest, TestScanSingleReplicaWithNoWrites) {
+  NO_FATALS(StartCluster(1));
+  TestWorkload create_tablet(cluster_.get());
+  create_tablet.set_num_tablets(1);
+  create_tablet.set_num_replicas(1);
+  create_tablet.Setup();
+
+  scoped_refptr<TabletReplica> replica = tablet_replica_on_ts(0);
+  const string& tablet_id = replica->tablet_id();
+
+  ScanResponsePB resp;
+  RpcController rpc;
+  ScanRequestPB req = ReqForTablet(tablet_id);
+  shared_ptr<TabletServerServiceProxy> tserver_proxy = cluster_->tserver_proxy(0);
+  ASSERT_OK(tserver_proxy->Scan(req, &resp, &rpc));
+  LOG(INFO) << "Got response: " << SecureShortDebugString(resp);
+  ASSERT_FALSE(resp.has_error());
+}
+
+// Test that bootstrapping a Raft no-op from the WAL will leave the replica in
+// a scannable state.
 TEST_F(NonAdvancedTimestampsITest, TestTimestampsAdvancedFromBootstrapNoOp) {
   // Set a low Raft heartbeat and encourage frequent elections.
   FLAGS_leader_failure_max_missed_heartbeat_periods = 1.0;
@@ -289,6 +310,15 @@ TEST_F(NonAdvancedTimestampsITest, TestTimestampsAdvancedFromBootstrapNoOp) {
   replica = tablet_replica_on_ts(kTserver);
   Timestamp cleantime = replica->tablet()->mvcc_manager()->GetCleanTimestamp();
   ASSERT_NE(cleantime, Timestamp::kInitialTimestamp);
+
+  // Verify that we can scan the replica with its MVCC timestamp raised.
+  ScanResponsePB resp;
+  RpcController rpc;
+  ScanRequestPB req = ReqForTablet(tablet_id);
+  shared_ptr<TabletServerServiceProxy> tserver_proxy = cluster_->tserver_proxy(0);
+  ASSERT_OK(tserver_proxy->Scan(req, &resp, &rpc));
+  LOG(INFO) << "Got response: " << SecureShortDebugString(resp);
+  ASSERT_FALSE(resp.has_error());
 }
 
 TEST_F(NonAdvancedTimestampsITest, TestTimestampsAdvancedFromRaftNoOp) {
@@ -312,5 +342,92 @@ TEST_F(NonAdvancedTimestampsITest, TestTimestampsAdvancedFromRaftNoOp) {
   });
 }
 
-}  // namespace itest
-}  // namespace kudu
+// Regression test for KUDU-2463, wherein scans would return incorrect results
+// if a tablet's MVCC snapshot hasn't advanced.
+TEST_F(NonAdvancedTimestampsITest, Kudu2463Test) {
+  // Set a low Raft heartbeat.
+  FLAGS_leader_failure_max_missed_heartbeat_periods = 10;
+  FLAGS_raft_enable_pre_election = false;
+  FLAGS_enable_maintenance_manager = false;
+
+  // Lower the heartbeat interval so the follower watermarks (that dictate when
+  // we can GC logs) get updated quickly.
+  FLAGS_raft_heartbeat_interval_ms = 10;
+
+  // This test doesn't depend on not having non-voters, but having three
+  // replicas on three tablet servers is simpler to work with.
+  FLAGS_raft_prepare_replacement_before_eviction = false;
+
+  scoped_refptr<TabletReplica> replica;
+  NO_FATALS(SetupClusterWithWritesInWAL(0, &replica));
+  MiniTabletServer* ts = tserver(0);
+
+  const MonoDelta kTimeout = MonoDelta::FromSeconds(30);
+  const string tablet_id = replica->tablet_id();
+
+  // Update one of the followers repeatedly to generate a bunch of config
+  // changes in all the replicas' WALs.
+  TServerDetails* leader;
+  ASSERT_OK(FindTabletLeader(ts_map_, tablet_id, kTimeout, &leader));
+  vector<TServerDetails*> followers;
+  ASSERT_OK(FindTabletFollowers(ts_map_, tablet_id, kTimeout, &followers));
+  ASSERT_FALSE(followers.empty());
+  for (int i = 0; i < 100; i++) {
+    RaftPeerPB::MemberType type = i % 2 == 0 ? RaftPeerPB::NON_VOTER : RaftPeerPB::VOTER;
+    ASSERT_OK(ChangeReplicaType(leader, tablet_id, followers[0], type, kTimeout));
+  }
+  LOG(INFO) << "Finished inserting to the WALs";
+
+  ASSERT_EVENTUALLY([&] {
+    int64_t gcable_size;
+    ASSERT_OK(replica->GetGCableDataSize(&gcable_size));
+    ASSERT_GT(gcable_size, 0);
+    LOG(INFO) << "GCing logs...";
+    ASSERT_OK(replica->RunLogGC());
+  });
+
+  LOG(INFO) << "Shutting down masters and all but one tserver...";
+  cluster_->ShutdownNodes(cluster::ClusterNodes::MASTERS_ONLY);
+  for (int i = 1; i < cluster_->num_tablet_servers(); i++) {
+    cluster_->mini_tablet_server(i)->Shutdown();
+  }
+  LOG(INFO) << "Finished shutting down masters and tservers";
+
+  rand();
+  replica.reset();
+  LOG(INFO) << "Restarting single tablet server...";
+  ts->Shutdown();
+
+  // Now allow maintenance operations and prevent heartbeating to prevent elections.
+  // logging to the single server.
+  FLAGS_enable_maintenance_manager = true;
+  FLAGS_heartbeat_interval_ms = 100000; // Tserver heartbeating.
+  FLAGS_raft_heartbeat_interval_ms = 100000;
+
+  ASSERT_OK(ts->Restart());
+  TServerDetails* ts_details = FindOrDie(ts_map_, ts->uuid());
+  ASSERT_OK(WaitUntilTabletRunning(ts_details, tablet_id, kTimeout));
+
+  // Now open a scanner for the server.
+  ScanRequestPB req;
+  ScanResponsePB resp;
+  RpcController rpc;
+  NewScanRequestPB* scan = req.mutable_new_scan_request();
+  scan->set_tablet_id(tablet_id);
+  scan->set_read_mode(READ_LATEST);
+  const Schema schema = GetSimpleTestSchema();
+  ASSERT_OK(SchemaToColumnPBs(schema, scan->mutable_projected_columns()));
+  req.set_batch_size_bytes(10000);
+
+  std::shared_ptr<TabletServerServiceProxy> tserver_proxy = cluster_->tserver_proxy(0);
+
+  // Scanning the tablet should yield an error.
+  ASSERT_OK(tserver_proxy->Scan(req, &resp, &rpc));
+  LOG(INFO) << "Got response: " << SecureShortDebugString(resp);
+  ASSERT_TRUE(resp.has_error());
+  ASSERT_EQ(resp.error().status().code(), AppStatusPB::ABORTED);
+  ASSERT_STR_CONTAINS(resp.error().status().message(), "clean time has not been advanced");
+}
+
+}  // itest
+}  // kudu

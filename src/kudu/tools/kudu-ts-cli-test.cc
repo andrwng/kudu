@@ -111,13 +111,18 @@ TEST_F(KuduTsCliTest, TestDumpTablet) {
 
   string out;
   // Test for dump_tablet when there is no data in tablet.
-  ASSERT_OK(RunKuduTool({
-    "remote_replica",
-    "dump",
-    cluster_->tablet_server(0)->bound_rpc_addr().ToString(),
-    tablet_id
-  }, &out));
-  ASSERT_EQ("", out);
+  // Because it's unsafe to scan a tablet replica that hasn't advanced its
+  // clean time, i.e. one that hasn't had any writes or elections, we assert
+  // that we are able to eventually scan.
+  ASSERT_EVENTUALLY([&] {
+    ASSERT_OK(RunKuduTool({
+      "remote_replica",
+      "dump",
+      cluster_->tablet_server(0)->bound_rpc_addr().ToString(),
+      tablet_id
+    }, &out));
+    ASSERT_EQ("", out);
+  });
 
   // Insert very little data and dump_tablet again.
   workload.Start();

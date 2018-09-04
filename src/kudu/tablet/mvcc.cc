@@ -45,6 +45,14 @@ MvccManager::MvccManager()
   cur_snap_.none_committed_at_or_after_ = Timestamp::kInitialTimestamp;
 }
 
+Status MvccManager::CheckHasAdvancedTimestamps() const {
+  if (cur_snap_.all_committed_before_ == Timestamp::kInitialTimestamp ||
+      cur_snap_.none_committed_at_or_after_ == Timestamp::kInitialTimestamp) {
+    return Status::Aborted("clean time has not been advanced past its initial value");
+  }
+  return Status::OK();
+}
+
 void MvccManager::StartTransaction(Timestamp timestamp) {
   std::lock_guard<LockType> l(lock_);
   CHECK(!cur_snap_.IsCommitted(timestamp)) << "Trying to start a new txn at an already-committed"
