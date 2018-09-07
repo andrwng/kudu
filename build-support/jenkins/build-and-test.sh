@@ -82,6 +82,9 @@
 #
 #   GRADLE_FLAGS       Default: ""
 #     Extra flags which are passed to 'gradle' when running Gradle commands.
+#
+#   ERROR_ON_TEST_FAILURE    Default: 1
+#     Whether test failures will cause this script to return an error.
 
 # If a commit messages contains a line that says 'DONT_BUILD', exit
 # immediately.
@@ -329,6 +332,7 @@ if [ "$RUN_FLAKY_ONLY" == "1" ] ; then
   BUILD_JAVA=0
 fi
 
+TESTS_FAILED=0
 EXIT_STATUS=0
 FAILURES=""
 
@@ -350,7 +354,7 @@ if [ "$ENABLE_DIST_TEST" == "1" ]; then
 fi
 
 if ! $THIRDPARTY_BIN/ctest -j$NUM_PROCS $EXTRA_TEST_FLAGS ; then
-  EXIT_STATUS=1
+  TESTS_FAILED=1
   FAILURES="$FAILURES"$'C++ tests failed\n'
 fi
 
@@ -388,7 +392,7 @@ if [ "$BUILD_JAVA" == "1" ]; then
     EXTRA_MVN_FLAGS="$EXTRA_MVN_FLAGS -Dmaven.javadoc.skip"
     EXTRA_MVN_FLAGS="$EXTRA_MVN_FLAGS $MVN_FLAGS"
     if ! mvn $EXTRA_MVN_FLAGS clean verify ; then
-      EXIT_STATUS=1
+      TESTS_FAILED=1
       FAILURES="$FAILURES"$'Java Maven build/test failed\n'
     fi
   fi
@@ -418,7 +422,7 @@ if [ "$BUILD_JAVA" == "1" ]; then
     else
       # TODO: Run `gradle check` in BUILD_TYPE DEBUG when static code analysis is fixed
       if ! ./gradlew $EXTRA_GRADLE_FLAGS clean test ; then
-        EXIT_STATUS=1
+        TESTS_FAILED=1
         FAILURES="$FAILURES"$'Java Gradle build/test failed\n'
       fi
     fi
@@ -501,7 +505,7 @@ if [ "$BUILD_PYTHON" == "1" ]; then
   if ! python setup.py test \
       --addopts="kudu --junit-xml=$TEST_LOGDIR/python_client.xml" \
       2> $TEST_LOGDIR/python_client.log ; then
-    EXIT_STATUS=1
+    TESTS_FAILED=1
     FAILURES="$FAILURES"$'Python tests failed\n'
   fi
 
@@ -559,7 +563,7 @@ if [ "$BUILD_PYTHON3" == "1" ]; then
   if ! python setup.py test \
       --addopts="kudu --junit-xml=$TEST_LOGDIR/python3_client.xml" \
       2> $TEST_LOGDIR/python3_client.log ; then
-    EXIT_STATUS=1
+    TESTS_FAILED=1
     FAILURES="$FAILURES"$'Python 3 tests failed\n'
   fi
 
@@ -610,7 +614,7 @@ if [ "$ENABLE_DIST_TEST" == "1" ]; then
   fi
 fi
 
-if [ $EXIT_STATUS != 0 ]; then
+if [ $TESTS_FAILED != 0 ]; then
   echo
   echo Tests failed, making sure we have XML files for all tests.
   echo ------------------------------------------------------------
@@ -626,10 +630,8 @@ if [ $EXIT_STATUS != 0 ]; then
       zcat $GTEST_OUTFILE | $SOURCE_ROOT/build-support/parse_test_failure.py -x > $GTEST_XMLFILE
     fi
   done
-fi
-
-# If all tests passed, ensure that they cleaned up their test output.
-if [ $EXIT_STATUS == 0 ]; then
+else
+  # If all tests passed, ensure that they cleaned up their test output.
   TEST_TMPDIR_CONTENTS=$(ls $TEST_TMPDIR)
   if [ -n "$TEST_TMPDIR_CONTENTS" ]; then
     echo "All tests passed, yet some left behind their test output."
@@ -650,6 +652,10 @@ if [ -n "$FAILURES" ]; then
   echo $FAILURES
   echo
   echo
+fi
+
+if [ "$ERROR_ON_TEST_FAILURE" == "1" ]; then
+  EXIT_STATUS=$TESTS_FAILED
 fi
 
 exit $EXIT_STATUS
