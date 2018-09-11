@@ -256,7 +256,7 @@ void RaftConsensusITest::AddOpWithTypeAndKey(const OpId& id,
                                              ConsensusRequestPB* req) {
   ReplicateMsg* msg = req->add_ops();
   msg->mutable_id()->CopyFrom(id);
-  msg->set_timestamp(id.index());
+  msg->set_timestamp(id.index() * 10000 + id.term());
   msg->set_op_type(consensus::WRITE_OP);
   WriteRequestPB* write_req = msg->mutable_write_request();
   CHECK_OK(SchemaToPB(schema_, write_req->mutable_schema()));
