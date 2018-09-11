@@ -77,7 +77,9 @@ TimeManager::TimeManager(scoped_refptr<Clock> clock, Timestamp initial_safe_time
     last_safe_ts_(initial_safe_time),
     last_advanced_safe_time_(MonoTime::Now()),
     mode_(NON_LEADER),
-    clock_(std::move(clock)) {}
+    clock_(std::move(clock)) {
+  clock_->Update(last_serial_ts_assigned_);
+}
 
 void TimeManager::SetLeaderMode() {
   Lock l(lock_);

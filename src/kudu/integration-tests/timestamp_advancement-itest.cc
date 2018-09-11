@@ -291,5 +291,26 @@ TEST_F(NonAdvancedTimestampsITest, TestTimestampsAdvancedFromBootstrapNoOp) {
   ASSERT_NE(cleantime, Timestamp::kInitialTimestamp);
 }
 
+TEST_F(NonAdvancedTimestampsITest, TestTimestampsAdvancedFromRaftNoOp) {
+  const int kTserver = 0;
+  NO_FATALS(StartCluster(3));
+
+  // Make Raft elections happen quick.
+  FLAGS_raft_heartbeat_interval_ms = 10;
+
+  // Create an empty tablet.
+  TestWorkload create_tablet(cluster_.get());;
+  create_tablet.set_num_tablets(1);
+  create_tablet.Setup();
+  scoped_refptr<TabletReplica> replica = tablet_replica_on_ts(kTserver);
+
+  // Despite there not being any writes, the replica will eventually bump its
+  // MVCC clean time from the election no-op.
+  ASSERT_EVENTUALLY([&] {
+    ASSERT_NE(replica->tablet()->mvcc_manager()->GetCleanTimestamp(),
+              Timestamp::kInitialTimestamp);
+  });
+}
+
 }  // namespace itest
 }  // namespace kudu

@@ -212,9 +212,9 @@ Status TabletReplica::Start(const ConsensusBootstrapInfo& bootstrap_info,
     }
 
     // We cannot hold 'lock_' while we call RaftConsensus::Start() because it
-    // may invoke TabletReplica::StartReplicaTransaction() during startup, causing
-    // a self-deadlock. We take a ref to members protected by 'lock_' before
-    // unlocking.
+    // may invoke TabletReplica::StartFollowerTransaction() during startup,
+    // causing a self-deadlock. We take a ref to members protected by 'lock_'
+    // before unlocking.
     RETURN_NOT_OK(consensus_->Start(
         bootstrap_info,
         std::move(peer_proxy_factory),
@@ -579,7 +579,26 @@ Status TabletReplica::GetGCableDataSize(int64_t* retention_size) const {
   return Status::OK();
 }
 
-Status TabletReplica::StartReplicaTransaction(const scoped_refptr<ConsensusRound>& round) {
+void TabletReplica::FinishConsensusOnlyRound(ConsensusRound* round) {
+  consensus::ReplicateMsg* replicate_msg = round->replicate_msg();
+  consensus::OperationType op_type = replicate_msg->op_type();
+  // The timestamp of a Raft no-op is guaranteed to be lower than the
+  // timestamps of writes in later terms. As such, we can bump the MVCC safe
+  // time, as we are guaranteed that further write timestamps will be higher
+  // than this timestamp.
+  if (op_type == consensus::NO_OP) {
+    {
+      std::lock_guard<simple_spinlock> lock(lock_);
+      if (state_ != RUNNING && state_ != BOOTSTRAPPING) {
+        return;
+      }
+    }
+    int64_t ts = replicate_msg->timestamp();
+    tablet_->mvcc_manager()->AdjustSafeTime(Timestamp(ts));
+  }
+}
+
+Status TabletReplica::StartFollowerTransaction(const scoped_refptr<ConsensusRound>& round) {
   {
     std::lock_guard<simple_spinlock> lock(lock_);
     if (state_ != RUNNING && state_ != BOOTSTRAPPING) {
