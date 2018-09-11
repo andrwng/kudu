@@ -30,6 +30,7 @@
 
 #include "kudu/clock/clock.h"
 #include "kudu/common/partition.h"
+#include "kudu/common/timestamp.h"
 #include "kudu/consensus/consensus.pb.h"
 #include "kudu/consensus/consensus_meta_manager.h"
 #include "kudu/consensus/consensus_peers.h"
@@ -39,6 +40,7 @@
 #include "kudu/consensus/raft_consensus.h"
 #include "kudu/gutil/bind.h"
 #include "kudu/gutil/bind_helpers.h"
+#include "kudu/gutil/port.h"
 #include "kudu/gutil/stl_util.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/rpc/result_tracker.h"
@@ -212,9 +214,9 @@ Status TabletReplica::Start(const ConsensusBootstrapInfo& bootstrap_info,
     }
 
     // We cannot hold 'lock_' while we call RaftConsensus::Start() because it
-    // may invoke TabletReplica::StartReplicaTransaction() during startup, causing
-    // a self-deadlock. We take a ref to members protected by 'lock_' before
-    // unlocking.
+    // may invoke TabletReplica::StartFollowerTransaction() during startup,
+    // causing a self-deadlock. We take a ref to members protected by 'lock_'
+    // before unlocking.
     RETURN_NOT_OK(consensus_->Start(
         bootstrap_info,
         std::move(peer_proxy_factory),
@@ -579,7 +581,7 @@ Status TabletReplica::GetGCableDataSize(int64_t* retention_size) const {
   return Status::OK();
 }
 
-Status TabletReplica::StartReplicaTransaction(const scoped_refptr<ConsensusRound>& round) {
+Status TabletReplica::StartFollowerTransaction(const scoped_refptr<ConsensusRound>& round) {
   {
     std::lock_guard<simple_spinlock> lock(lock_);
     if (state_ != RUNNING && state_ != BOOTSTRAPPING) {
@@ -635,6 +637,46 @@ Status TabletReplica::StartReplicaTransaction(const scoped_refptr<ConsensusRound
 
   RETURN_NOT_OK(driver->ExecuteAsync());
   return Status::OK();
+}
+
+void TabletReplica::FinishConsensusOnlyRound(ConsensusRound* round) {
+  consensus::ReplicateMsg* replicate_msg = round->replicate_msg();
+  consensus::OperationType op_type = replicate_msg->op_type();
+
+  // The timestamp of a Raft no-op is guaranteed to be lower than the
+  // timestamps of writes in further terms. As such, we are able to bump the
+  // MVCC safe time with them, as further transaction timestamps are guaranteed
+  // to be higher than it.
+  //
+  // It is important for such updates to be serialized with respect to
+  // transactions. To enforce that only advance the safe time with the no-op of
+  // term N after all transactions of term N-1 have been started, we submit the
+  // adjustment function to the prepare thread, on which transactions are
+  // serialized.
+  shared_ptr<Tablet> tablet;
+  if (op_type == consensus::NO_OP) {
+    {
+      std::lock_guard<simple_spinlock> lock(lock_);
+      if (state_ != RUNNING && state_ != BOOTSTRAPPING) {
+        return;
+      }
+      // While it isn't strictly necessary given the expected calls to this
+      // function from RaftConsensus, we're being conservative and making a
+      // copy of the reference, e.g. in case this is called during shutdown.
+      tablet = tablet_;
+    }
+    DCHECK(replicate_msg->has_noop_request());
+
+    // If the flag is unset, the no-op is assumed to be the Raft leadership
+    // no-op, and thus, in order.
+    if (!replicate_msg->noop_request().has_timestamp_in_opid_order() ||
+        replicate_msg->noop_request().timestamp_in_opid_order()) {
+      int64_t ts = replicate_msg->timestamp();
+      CHECK_OK(prepare_pool_token_->SubmitFunc([tablet, ts] {
+        tablet->mvcc_manager()->AdjustSafeTime(Timestamp(ts));
+      }));
+    }
+  }
 }
 
 Status TabletReplica::NewLeaderTransactionDriver(gscoped_ptr<Transaction> transaction,
