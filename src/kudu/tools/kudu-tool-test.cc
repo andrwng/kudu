@@ -3644,6 +3644,15 @@ TEST_F(ToolTest, TestParseStacks) {
                      "invalid JSON payload.*lacks ending quotation");
 }
 
+TEST_F(ToolTest, TestParseMetrics) {
+string metrics = "metrics 123412341234121 [{\"type\":\"tablet\",\"id\":\"awongtabletid\","
+  "\"attributes\":{\"partition\":\"awongpartition\",\"table_name\":\"awongtablename\","
+  "\"table_id\":\"awongtableid\",\"metrics\":[{\"name\":\"upserts_as_updates\",\"value\":0},"
+  "{\"name\":\"bloom_lookups_per_op\",\"total_count\":20,\"min\":0,\"mean\":10,\"percentile_75"
+  "\":20,\"percentile_99\":20,\"percentile_99_9\":30,\"percentile_99_99\":30,\"max\":30,"
+  "\"values\":[10,20,30],\"counts\":[1,18,1],\"total_sum\":4000}]}]";
+}
+
 class Is343ReplicaUtilTest :
     public ToolTest,
     public ::testing::WithParamInterface<bool> {

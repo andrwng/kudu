@@ -115,12 +115,21 @@ TEST(DiagLogParserTest, TestParseLine) {
 
 class TestSymbolsLogVisitor : public LogVisitor {
  public:
+  StatusParseRecord(const ParsedLine& pl) override {
+    if (pl.type() == RecordType::kSymbols) {
+      // XXX(awong):
+      // RETURN_NOT_OK(pl.GetSymbolRecord(&symbol));
+      // addr_ = sr.symbols_.begin().first
+      // symbol_ = sr.symbols_.begin().second
+    }
+  }
   void VisitSymbol(const string& addr, const string& symbol) override {
     addr_ = addr;
     symbol_ = symbol;
   }
 
   void VisitStacksRecord(const StacksRecord& /*sr*/) override {}
+  void VisitMetricsRecord(const string& /*blob*/) override {}
 
   string addr_;
   string symbol_;
@@ -150,6 +159,7 @@ class NoopLogVisitor : public LogVisitor {
  public:
   void VisitSymbol(const string& /*addr*/, const string& /*symbol*/) override {}
   void VisitStacksRecord(const StacksRecord& /*sr*/) override {}
+  void VisitMetricsRecord(const string& /*sr*/) override {}
 };
 
 // For parsing stacks, we'll check for success or error only. The parse_stacks
