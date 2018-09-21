@@ -595,6 +595,7 @@ Status TabletReplica::StartFollowerTransaction(const scoped_refptr<ConsensusRoun
   switch (replicate_msg->op_type()) {
     case WRITE_OP:
     {
+      LOG(INFO) << "AWONG write follower tx " << replicate_msg->timestamp() << " " << permanent_uuid();
       DCHECK(replicate_msg->has_write_request()) << "WRITE_OP replica"
           " transaction must receive a WriteRequestPB";
       unique_ptr<WriteTransactionState> tx_state(
@@ -609,6 +610,7 @@ Status TabletReplica::StartFollowerTransaction(const scoped_refptr<ConsensusRoun
     }
     case ALTER_SCHEMA_OP:
     {
+      LOG(INFO) << "AWONG alter schema follower tx " << replicate_msg->timestamp();
       DCHECK(replicate_msg->has_alter_schema_request()) << "ALTER_SCHEMA_OP replica"
           " transaction must receive an AlterSchemaRequestPB";
       unique_ptr<AlterSchemaTransactionState> tx_state(
@@ -661,14 +663,17 @@ void TabletReplica::FinishConsensusOnlyRound(ConsensusRound* round) {
         return;
       }
       // While it isn't strictly necessary given the expected calls to this
-      // function from RaftConsensus, we're being conservative and making a
-      // copy of the reference, e.g. in case this is called during shutdown.
+      // function from RaftConsensus and that the tablet outlives the prepare
+      // pool, we're being conservative and making a copy of the reference,
+      // e.g. in case this is called during shutdown.
       tablet = tablet_;
     }
     DCHECK(replicate_msg->has_noop_request());
 
     // If the flag is unset, the no-op is assumed to be the Raft leadership
     // no-op, and thus, in order.
+    LOG(INFO) << "AWONG finished consensus-only round "
+        << replicate_msg->timestamp() << " " << permanent_uuid();
     if (!replicate_msg->noop_request().has_timestamp_in_opid_order() ||
         replicate_msg->noop_request().timestamp_in_opid_order()) {
       int64_t ts = replicate_msg->timestamp();

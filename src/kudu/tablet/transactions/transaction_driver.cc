@@ -219,6 +219,8 @@ Status TransactionDriver::ExecuteAsync() {
   ADOPT_TRACE(trace());
 
   Status s;
+  LOG(INFO) << "AWONG calling execute async "
+      << SecureShortDebugString(*mutable_state()->consensus_round()->replicate_msg());
   if (replication_state_ == NOT_REPLICATING) {
     // We're a leader transaction. Before submitting, check that we are the leader and
     // determine the current term.
@@ -320,6 +322,9 @@ Status TransactionDriver::Prepare() {
       // Assign a timestamp to the transaction before we Start() it.
       RETURN_NOT_OK(consensus_->time_manager()->AssignTimestamp(
                         mutable_state()->consensus_round()->replicate_msg()));
+      LOG(INFO) << LogPrefix() << " AWONG assigned timestamp "
+          << SecureShortDebugString(*mutable_state()->consensus_round()->replicate_msg());
+      SleepFor(MonoDelta::FromMicroseconds(rand() % 100000));
       RETURN_NOT_OK(transaction_->Start());
       VLOG_WITH_PREFIX(4) << "Triggering consensus replication.";
       // Trigger consensus replication.

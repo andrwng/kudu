@@ -2637,6 +2637,9 @@ void RaftConsensus::NonTxRoundReplicationFinished(ConsensusRound* round,
   VLOG_WITH_PREFIX_UNLOCKED(1) << "Committing " << op_type_str << " with op id "
                                << round->id();
   round_handler_->FinishConsensusOnlyRound(round);
+  const string type_str = op_type == CHANGE_CONFIG_OP ? "change_config" : "no-op";
+  LOG(INFO) << LogPrefixUnlocked() << " AWONG finished round "
+      << type_str << " with ts " << round->replicate_msg()->timestamp();
   gscoped_ptr<CommitMsg> commit_msg(new CommitMsg);
   commit_msg->set_op_type(round->replicate_msg()->op_type());
   *commit_msg->mutable_commited_op_id() = round->id();

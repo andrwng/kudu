@@ -195,6 +195,10 @@ TEST_F(RaftConsensusElectionITest, ChurnyElections) {
   workload.set_write_batch_size(1);
   workload.set_num_read_threads(2);
   NO_FATALS(DoTestChurnyElections(&workload, kNumWrites));
+
+  cluster_->Shutdown();
+  NO_FATALS(cluster_->Restart());
+  SleepFor(MonoDelta::FromSeconds(3));
 }
 
 // The same test, except inject artificial latency when propagating notifications
