@@ -533,6 +533,18 @@ void AddTokenCounts(
   }
 }
 
+template <typename Collection>
+void MergeTokenCounts(Collection* const count_map,
+                    const Collection& counts_to_add) {
+  typedef typename Collection::mapped_type value_type;
+  typedef typename Collection::mapped_type count_type;
+  for (const auto& value_and_count : counts_to_add) {
+    count_type& value = LookupOrInsert(
+        count_map, value_and_count.first, count_type());
+    value += value_and_count.second;
+  }
+}
+
 // Helpers for LookupOrInsertNew(), needed to create a new value type when the
 // type itself is a pointer, i.e., these extract the actual type from a pointer.
 template <class T>

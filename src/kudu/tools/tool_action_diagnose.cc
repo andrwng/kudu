@@ -70,7 +70,7 @@ DEFINE_string(histogram_metrics, "",
 namespace {
 
 Status ParseStacksFromPath(StackDumpingLogVisitor* dlv, const string& path) {
-  LogParser fp(dlv, path);
+  LogFileParser fp(dlv, path);
   RETURN_NOT_OK(fp.Init());
   return fp.Parse();
 }
@@ -163,7 +163,7 @@ Status ParseMetrics(const RunnerContext& context) {
   std::sort(paths.begin(), paths.end());
   MetricCollectingLogVisitor mlv(std::move(opts));;
   for (const auto& path : paths) {
-    LogParser lp(&mlv, path);
+    LogFileParser lp(&mlv, path);
     RETURN_NOT_OK(lp.Init());
     lp.Parse();
   }

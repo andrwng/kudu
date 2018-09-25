@@ -128,22 +128,23 @@ Status SymbolsRecord::FromParsedLine(const ParsedLine& pl) {
 Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const ParsedLine& pl) {
   DCHECK_EQ(RecordType::kMetrics, pl.type());
   if (!pl.json()->IsArray()) {
-    return Status::InvalidArgument("Expected a json array");
+    return Status::InvalidArgument("Expected a metric json array");
   }
 
+  MetricToEntities m;
   // Initialize the metric maps based on the specified options.
-  metric_to_entities.clear();
   for (const auto& metric_to_display_name : opts.simple_metric_names) {
-    InsertIfNotPresent(&metric_to_entities, metric_to_display_name.first, {});
+    InsertIfNotPresent(&m, metric_to_display_name.first, {});
   }
   for (const auto& metric_to_display_name : opts.rate_metric_names) {
-    InsertIfNotPresent(&metric_to_entities, metric_to_display_name.first, {});
+    InsertIfNotPresent(&m, metric_to_display_name.first, {});
   }
   for (const auto& metric_to_display_name : opts.hist_metric_names) {
-    InsertIfNotPresent(&metric_to_entities, metric_to_display_name.first, {});
+    InsertIfNotPresent(&m, metric_to_display_name.first, {});
   }
 
   // [{<entity>}, {<entity>}, {<entity>}]
+  // Iterate through each entity blob and pick out the metrics.
   for (auto entity_json = pl.json()->Begin();
        entity_json != pl.json()->End();
        ++entity_json) {
@@ -161,14 +162,14 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
     if (entity_type != "tablet" && entity_type != "server") {
       return Status::InvalidArgument(Substitute("Unexpected entity type: $0", entity_type));
     }
-    if (entity_id == "tablet" &&
+    if (entity_type == "tablet" &&
         !opts.tablet_ids.empty() && !ContainsKey(opts.tablet_ids, entity_id)) {
       // If the tablet id doesn't match the user's filter, ignore it. If the
       // tablet list is empty, no tablet ids are ignored.
       continue;
     }
 
-    // [{"name":"<metric_name>","value":"<metric_value"}]
+    // [{"name":"<metric_name>","value":"<metric_value>"}]
     const auto& metrics = (*entity_json)["metrics"];
     if (!metrics.IsArray()) {
       return Status::InvalidArgument(
@@ -179,32 +180,142 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
          ++metric_json) {
       if (!metric_json->HasMember("name")) {
         return Status::InvalidArgument(
-            Substitute("Expected name field in metric entry: $0", metric_json->GetString()));
+            Substitute("Expected 'name' field in metric entry: $0", metric_json->GetString()));
       }
       const string& metric_name = (*metric_json)["name"].GetString();
       const string& full_metric_name = Substitute("$0.$1", entity_type, metric_name);
-      EntityIdToValue* entity_id_to_value = FindOrNull(metric_to_entities, full_metric_name);
+      EntityIdToValue* entity_id_to_value = FindOrNull(m, full_metric_name);
       if (entity_id_to_value) {
         // We're looking at a metric that the user hasn't requested. Ignore
         // this entry.
         continue;
       }
-      if (metric_json->HasMember("counts")) {
-        // We're looking at a histogram metric.
-        HistogramMetricValue v;
-      } else if (metric_json->HasMember("value")) {
-        MetricValue v;
-      } else {
-        return Status::InvalidArgument(
-            Substitute("Unexpected metric formatting: $0", metric_json->GetString()));;
-      }
+      MetricValue v;
+      RETURN_NOT_OK(v.FromJson(metric_json));
+
+      // We expect that in a given line, each entity reports a given metric
+      // only once. In case this isn't true, we just update the value.
+      InsertOrUpdate(entity_id_to_value, entity_id, v);
     }
   }
+  metric_to_entities.swap(m);
+}
 
+Status MetricValue::FromJson(const rapidjson::Value& metric_json) {
+  DCHECK_EQ(MetricType::kUninitialized, type_);
+  DCHECK_EQ(boost::none, counts_);
+  DCHECK_EQ(boost::none, value_);
+  if (metric_json->HasMember("counts")) {
+    // Add the counts from histogram metrics.
+    const rapidjson::Value& counts_json = metric_json["counts"];
+    if (counts_json.IsArray()) {
+      return Status::InvalidArgument("Expected 'counts' to be array type");
+    }
+    counts_ = {};
+    for (int i = 0; i < counts_json.Size(); i++) {
+      counts_.push_back(counts_json.GetInt64());
+    }
+    type_ = MetricType::kHistogram;
+  } else if (metric_json->HasMember("value")) {
+    const rapidJson::Value& value_json = *metric_json["value"];
+    if (!value_json.IsInt64()) {
+      return Status::InvalidArgument("Expected 'value' to be an int type");
+    }
+    // Add the value from plain metrics.
+    value_ = value_json.GetInt64();
+    type_ = MetricType::kPlain;
+  } else {
+    return Status::InvalidArgument(
+        Substitute("Unexpected metric formatting: $0", metric_json->GetString()));;
+  }
+  return Status::OK();
+}
+
+Status MetricValue::MergeMetric(const MetricValue& v) {
+  // If this is an empty value, just copy over the state.
+  if (type_ == MetricType::kUninitialized) {
+    type_ = v.type();
+    counts_ = v.counts_;
+    value_ = v.value_;
+    return Status::OK();
+  }
+
+  // Return an error if there is otherwise a type mismatch.
+  if (type_ != v.type()) {
+    return Status::InvalidArgument("metric type mismatch");
+  }
+
+  // Now actually do the merging.
+  switch (type_) {
+    case MetricType::kHistogram: {
+      DCHECK(counts_ && v.counts_);
+      MergeTokenCounts(&(*counts_), *v.counts_);
+    }
+    case MetricType::kPlain: {
+      DCHECK(value_ && v.value_);
+      value_ += v.value_;
+    }
+    default:
+      LOG(DFATAL) << "Unable to merge metric";
+  }
+  return Status::OK();
+}
+
+MetricCollectingLogVisitor::MetricCollectingLogVisitor(MetricsCollectingOpts opts)
+    : opts_(std::move(opts)) {
+  // Create an initial entity-to-value map for every metric of interest.
+  for (const auto& full_and_display : opts_.simple_metric_names) {
+    const auto& full_name = full_and_display.first;
+    InsertIfNotPresent(&metric_to_entities_, full_name, {});
+  }
+  for (const auto& full_and_display : opts_.rate_metric_names) {
+    const auto& full_name = full_and_display.first;
+    InsertIfNotPresent(&metric_to_entities_, full_name, {});
+  }
+  for (const auto& full_and_display : opts_.hist_metric_names) {
+    const auto& full_name = full_and_display.first;
+    InsertIfNotPresent(&metric_to_entities_, full_name, {});
+  }
+}
+
+void MetricCollectingLogVisitor::VisitMetricsRecord(const MetricsRecord& mr) {
+  // Iterate through the user-requested metrics and display what we need to.
+  for (const auto& full_and_display : opts_.simple_metric_names) {
+    const auto& full_name = full_and_display.first;
+  }
+  for (const auto& full_and_display : opts_.rate_metric_names) {
+    const auto& full_name = full_and_display.first;
+  }
+  for (const auto& full_and_display : opts_.hist_metric_names) {
+    const auto& full_name = full_and_display.first;
+  }
+
+  // Update the visitor's metrics.
+  for (const auto& metric_and_enties_map : mr.metric_to_entities) {
+    const string& metric_name = metric_and_enties_map.first;
+
+    // Update the visitor's internal map with the metrics from the record.
+    // Note: The metric record should only have parsed metrics that the visitor
+    // has in its internal map, so we can FindOrDie here.
+    auto visitor_entities_map = FindOrDie(metric_to_entities_, metric_name);
+    const auto& record_entities_map = metric_and_enties_map.second;
+    for (const auto& record_entity_and_val : record_entities_map) {
+      const string& entity_id = record_entity_and_val.first;
+      MetricValue& val = LookupOrInsert(&visitor_entities_map, entity_id, MetricValue());
+      RETURN_NOT_OK_PREPEND(val.MergeMetric(record_entity_and_val.second),
+          Substitute("Failed to merge metric $0 for entity $1", metric_name, entity_id));
+    }
+  }
 }
 
 Status MetricCollectingLogVisitor::ParseRecord(const ParsedLine& pl) {
   // Do something with the metric record.
+  if (pl.type() == RecordType::kMetrics) {
+    MetricsRecord mr;
+    RETURN_NOT_OK(mr.FromParsedLine(pl));
+    VisitMetricsRecord(mr);
+  }
+  return Status::OK();
 }
 
 Status StackDumpingLogVisitor::ParseRecord(const ParsedLine& pl) {
@@ -261,6 +372,37 @@ Status ParsedLine::ParseHeader() {
   //
   //     I0220 17:38:09.950546 metrics 1519177089950546 <json blob>...
   //
+  // Logs from before Kudu 1.7.0 have the following format:
+  //
+  //     metrics 1519177089950546 <json blob>...
+  Status s = DoParseV2Header();
+  if (!s.ok()) {
+    RETURN_NOT_OK(DoParseV1Header());
+  }
+  return Status::OK();
+}
+
+Status DoParseV1Header() {
+  if (line_.empty()) {
+    return Status::InvalidArgument("empty line");
+  }
+  array<StringPiece, 3> fields = strings::Split(
+      line_, strings::delimiter::Limit(" ", 2));
+  int64_t time_us;
+  if (!safe_strto64(fields[0].data(), fields[0].size(), &time_us)) {
+    return Status::InvalidArgument("invalid timestamp", fields[3]);
+  }
+  timestamp_ = time_us;
+  if (fields[1] == "metrics") {
+    type_ = RecordType::kMetrics;
+  } else {
+    type_ = RecordType::kUnknown;
+  }
+  json_.emplace(fields[2].ToString());
+  return Status::OK();
+}
+
+Status DoParseV2Header() {
   if (line_.empty() || line_[0] != 'I') {
     return Status::InvalidArgument("lines must start with 'I'");
   }
@@ -305,12 +447,6 @@ string ParsedLine::date_time() const {
   return Substitute("$0 $1", date_, time_);
 }
 
-Status LogLineParser::ParseLine(string line) {
-  ParsedLine pl(std::move(line));
-  RETURN_NOT_OK(pl.Parse());
-  return visitor_->ParseRecord(pl);
-}
-
 Status StacksRecord::FromParsedLine(const ParsedLine& pl) {
   date_time = pl.date_time();
 
@@ -346,20 +482,22 @@ Status StacksRecord::FromParsedLine(const ParsedLine& pl) {
   return Status::OK();
 }
 
-Status LogParser::Init() {
+Status LogFileParser::Init() {
   errno = 0;
   if (!fstream_.is_open() || !HasNext()) {
     return Status::IOError(ErrnoToString(errno));
   }
+  // XXX(awong): why?
+  // Determine the parser type?
   string first_line = PeekNextLine();
   return Status::OK();
 }
 
-bool LogParser::HasNext() {
+bool LogFileParser::HasNext() {
   return fstream_.peek() != EOF;
 }
 
-string LogParser::PeekNextLine() {
+string LogFileParser::PeekNextLine() {
   DCHECK(HasNext());
   string line;
   int initial_pos = fstream_.tellg();
@@ -368,19 +506,20 @@ string LogParser::PeekNextLine() {
   return line;
 }
 
-Status LogParser::ParseLine() {
+Status LogFileParser::ParseLine() {
   DCHECK(HasNext());
   line_number_++;
   string line;
   std::getline(fstream_, line);
   ParsedLine pl(std::move(line));
-  RETURN_NOT_OK(pl.Parse());
-  RETURN_NOT_OK_PREPEND(log_visitor_->ParseRecord(pl),
-                        Substitute("line $0 in file $1", line_number_, path_));;
+  const string error_msg = Substitute("Failed to parse lin $0 in file $1",
+                                      line_number_, path_);
+  RETURN_NOT_OK_PREPEND(pl.Parse(), error_msg);
+  RETURN_NOT_OK_PREPEND(log_visitor_->ParseRecord(pl), error_msg);
   return Status::OK();
 }
 
-Status LogParser::Parse() {
+Status LogFileParser::Parse() {
   string line;
   Status s;
   while (HasNext()) {

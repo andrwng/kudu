@@ -72,6 +72,8 @@ class ParsedLine {
 
   std::string date_time() const;
 
+  int64_t timestamp() const { return timestamp_; }
+
  private:
   const std::string line_;
   RecordType type_;
@@ -115,15 +117,23 @@ class LogVisitor {
   virtual Status ParseRecord(const ParsedLine& pl) = 0;
 };
 
-class MetricValue {
- public:
-  virtual Status FromJson(const rapidjson::Value& metric_value);
+enum class MetricType {
+  kUninitialized,
+  kPlain,
+  kHistogram,
 };
 
-class HistogramMetricValue : public MetricValue {
+class MetricValue {
  public:
-  Status FromJson(const rapidjson::Value& metric_value);
- private:
+  Status FromJson(const rapidjson::Value& metric_json);
+  Status MergeMetric(const MetricValue& v);
+  MetricType type() const;
+  Status CheckMatchingType(const MetricValue& v);
+ protected:
+  MetricType type_;
+
+  boost::optional<int64_t> value_;
+  boost::optional<std::vector<int64_t, int64_t>> counts_;
 };
 
 // For a given metric, a collection of entity ids and their metric value.
@@ -164,6 +174,8 @@ struct MetricsCollectingOpts {
 // Design goal: keep the contents as small as possible.
 struct MetricsRecord {
   Status FromParsedLine(const MetricsCollectingOpts& opts, const ParsedLine& pl);
+
+  // { <entity>.<metric name>:string => { <entity id>:string => <metric value> }
   MetricToEntities metric_to_entities;
 };
 
@@ -173,6 +185,8 @@ class MetricCollectingLogVisitor : public LogVisitor {
     : opts_(std::move(opts)) {}
 
   Status ParseRecord(const ParsedLine& pl) override;
+
+  void VisitMetricsRecord(const MetricsRecord& mr);
  private:
   // Maps the full metric name to the mapping between entity ids and their
   // metric value. As the visitor visits new metrics records, this gets updated
@@ -214,26 +228,13 @@ enum class DiagnosticLogVersion {
   kVersion2,
 };
 
-class LogLineParser {
- public:
-  explicit LogLineParser(LogVisitor* visitor)
-    : visitor_(DCHECK_NOTNULL(visitor)) {}
-
-  // Parse the next line of the log. This function may invoke the appropriate
-  // visitor functions zero or more times.
-  Status ParseLine(std::string line);
-
- private:
-  LogVisitor* visitor_;
-};
-
 // Parser for a metrics log files.
 //
 // This instance follows a 'SAX' model. As records are available, the appropriate
 // functions are invoked on the visitor provided in the constructor.
-class LogParser {
+class LogFileParser {
  public:
-  explicit LogParser(LogVisitor* lv, std::string path)
+  explicit LogFileParser(LogVisitor* lv, std::string path)
     : path_(std::move(path)),
       fstream_(path_),
       log_visitor_(lv) {}
