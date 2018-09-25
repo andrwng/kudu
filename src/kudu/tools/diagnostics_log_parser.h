@@ -19,9 +19,9 @@
 
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <boost/optional/optional.hpp>
@@ -75,6 +75,9 @@ class ParsedLine {
   int64_t timestamp() const { return timestamp_; }
 
  private:
+  Status DoParseV2Header();
+  Status DoParseV1Header();
+
   const std::string line_;
   RecordType type_;
 
@@ -125,15 +128,16 @@ enum class MetricType {
 
 class MetricValue {
  public:
+  MetricValue();
   Status FromJson(const rapidjson::Value& metric_json);
   Status MergeMetric(const MetricValue& v);
-  MetricType type() const;
+  MetricType type() const { return type_; }
   Status CheckMatchingType(const MetricValue& v);
  protected:
   MetricType type_;
 
   boost::optional<int64_t> value_;
-  boost::optional<std::vector<int64_t, int64_t>> counts_;
+  boost::optional<std::unordered_map<int64_t, int>> counts_;
 };
 
 // For a given metric, a collection of entity ids and their metric value.
@@ -143,12 +147,10 @@ typedef std::unordered_map<std::string, MetricValue> EntityIdToValue;
 // metric values.
 typedef std::unordered_map<std::string, EntityIdToValue> MetricToEntities;
 
-// A full metric name, i.e. <entity>.<metric name>
-typedef std::pair<std::string, std::string> FullMetricName;
-
 struct MetricsCollectingOpts {
   // Maps the full metric name to its display name.
-  typedef std::unordered_map<FullMetricName, std::string> NameMap;
+  // A full metric name, i.e. <entity>.<metric name>
+  typedef std::unordered_map<std::string, std::string> NameMap;
 
   // The metric names and display names of the metrics of interest.
   NameMap simple_metric_names;
@@ -157,7 +159,7 @@ struct MetricsCollectingOpts {
 
   // Set of tablet ids whose metrics that should be aggregated.
   // If empty, all tablets' metrics will be aggregated.
-  std::unordered_set<std::string> tablet_ids;
+  std::set<std::string> tablet_ids;
 
   // The timestamps of interest in microseconds.
   // [inclusive_ts_lower_us, exclusive_ts_upper_us)
@@ -181,12 +183,11 @@ struct MetricsRecord {
 
 class MetricCollectingLogVisitor : public LogVisitor {
  public:
-  MetricCollectingLogVisitor(MetricsCollectingOpts opts)
-    : opts_(std::move(opts)) {}
+  MetricCollectingLogVisitor(MetricsCollectingOpts opts);
 
   Status ParseRecord(const ParsedLine& pl) override;
 
-  void VisitMetricsRecord(const MetricsRecord& mr);
+  Status VisitMetricsRecord(const MetricsRecord& mr);
  private:
   // Maps the full metric name to the mapping between entity ids and their
   // metric value. As the visitor visits new metrics records, this gets updated

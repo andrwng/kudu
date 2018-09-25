@@ -162,7 +162,7 @@ SET_KUDU_TEST_LINK_LIBS(
   kudu_tools_test_util
   kudu_tools_util
   mini_cluster)
-ADD_KUDU_TEST(diagnostics_log_parser-test)
+# ADD_KUDU_TEST(diagnostics_log_parser-test)
 ADD_KUDU_TEST(ksck-test)
 ADD_KUDU_TEST(ksck_remote-test PROCESSORS 3)
 ADD_KUDU_TEST(kudu-admin-test

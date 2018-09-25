@@ -53,7 +53,7 @@ const char* kRateMetricsList = "rate_metrics";
 const char* kSimpleMetricsList = "simple_metrics";
 const char* kTabletList = "tablet_ids";
 
-DEFINE_string(tablets, "",
+DEFINE_string(tablet_ids, "",
               "Comma-separated list of table ids to aggregate tablet metrics "
               "across. Defaults to aggregating all tablets.");
 DEFINE_string(simple_metrics, "",
@@ -63,7 +63,7 @@ DEFINE_string(simple_metrics, "",
               "Kudu metric name, and <display name> is what the metric will "
               "be output as.");
 DEFINE_string(rate_metrics, "",
-              "Comma-separated list of metrics to compute the rate of.");
+              "Comma-separated list of metrics to compute the rates of.");
 DEFINE_string(histogram_metrics, "",
               "Comma-separated list of histogram metrics to parse percentiles "
               "for");
@@ -127,7 +127,7 @@ Status AddMetricsToDisplayNameMap(const string& metric_params_str,
     if (entity != "server" && entity != "tablet") {
       return Status::InvalidArgument(Substitute("Unexpected entity type $0", entity));
     }
-    const FullMetricName full_name = { entity, metric_name };
+    const string full_name = Substitute("$0.$1", entity, metric_name);
     if (!EmplaceIfNotPresent(name_map, full_name, std::move(params.display_name))) {
       return Status::InvalidArgument(
           Substitute("Duplicate metric name for $0.$1", entity, metric_name));
@@ -154,16 +154,17 @@ Status ParseMetrics(const RunnerContext& context) {
                 &opts.hist_metric_names));
 
   // Parse the tablet ids.
-  if (!FLAGS_tablets.empty()) {
-    vector<string> tablet_ids = SplitOnComma(FLAGS_tablets);
-    opts.tablet_ids.emplace(tablet_ids.begin(), tablet_ids.end());
+  if (!FLAGS_tablet_ids.empty()) {
+    vector<string> tablet_ids = SplitOnComma(FLAGS_tablet_ids);
+    std::set<string> tablet_set(tablet_ids.begin(), tablet_ids.end());
+    opts.tablet_ids = tablet_set;
   }
 
   // Sort the files lexicographically to put them in increasing timestamp order.
   std::sort(paths.begin(), paths.end());
-  MetricCollectingLogVisitor mlv(std::move(opts));;
-  for (const auto& path : paths) {
-    LogFileParser lp(&mlv, path);
+  MetricCollectingLogVisitor mlv(std::move(opts));
+  for (const string& path : paths) {
+    LogFileParser lp(dynamic_cast<LogVisitor*>(&mlv), path);
     RETURN_NOT_OK(lp.Init());
     lp.Parse();
   }
@@ -186,7 +187,7 @@ unique_ptr<Mode> BuildDiagnoseMode() {
       .Description("Parse metrics out of a diagnostics log")
       .AddRequiredParameter({ kGlobList,
           "Comma-separated list of globs to log file(s) to parse" })
-      .AddOptionalParameter("tablets")
+      .AddOptionalParameter("tablet_ids")
       .AddOptionalParameter("simple_metrics")
       .AddOptionalParameter("rate_metrics")
       .AddOptionalParameter("histogram_metrics")
@@ -195,6 +196,7 @@ unique_ptr<Mode> BuildDiagnoseMode() {
   return ModeBuilder("diagnose")
       .Description("Diagnostic tools for Kudu servers and clusters")
       .AddAction(std::move(parse_stacks))
+      .AddAction(std::move(parse_metrics))
       .Build();
 }
 
