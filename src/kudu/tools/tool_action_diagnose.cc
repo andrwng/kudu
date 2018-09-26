@@ -20,7 +20,7 @@
 #include <cerrno>
 #include <fstream> // IWYU pragma: keep
 #include <memory>
-#include <regex>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -32,6 +32,7 @@
 #include "kudu/tools/tool_action.h"
 #include "kudu/util/env.h"
 #include "kudu/util/errno.h"
+#include "kudu/util/regex.h"
 #include "kudu/util/status.h"
 
 namespace kudu {
@@ -96,13 +97,14 @@ struct MetricNameParams {
 
 // Parses a metric parameter of the form <entity>.<metric>:<display name>.
 Status SplitMetricNameParams(const string& name_str, MetricNameParams* out) {
-  static std::regex kMetricRegex("^([:alpha:]+)\\.([:alpha:]+)\\:([:alpha:]+)$");
-  std::smatch match;
-  if (!std::regex_search(name_str, match, kMetricRegex) || match.size() != 4) {
+
+  vector<string> matches;
+  static KuduRegex re("([-_[:alpha:]]+)\\.([-_[:alpha:]]+):([-_[:alpha:]]+)", 3);
+  if (!re.Match(name_str, &matches)) {
     return Status::InvalidArgument(Substitute("Could not parse metric "
        "parameter. Expected <entity>.<metric>:<display name>, got $0", name_str));
   }
-  *out = { match[1], match[2], match[3] };
+  *out = { std::move(matches[0]), std::move(matches[1]), std::move(matches[2]) };
   return Status::OK();
 }
 
@@ -141,6 +143,7 @@ Status ParseMetrics(const RunnerContext& context) {
   // Parse the locations of the diagnostics files.
   vector<string> paths;
   for (const auto& glob : SplitOnComma(FindOrDie(args, kGlobList))) {
+    LOG(INFO) << glob;
     RETURN_NOT_OK(Env::Default()->Glob(glob, &paths));
   }
 
@@ -164,7 +167,7 @@ Status ParseMetrics(const RunnerContext& context) {
   std::sort(paths.begin(), paths.end());
   MetricCollectingLogVisitor mlv(std::move(opts));
   for (const string& path : paths) {
-    LogFileParser lp(dynamic_cast<LogVisitor*>(&mlv), path);
+    LogFileParser lp(&mlv, path);
     RETURN_NOT_OK(lp.Init());
     lp.Parse();
   }

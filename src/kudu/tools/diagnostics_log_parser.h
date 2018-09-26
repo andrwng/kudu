@@ -134,6 +134,7 @@ class MetricValue {
   MetricType type() const { return type_; }
   Status CheckMatchingType(const MetricValue& v);
  protected:
+  friend class MetricCollectingLogVisitor;
   MetricType type_;
 
   boost::optional<int64_t> value_;

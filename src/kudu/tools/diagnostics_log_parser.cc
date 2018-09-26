@@ -179,7 +179,7 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
       return Status::InvalidArgument(
           Substitute("Expected metric array: $0", metrics.GetString()));
     }
-    for (auto metric_json = metrics.Begin();
+    for (const auto* metric_json = metrics.Begin();
          metric_json != metrics.End();
          ++metric_json) {
       if (!metric_json->HasMember("name")) {
@@ -189,17 +189,17 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
       const string& metric_name = (*metric_json)["name"].GetString();
       const string& full_metric_name = Substitute("$0.$1", entity_type, metric_name);
       EntityIdToValue* entity_id_to_value = FindOrNull(m, full_metric_name);
-      if (entity_id_to_value) {
+      if (!entity_id_to_value) {
         // We're looking at a metric that the user hasn't requested. Ignore
         // this entry.
         continue;
       }
       MetricValue v;
-      RETURN_NOT_OK(v.FromJson(metric_json));
+      RETURN_NOT_OK(v.FromJson(*metric_json));
 
       // We expect that in a given line, each entity reports a given metric
       // only once. In case this isn't true, we just update the value.
-      InsertOrUpdate(entity_id_to_value, entity_id, v);
+      EmplaceOrUpdate(entity_id_to_value, entity_id, std::move(v));
     }
   }
   metric_to_entities.swap(m);
@@ -207,9 +207,9 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
 }
 
 Status MetricValue::FromJson(const rapidjson::Value& metric_json) {
-  DCHECK(MetricType::kUninitialized != type_);
-  DCHECK(boost::none != counts_);
-  DCHECK(boost::none != value_);
+  DCHECK(MetricType::kUninitialized == type_);
+  DCHECK(boost::none == counts_);
+  DCHECK(boost::none == value_);
   if (metric_json.HasMember("counts")) {
     // Add the counts from histogram metrics.
     const rapidjson::Value& counts_json = metric_json["counts"];
@@ -245,8 +245,8 @@ Status MetricValue::MergeMetric(const MetricValue& v) {
   // If this is an empty value, just copy over the state.
   if (type_ == MetricType::kUninitialized) {
     type_ = v.type();
-    *counts_ = *v.counts_;
-    *value_ = *v.value_;
+    counts_ = v.counts_;
+    value_ = v.value_;
     return Status::OK();
   }
 
@@ -260,10 +260,12 @@ Status MetricValue::MergeMetric(const MetricValue& v) {
     case MetricType::kHistogram: {
       DCHECK(counts_ && v.counts_);
       MergeTokenCounts(&(*counts_), *v.counts_);
+      break;
     }
     case MetricType::kPlain: {
       DCHECK(value_ && v.value_);
       *value_ += *v.value_;
+      break;
     }
     default:
       LOG(DFATAL) << "Unable to merge metric";
@@ -276,6 +278,7 @@ MetricCollectingLogVisitor::MetricCollectingLogVisitor(MetricsCollectingOpts opt
   // Create an initial entity-to-value map for every metric of interest.
   for (const auto& full_and_display : opts_.simple_metric_names) {
     const auto& full_name = full_and_display.first;
+    LOG(INFO) << "collecting simple metric " << full_name;
     InsertIfNotPresent(&metric_to_entities_, full_name, EntityIdToValue());
   }
   for (const auto& full_and_display : opts_.rate_metric_names) {
@@ -292,7 +295,12 @@ Status MetricCollectingLogVisitor::VisitMetricsRecord(const MetricsRecord& mr) {
   // Iterate through the user-requested metrics and display what we need to.
   for (const auto& full_and_display : opts_.simple_metric_names) {
     const auto& full_name = full_and_display.first;
-    LOG(INFO) << "full_name: " << full_name;
+    const auto& entities_to_values = FindOrDie(mr.metric_to_entities, full_name);
+    int64_t sum = 0;
+    for (const auto& e : entities_to_values) {
+      sum += *e.second.value_;
+    }
+    LOG(INFO) << full_name << ": " << sum;
   }
   for (const auto& full_and_display : opts_.rate_metric_names) {
     const auto& full_name = full_and_display.first;
@@ -403,11 +411,11 @@ Status ParsedLine::DoParseV1Header() {
   array<StringPiece, 3> fields = strings::Split(
       line_, strings::delimiter::Limit(" ", 2));
   int64_t time_us;
-  if (!safe_strto64(fields[0].data(), fields[0].size(), &time_us)) {
-    return Status::InvalidArgument("invalid timestamp", fields[3]);
+  if (!safe_strto64(fields[1].data(), fields[1].size(), &time_us)) {
+    return Status::InvalidArgument("invalid timestamp", fields[1]);
   }
   timestamp_ = time_us;
-  if (fields[1] == "metrics") {
+  if (fields[0] == "metrics") {
     type_ = RecordType::kMetrics;
   } else {
     type_ = RecordType::kUnknown;
@@ -503,7 +511,7 @@ Status LogFileParser::Init() {
   }
   // XXX(awong): why?
   // Determine the parser type?
-  string first_line = PeekNextLine();
+  // string first_line = PeekNextLine();
   return Status::OK();
 }
 
@@ -539,6 +547,7 @@ Status LogFileParser::Parse() {
   while (HasNext()) {
     s = ParseLine();
     if (s.IsEndOfFile()) {
+      LOG(INFO) << "Reached end of time range";
       return Status::OK();
     }
     RETURN_NOT_OK(s);
