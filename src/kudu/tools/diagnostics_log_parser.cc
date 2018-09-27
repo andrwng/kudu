@@ -203,6 +203,7 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
     }
   }
   metric_to_entities.swap(m);
+  timestamp = pl.timestamp();
   return Status::OK();
 }
 
@@ -293,15 +294,19 @@ MetricCollectingLogVisitor::MetricCollectingLogVisitor(MetricsCollectingOpts opt
 
 Status MetricCollectingLogVisitor::VisitMetricsRecord(const MetricsRecord& mr) {
   // Iterate through the user-requested metrics and display what we need to.
+  cout << mr.timestamp;
   for (const auto& full_and_display : opts_.simple_metric_names) {
     const auto& full_name = full_and_display.first;
     const auto& entities_to_values = FindOrDie(mr.metric_to_entities, full_name);
+    // TODO(awong): we could probably cache the sum from the previous
+    // iteration.
     int64_t sum = 0;
     for (const auto& e : entities_to_values) {
       sum += *e.second.value_;
     }
-    LOG(INFO) << full_name << ": " << sum;
+    cout << Substitute("\t$0", sum);
   }
+  cout << std::endl;
   for (const auto& full_and_display : opts_.rate_metric_names) {
     const auto& full_name = full_and_display.first;
     LOG(INFO) << "full_name: " << full_name;
@@ -534,7 +539,7 @@ Status LogFileParser::ParseLine() {
   string line;
   std::getline(fstream_, line);
   ParsedLine pl(std::move(line));
-  const string error_msg = Substitute("Failed to parse lin $0 in file $1",
+  const string error_msg = Substitute("Failed to parse line $0 in file $1",
                                       line_number_, path_);
   RETURN_NOT_OK_PREPEND(pl.Parse(), error_msg);
   RETURN_NOT_OK_PREPEND(log_visitor_->ParseRecord(pl), error_msg);

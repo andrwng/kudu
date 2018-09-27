@@ -180,6 +180,8 @@ struct MetricsRecord {
 
   // { <entity>.<metric name>:string => { <entity id>:string => <metric value> }
   MetricToEntities metric_to_entities;
+
+  int64_t timestamp;
 };
 
 class MetricCollectingLogVisitor : public LogVisitor {

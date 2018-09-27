@@ -168,8 +168,10 @@ Status ParseMetrics(const RunnerContext& context) {
   MetricCollectingLogVisitor mlv(std::move(opts));
   for (const string& path : paths) {
     LogFileParser lp(&mlv, path);
-    RETURN_NOT_OK(lp.Init());
-    lp.Parse();
+    Status s = lp.Init().AndThen([&lp] {
+      return lp.Parse();
+    });
+    WARN_NOT_OK(s, "Skipping file");
   }
   return Status::OK();
 }
