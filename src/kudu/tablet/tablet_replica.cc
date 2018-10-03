@@ -595,6 +595,8 @@ Status TabletReplica::StartReplicaTransaction(const scoped_refptr<ConsensusRound
     {
       DCHECK(replicate_msg->has_write_request()) << "WRITE_OP replica"
           " transaction must receive a WriteRequestPB";
+      LOG(INFO) << "AWONG: " << LogPrefix() << " Starting replica transaction "
+          << replicate_msg->timestamp();
       unique_ptr<WriteTransactionState> tx_state(
           new WriteTransactionState(
               this,

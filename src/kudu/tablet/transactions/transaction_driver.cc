@@ -320,6 +320,8 @@ Status TransactionDriver::Prepare() {
       // Assign a timestamp to the transaction before we Start() it.
       RETURN_NOT_OK(consensus_->time_manager()->AssignTimestamp(
                         mutable_state()->consensus_round()->replicate_msg()));
+      LOG(INFO) << LogPrefix() << " preparing leader txn "
+          << mutable_state()->consensus_round()->replicate_msg()->timestamp();
       RETURN_NOT_OK(transaction_->Start());
       VLOG_WITH_PREFIX(4) << "Triggering consensus replication.";
       // Trigger consensus replication.

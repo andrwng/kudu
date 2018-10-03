@@ -320,6 +320,7 @@ TEST_F(ExactlyOnceSemanticsITest, TestWritesWithExactlyOnceSemanticsWithChurnyEl
   ts_flags.push_back("--raft_heartbeat_interval_ms=5");
 #else
   ts_flags.emplace_back("--raft_heartbeat_interval_ms=2");
+  ts_flags.emplace_back("--inject_latency_ms_before_starting_txn=100");
 #endif
 
   int num_batches = 200;

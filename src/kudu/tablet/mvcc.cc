@@ -22,6 +22,7 @@
 #include <ostream>
 #include <utility>
 
+#include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include "kudu/gutil/map-util.h"
@@ -30,7 +31,16 @@
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/countdown_latch.h"
 #include "kudu/util/debug/trace_event.h"
+#include "kudu/util/fault_injection.h"
+#include "kudu/util/flag_tags.h"
 #include "kudu/util/monotime.h"
+
+DEFINE_int32(inject_latency_ms_before_starting_txn, 0,
+             "Amount of latency in ms to inject before registering "
+             "a transaction with MVCC.");
+TAG_FLAG(inject_latency_ms_before_starting_txn, advanced);
+TAG_FLAG(inject_latency_ms_before_starting_txn, hidden);
+TAG_FLAG(inject_latency_ms_before_starting_txn, unsafe);
 
 namespace kudu {
 namespace tablet {
@@ -46,6 +56,7 @@ MvccManager::MvccManager()
 }
 
 void MvccManager::StartTransaction(Timestamp timestamp) {
+  MAYBE_INJECT_RANDOM_LATENCY(FLAGS_inject_latency_ms_before_starting_txn);
   std::lock_guard<LockType> l(lock_);
   CHECK(!cur_snap_.IsCommitted(timestamp)) << "Trying to start a new txn at an already-committed"
                                            << " timestamp: " << timestamp.ToString()
