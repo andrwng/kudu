@@ -329,6 +329,10 @@ message ErrorStatusPB {
     // The authentication token is invalid or expired;
     // the client should obtain a new one.
     FATAL_INVALID_AUTHENTICATION_TOKEN = 16;
+
+    // The authentication token is invalid or expired;
+    // the client should obtain a new one.
+    FATAL_INVALID_AUTHORIZATION_TOKEN = 17;
   }
 
   required string message = 1;

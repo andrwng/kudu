@@ -21,11 +21,47 @@ option java_package = "org.apache.kudu.security";
 
 import "kudu/util/pb_util.proto";
 
+message ColumnPrivilegePB {
+  // If set, the user has privileges to select and apply predicates on the
+  // column during scans.
+  optional bool scan_privilege = 1;
+};
+
+message TablePrivilegePB {
+  // The ID of the table to which the privileges applies.
+  optional string table_id = 1;
+
+  // If set, the user is authorized to perform any write or scan on the table,
+  // and all other privilege settings are ignored. If unset, the user is
+  // authorized based on the other privilege fields in this message.
+  optional bool all_privileges = 2;
+
+  // If set, the user is authorized to select and apply predicates to all
+  // columns when scanning the table, and `column_privileges` is ignored. If
+  // unset, the user may only scan and apply predicates to columns with the
+  // privileges specified in `column_privileges`.
+  optional bool scan_privilege = 3;
+
+  // If set, the user is authorized to insert rows into the table.
+  optional bool insert_privilege= 4;
+
+  // If set, the user is authorized to update rows in the table.
+  optional bool update_privilege = 5;
+
+  // If set, the user is authorized to delete rows in the table.
+  optional bool delete_privilege = 6;
+
+  // Per-column privileges, indexed by column ID.
+  map<int32, ColumnPrivilegePB> column_privileges = 7;
+};
+
 message AuthnTokenPB {
   optional string username = 1;
 };
 
 message AuthzTokenPB {
+  optional string username = 1;
+  optional TablePrivilegePB table_privilege = 2;
 };
 
 message TokenPB {

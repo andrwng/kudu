@@ -28,11 +28,17 @@
 #include "kudu/gutil/port.h"
 #include "kudu/util/rw_mutex.h"
 
+namespace boost {
+template<class T>
+class optional;
+} // namespace boost
+
 namespace kudu {
 class Status;
 
 namespace security {
 class SignedTokenPB;
+class TablePrivilegePB;
 class TokenSigningPrivateKey;
 class TokenSigningPrivateKeyPB;
 class TokenVerifier;
@@ -74,16 +80,18 @@ class TokenVerifier;
 // '-' propagation interval
 //       The TSK is already created but not yet used to sign tokens. However,
 //       its public part is already being sent to the components which
-//       may be involved in validation of tokens signed by the key.
+//       may be involved in validation of tokens signed by the key. This is
+//       exactly 'tsk_propagation_period'.
 //
 // 'A' activity interval
 //       The TSK is used to sign tokens. It's assumed that the components which
-//       are involved in token verification have already received
-//       the corresponding public part of the TSK.
+//       are involved in token verification have already received the
+//       corresponding public part of the TSK.
 //
 // '=' inactivity interval
-//       The TSK is no longer used to sign tokens. However, it's still sent
-//       to other components which validate token signatures.
+//       The TSK is no longer used to sign tokens. However, its public part is
+//       still sent to other components and can be used to validate token
+//       signatures.
 //
 // Shortly after the TSK's expiration the token signing components stop
 // propagating its public part.
@@ -98,7 +106,7 @@ class TokenVerifier;
 //       implications, so it's worth considering rolling twice at startup.
 //
 // For example, consider the following configuration for token signing keys:
-//   validity period:      4 days
+//   max validity period:  4 days
 //   rotation interval:    1 days
 //   propagation interval: 1 day
 //
@@ -111,23 +119,30 @@ class TokenVerifier;
 //                              ...............
 // authn token:                     <**********>
 //
-// 'A' indicates the 'Originator Usage Period' (a.k.a. 'Activity Interval'),
-// i.e. the period in which the key is being used to sign tokens.
+// 'A' indicates 'Activity Interval', i.e. the period during which the key is
+// being used to sign tokens. In cryptographic terms, this is the 'Originator
+// Usage Period'. Note that the Activity Interval is identically the rotation
+// interval.
 //
-// '<...>' indicates the 'Recipient Usage Period': the period in which
-// the verifier may get tokens signed by the TSK and should consider them
-// for verification. The start of the recipient usage period is not crucial
-// in that regard, but the end of that period is -- after the TSK is expired,
-// a verifier should consider tokens signed by that TSK invalid and stop
-// accepting them even if the token signature is correct and the expiration.
+// '<...>' in cryptographic terms, indicates the 'Recipient Usage Period': the
+// period during which the public part of a key is used to sign tokens, and
+// verifiers will consider tokens signed by the given key as valid. At the end
+// of this period, a verifier should consider tokens signed by the given TSK
+// invalid and stop accepting them, even if the token signature is correct.
 //
 // '<***>' indicates the validity interval for an authn token.
 //
 // When configuring key rotation and authn token validity interval durations,
 // consider the following constraint:
 //
-//   max_token_validity < tsk_validity_period -
+//   max_token_validity = tsk_validity_period -
 //       (tsk_propagation_interval + tsk_rotation_interval)
+//
+// I.e. note how if the validity period for a token created at the end of the
+// Activity Interval were to extend any farther than the above
+// 'max_token_validity', it would be considered valid beyond the end of the
+// 'tsk_validity_period', which would break the constraint that the token only
+// be valid within the TSK's validity period.
 //
 // The idea is that the token validity interval should be contained in the
 // corresponding TSK's validity interval. If the TSK is already expired at the
@@ -139,7 +154,7 @@ class TokenVerifier;
 //
 // * A TSK is issued at 00:00:00 on day 4.
 // * An authn token generated and signed by current/active TSK at 23:59:59 on
-//   day 6. That's at the very end of the TSK's activity interval.
+//   day 5. That's at the very end of the TSK's activity interval.
 // * From the diagram above it's clear that if the authn token validity
 //   interval were set to something longer than TSK inactivity interval
 //   (which is 2 days with for the specified parameters), an attempt to verify
@@ -179,23 +194,28 @@ class TokenVerifier;
 //
 class TokenSigner {
  public:
-  // The 'key_validity_seconds' and 'key_rotation_seconds' parameters define
-  // the schedule of TSK rotation. See the class comment above for details.
+  // The 'validity_seconds' and 'key_rotation_seconds' parameters define the
+  // schedule of TSK rotation. See the class comment above for details.
   //
   // Any newly imported or generated keys are automatically imported into the
   // passed 'verifier'. If no verifier passed as a parameter, TokenSigner
   // creates one on its own. In either case, it's possible to access
   // the embedded TokenVerifier instance using the verifier() accessor.
   //
-  // The 'authn_token_validity_seconds' parameter is used to specify validity
-  // interval for the generated authn tokens and with 'key_rotation_seconds'
-  // it defines validity interval of the newly generated TSK:
-  //   key_validity = 2 * key_rotation + authn_token_validity.
+  // The 'authn_token_validity_seconds' and 'authz_token_validity_seconds'
+  // parameters are used to specify validity intervals for the generated tokens
+  // and with 'key_rotation_seconds' it defines validity interval of the newly
+  // generated TSK:
   //
-  // That corresponds to the maximum possible token lifetime for the effective
-  // TSK validity and rotation intervals: see the class comment above for
-  // details.
+  //   key_validity =
+  //      2 * key_rotation + max(authn_token_validity, authz_token_validity)
+  //
+  // This selects the maximum possible token lifetime as either the authn or
+  // authz token validity interval, and based on that, calculates the effective
+  // TSK validity period based on the provided rotation interval. See the above
+  // class comment for details.
   TokenSigner(int64_t authn_token_validity_seconds,
+              int64_t authz_token_validity_seconds,
               int64_t key_rotation_seconds,
               std::shared_ptr<TokenVerifier> verifier = nullptr);
   ~TokenSigner();
@@ -266,6 +286,10 @@ class TokenSigner {
   // See the class comment above for more information about the intended usage.
   Status TryRotateKey(bool* has_rotated = nullptr) WARN_UNUSED_RESULT;
 
+  Status GenerateAuthzToken(std::string username,
+                            TablePrivilegePB privilege,
+                            SignedTokenPB* signed_token) const WARN_UNUSED_RESULT;
+
   Status GenerateAuthnToken(std::string username,
                             SignedTokenPB* signed_token) const WARN_UNUSED_RESULT;
 
@@ -277,6 +301,8 @@ class TokenSigner {
   // and it's not yet expired, return 'false' otherwise.
   bool IsCurrentKeyValid() const;
 
+  int64_t key_validity_seconds() const { return key_validity_seconds_; }
+
  private:
   FRIEND_TEST(TokenTest, TestEndToEnd_InvalidCases);
 
@@ -286,8 +312,9 @@ class TokenSigner {
 
   std::shared_ptr<TokenVerifier> verifier_;
 
-  // Validity interval for the generated authn tokens.
+  // Validity intervals for the generated tokens.
   const int64_t authn_token_validity_seconds_;
+  const int64_t authz_token_validity_seconds_;
 
   // TSK rotation interval: number of seconds between consecutive activations
   // of new token signing keys. Note that in current implementation it defines

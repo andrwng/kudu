@@ -15,17 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#ifndef KUDU_TABLET_WRITE_TRANSACTION_H_
-#define KUDU_TABLET_WRITE_TRANSACTION_H_
+#pragma once
 
 #include <cstddef>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
 #include <glog/logging.h>
 
+#include "kudu/common/privileges.h"
+#include "kudu/common/wire_protocol.pb.h"
 #include "kudu/consensus/consensus.pb.h"
 #include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/macros.h"
@@ -165,6 +167,11 @@ class WriteTransactionState : public TransactionState {
     return row_ops_;
   }
 
+  // Returns the set of op types for this trasnaction.
+  const std::set<RowOperationsPB::Type>& op_types() const {
+    return op_types_;
+  }
+
   // Return the ProbeStats object collecting statistics for op index 'i'.
   ProbeStats* mutable_op_stats(int i) {
     DCHECK_LT(i, row_ops_.size());
@@ -209,6 +216,10 @@ class WriteTransactionState : public TransactionState {
   // Array of ProbeStats for each of the operations in 'row_ops_'.
   // Allocated from this transaction's arena during SetRowOps().
   ProbeStats* stats_array_ = nullptr;
+
+  // Once SetRowOps() is called, this will contain all op types that this
+  // transaction includes.
+  std::set<RowOperationsPB::Type> op_types_;
 
   // The MVCC transaction, set up during PREPARE phase
   gscoped_ptr<ScopedTransaction> mvcc_tx_;
@@ -290,4 +301,3 @@ class WriteTransaction : public Transaction {
 }  // namespace tablet
 }  // namespace kudu
 
-#endif /* KUDU_TABLET_WRITE_TRANSACTION_H_ */

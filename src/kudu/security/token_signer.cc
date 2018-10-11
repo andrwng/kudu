@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include <boost/optional.hpp>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -56,17 +57,21 @@ namespace kudu {
 namespace security {
 
 TokenSigner::TokenSigner(int64_t authn_token_validity_seconds,
+                         int64_t authz_token_validity_seconds,
                          int64_t key_rotation_seconds,
                          shared_ptr<TokenVerifier> verifier)
     : verifier_(verifier ? std::move(verifier)
                          : std::make_shared<TokenVerifier>()),
       authn_token_validity_seconds_(authn_token_validity_seconds),
+      authz_token_validity_seconds_(authz_token_validity_seconds),
       key_rotation_seconds_(key_rotation_seconds),
       // The TSK propagation interval is equal to the rotation interval.
-      key_validity_seconds_(2 * key_rotation_seconds_ + authn_token_validity_seconds_),
+      key_validity_seconds_(2 * key_rotation_seconds_ +
+          std::max({authn_token_validity_seconds_, authz_token_validity_seconds})),
       last_key_seq_num_(-1) {
   CHECK_GE(key_rotation_seconds_, 0);
   CHECK_GE(authn_token_validity_seconds_, 0);
+  CHECK_GE(authz_token_validity_seconds_, 0);
   CHECK(verifier_);
 }
 
@@ -131,6 +136,27 @@ Status TokenSigner::ImportKeys(const vector<TokenSigningPrivateKeyPB>& keys) {
     tsk_deque_.pop_front();
   }
 
+  return Status::OK();
+}
+
+Status TokenSigner::GenerateAuthzToken(string username,
+                                       TablePrivilegePB privilege,
+                                       SignedTokenPB* signed_token) const {
+  if (username.empty()) {
+    return Status::InvalidArgument("no username provided for authz token");
+  }
+  TokenPB token;
+  token.set_expire_unix_epoch_seconds(WallTime_Now() + authz_token_validity_seconds_);
+  AuthzTokenPB* authz = token.mutable_authz();
+  authz->mutable_username()->assign(std::move(username));
+  authz->mutable_table_privilege()->Swap(&(privilege));
+
+  SignedTokenPB ret;
+  if (!token.SerializeToString(ret.mutable_token_data())) {
+    return Status::RuntimeError("could not serialize authz token");
+  }
+  RETURN_NOT_OK(SignToken(&ret));
+  signed_token->Swap(&ret);
   return Status::OK();
 }
 

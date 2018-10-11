@@ -631,6 +631,11 @@ message GetTableSchemaResponsePB {
 
   // The table name.
   optional string table_name = 7;
+
+  // If the client requested an authorization token, and authz is enabled on
+  // the cluster, the master reutrns with a signed authz token, scoped to the
+  // requested table.
+  optional security.SignedTokenPB authz_token = 8;
 }
 
 message ConnectToMasterRequestPB {

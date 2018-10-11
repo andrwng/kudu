@@ -68,7 +68,7 @@ class RetriableRpc : public Rpc {
   // Try() to actually send the request.
   void SendRpc() override;
 
-  // The callback to call upon retrieving (of failing to retrieve) a new authn
+  // The callback to call upon retrieving (or failing to retrieve) a new authn
   // token. This is the callback that subclasses should call in their custom
   // implementation of the GetNewAuthnTokenAndRetry() method.
   void GetNewAuthnTokenAndRetryCb(const Status& status);
@@ -95,6 +95,18 @@ class RetriableRpc : public Rpc {
   virtual bool GetNewAuthnTokenAndRetry() {
     return false;
   }
+
+  // Similar to GetNewAuthzTokenAndRetry() but applied for authz tokens. The
+  // default implementation returns 'false', meaning the calls returning
+  // INVALID_AUTHORIZATION_TOKEN RPC status are not retried.
+  virtual bool GetNewAuthzTokenAndRetry() {
+    return false;
+  }
+
+  // The callback to call upon retrieving (or failing to retrieve) a new authz
+  // token. This is the callback that subclasses should implement for
+  // RPC-specific authz token acquisition.
+  virtual void GetNewAuthzTokenAndRetryCb(const Status& status);
 
   // Request body.
   RequestPB req_;
@@ -156,6 +168,20 @@ void RetriableRpc<Server, RequestPB, ResponsePB>::GetNewAuthnTokenAndRetryCb(
   } else {
     // Back to the retry sequence, hoping for better conditions after some time.
     VLOG(1) << "Failed to get new authn token: " << status.ToString();
+    mutable_retrier()->DelayedRetry(this, status);
+  }
+}
+
+template <class Server, class RequestPB, class ResponsePB>
+void RetriableRpc<Server, RequestPB, ResponsePB>::GetNewAuthzTokenAndRetryCb(
+    const Status& status) {
+  if (status.ok()) {
+    // Perform the RPC call with the newly fetched authz token.
+    mutable_retrier()->mutable_controller()->Reset();
+    SendRpc();
+  } else {
+    // Back to the retry sequence, hoping for better conditions after some time.
+    VLOG(1) << "Failed to get new authz token: " << status.ToString();
     mutable_retrier()->DelayedRetry(this, status);
   }
 }

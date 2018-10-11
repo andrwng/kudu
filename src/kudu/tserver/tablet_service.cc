@@ -24,6 +24,7 @@
 #include <memory>
 #include <numeric>
 #include <ostream>
+#include <set>
 #include <string>
 #include <type_traits>
 #include <unordered_set>
@@ -64,6 +65,8 @@
 #include "kudu/rpc/rpc_context.h"
 #include "kudu/rpc/rpc_header.pb.h"
 #include "kudu/rpc/rpc_sidecar.h"
+#include "kudu/rpc/rpc_verification_util.h"
+#include "kudu/security/token_verifier.h"
 #include "kudu/server/server_base.h"
 #include "kudu/tablet/compaction.h"
 #include "kudu/tablet/metadata.pb.h"
@@ -132,6 +135,12 @@ DEFINE_int32(scanner_inject_latency_on_each_batch_ms, 0,
              "Used for tests.");
 TAG_FLAG(scanner_inject_latency_on_each_batch_ms, unsafe);
 
+DEFINE_bool(enforce_access_control, true,
+            "If set, the server will apply fine-grained access control rules "
+            "to client RPCs.");
+TAG_FLAG(enforce_access_control, experimental);
+TAG_FLAG(enforce_access_control, runtime);
+
 DECLARE_bool(raft_prepare_replacement_before_eviction);
 DECLARE_int32(memory_limit_warn_threshold_percentage);
 DECLARE_int32(tablet_history_max_age_sec);
@@ -160,8 +169,12 @@ using kudu::consensus::VoteRequestPB;
 using kudu::consensus::VoteResponsePB;
 using kudu::pb_util::SecureDebugString;
 using kudu::pb_util::SecureShortDebugString;
+using kudu::rpc::ErrorForVerification;
+using kudu::rpc::ErrorStatusPB;
 using kudu::rpc::RpcContext;
 using kudu::rpc::RpcSidecar;
+using kudu::security::TokenVerifier;
+using kudu::security::TokenPB;
 using kudu::server::ServerBase;
 using kudu::tablet::AlterSchemaTransactionState;
 using kudu::tablet::TABLET_DATA_COPYING;
@@ -171,6 +184,7 @@ using kudu::tablet::Tablet;
 using kudu::tablet::TabletReplica;
 using kudu::tablet::TransactionCompletionCallback;
 using kudu::tablet::WriteTransactionState;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
@@ -356,6 +370,37 @@ static StdStatusCallback BindHandleResponse(
 } // namespace
 
 typedef ListTabletsResponsePB::StatusAndSchemaPB StatusAndSchemaPB;
+
+// Verifies the authorization token's correctness. Returns false and sends an
+// appropriate response if the request's authz token is invalid.
+template <class AuthorizableRequest> 
+static bool VerifyAuthzTokenOrRespond(const TokenVerifier& token_verifier,
+                                      AuthorizableRequest req,
+                                      rpc::RpcContext* context,
+                                      TokenPB* token) {
+  DCHECK(token);
+  if (!req->has_authz_token()) {
+    context->RespondRpcFailure(rpc::ErrorStatusPB::FATAL_INVALID_AUTHORIZATION_TOKEN,
+        Status::NotAuthorized("no authorization token presented"));
+    return false;
+  }
+  TokenPB token_pb;
+  const auto result = token_verifier.VerifyTokenSignature(req->authz_token(), &token_pb);
+  ErrorStatusPB::RpcErrorCodePB error;
+  Status s = ErrorForVerification(result,
+      ErrorStatusPB::FATAL_INVALID_AUTHORIZATION_TOKEN, &error);
+  if (!s.ok()) {
+    context->RespondRpcFailure(error, s.CloneAndPrepend("failed to authorize"));
+    return false;
+  }
+  if (!token_pb.has_authz() || !token_pb.authz().has_table_privilege()) {
+    context->RespondRpcFailure(ErrorStatusPB::FATAL_UNAUTHORIZED,
+        Status::NotAuthorized("invalid authorization token presented"));
+    return false;
+  }
+  token->Swap(&token_pb);
+  return true;
+}
 
 static void SetupErrorAndRespond(TabletServerErrorPB* error,
                                  const Status& s,
@@ -828,6 +873,22 @@ void TabletServiceImpl::Write(const WriteRequestPB* req,
                "tablet_id", req->tablet_id());
   DVLOG(3) << "Received Write RPC: " << SecureDebugString(*req);
 
+  boost::optional<security::TablePrivilegePB> table_privilege;
+  if (FLAGS_enforce_access_control) {
+    TokenPB token;
+    if (!VerifyAuthzTokenOrRespond(server_->token_verifier(), req, context, &token)) {
+      return;
+    }
+    const auto& privilege = token.authz().table_privilege();
+    if (!privilege.all_privileges() &&
+        !privilege.insert_privilege() &&
+        !privilege.update_privilege() &&
+        !privilege.delete_privilege()) {
+      context->RespondRpcFailure(rpc::ErrorStatusPB::FATAL_UNAUTHORIZED,
+          Status::NotAuthorized("not authorized to write"));
+    }
+    table_privilege = token.authz().table_privilege();
+  }
   scoped_refptr<TabletReplica> replica;
   if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), req->tablet_id(), resp,
                                            context, &replica)) {
@@ -840,6 +901,22 @@ void TabletServiceImpl::Write(const WriteRequestPB* req,
   if (PREDICT_FALSE(!s.ok())) {
     SetupErrorAndRespond(resp->mutable_error(), s, error_code, context);
     return;
+  }
+
+  if (table_privilege) {
+    if (replica->tablet_metadata()->table_id() != table_privilege->table_id()) {
+      context->RespondRpcFailure(ErrorStatusPB::FATAL_UNAUTHORIZED,
+          Status::NotAuthorized("invalid authorization token for table"));
+      return;
+    }
+    // If the table privilege spans all write operations, don't bother with
+    // further privilege checking.
+    if (table_privilege->all_privileges() ||
+        (table_privilege->insert_privilege() &&
+         table_privilege->update_privilege() &&
+         table_privilege->delete_privilege())) {
+      table_privilege = boost::none;
+    }
   }
 
   uint64_t bytes = req->row_operations().rows().size() +
@@ -902,6 +979,11 @@ void TabletServiceImpl::Write(const WriteRequestPB* req,
                                                             resp)));
 
   // Submit the write. The RPC will be responded to asynchronously.
+  if (table_privilege) {
+    // XXX(awong): decode the write ops to get the types.
+    context->RespondRpcFailure(rpc::ErrorStatusPB::FATAL_UNAUTHORIZED,
+        Status::NotAuthorized("not authorized"));
+  }
   s = replica->SubmitWrite(std::move(tx_state));
 
   // Check that we could submit the write
@@ -1299,6 +1381,31 @@ void TabletServiceImpl::Scan(const ScanRequestPB* req,
     return;
   }
 
+  // If this is a new scan request, we must enforce the appropriate privileges.
+  boost::optional<security::TablePrivilegePB> table_privilege;
+  set<int> authorized_column_ids;
+  if (req->has_new_scan_request() && FLAGS_enforce_access_control) {
+    TokenPB token;
+    if (!VerifyAuthzTokenOrRespond(server_->token_verifier(), req, context, &token)) {
+      return;
+    }
+    const auto& privilege = token.authz().table_privilege();
+    // Exit early if there are no scan privileges.
+    if (!privilege.all_privileges() && !privilege.scan_privilege()) {
+      for (const auto& col_id_and_privilege : privilege.column_privileges()) {
+        if (col_id_and_privilege.second.scan_privilege()) {
+          EmplaceIfNotPresent(&authorized_column_ids, col_id_and_privilege.first);
+        }
+      }
+      if (authorized_column_ids.empty()) {
+        // TODO(awong): is it a bug that we didn't verify the table id?
+        context->RespondRpcFailure(rpc::ErrorStatusPB::FATAL_UNAUTHORIZED,
+            Status::NotAuthorized("not authorized to scan"));
+      }
+    }
+    table_privilege = privilege;
+  }
+
   size_t batch_size_bytes = GetMaxBatchSizeBytesHint(req);
   unique_ptr<faststring> rows_data(new faststring(batch_size_bytes * 11 / 10));
   unique_ptr<faststring> indirect_data(new faststring(batch_size_bytes * 11 / 10));
@@ -1313,6 +1420,49 @@ void TabletServiceImpl::Scan(const ScanRequestPB* req,
     if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), scan_pb.tablet_id(), resp,
                                              context, &replica)) {
       return;
+    }
+    if (table_privilege) {
+      if (replica->tablet_metadata()->table_id() != table_privilege->table_id()) {
+        context->RespondRpcFailure(ErrorStatusPB::FATAL_UNAUTHORIZED,
+            Status::NotAuthorized("invalid authorization token for table"));
+        return;
+      }
+    }
+    // If this is empty, we either have all privileges or all scan privileges.
+    // In either case we don't need to do further checking.
+    if (!authorized_column_ids.empty()) {
+      DCHECK(!table_privilege->all_privileges() && !table_privilege->scan_privilege());
+      set<int> required_privileges;
+      const Schema& schema = replica->tablet_metadata()->schema();
+      // Require scan privileges on the primary column IDs.
+      // Note: We only need privileges on the primary key if the scan is fault
+      // tolerant, but checking based that would expose a confusing dependency
+      // of fault tolerant scans on primary keys, so for now, we require
+      // primary key privileges on all scans.
+      // TODO(awong): loosen this requirement to only fault tolerant scans
+      // (i.e. 'order_mode = ORDERED').
+      for (int i = 0; i < schema.num_columns() &&
+           required_privileges.size() < schema.num_key_columns(); i++) {
+        if (schema.is_key_column(i)) {
+          EmplaceIfNotPresent(&required_privileges, schema.column_id(i));
+        }
+      }
+      // Determine the scan's projected key column IDs
+      for (int i = 0; i < scan_pb.projected_columns_size(); i++) {
+        EmplaceIfNotPresent(&required_privileges, scan_pb.projected_columns(i).id());
+      }
+      // Determine the scan's predicate column IDs.
+      for (int i = 0; i < scan_pb.column_predicates_size(); i++) {
+        const int col_idx = schema.find_column(scan_pb.column_predicates(i).column());
+        EmplaceIfNotPresent(&required_privileges, schema.column_id(col_idx));
+      }
+      for (const auto& col_id : required_privileges) {
+        if (!ContainsKey(authorized_column_ids, col_id)) {
+          context->RespondRpcFailure(rpc::ErrorStatusPB::FATAL_UNAUTHORIZED,
+              Status::NotAuthorized("request does not have the appropriate scan permissions"));
+          return;
+        }
+      }
     }
     string scanner_id;
     Timestamp scan_timestamp;

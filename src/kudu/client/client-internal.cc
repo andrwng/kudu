@@ -643,6 +643,11 @@ Status KuduClient::Data::GetTableSchema(KuduClient* client,
   if (num_replicas) {
     *num_replicas = resp.num_replicas();
   }
+  // Cache the authz token if the response came with one.
+  if (resp.has_authz_token()) {
+    InsertOrUpdate(&authz_tokens_, resp.table_id(), resp.authz_token());
+    LOG(INFO) << "AWONG: adding authz token for table " << resp.table_id();
+  }
   return Status::OK();
 }
 
@@ -721,6 +726,14 @@ Status KuduClient::Data::ConnectToCluster(KuduClient* client,
                                           CredentialsPolicy creds_policy) {
   Synchronizer sync;
   ConnectToClusterAsync(client, deadline, sync.AsStatusCallback(), creds_policy);
+  return sync.Wait();
+}
+
+Status KuduClient::Data::AuthorizeForTable(KuduClient* client,
+                                           const MonoTime& deadline,
+                                           const string& table_name) {
+  Synchronizer sync;
+  AuthorizeForTableAsync(client, deadline, sync.AsStatusCallback(), table_name);
   return sync.Wait();
 }
 
@@ -852,6 +865,20 @@ void KuduClient::Data::ReconnectToCluster(KuduClient* client,
     KLOG_EVERY_N_SECS(WARNING, 1)
         << "Unable to reconnect to the cluster for a new authn token: "
         << connect_status.ToString();
+  }
+}
+
+void KuduClient::Data::AuthorizeForTableAsync(KuduClient* client,
+                                              const MonoTime& deadline,
+                                              const StatusCallback& cb,
+                                              const string& table_name) {
+  Status s = GetTableSchema(client, table_name, deadline,
+                            /*schema=*/ nullptr,
+                            /*partition_schema=*/ nullptr,
+                            /*table_id=*/ nullptr,
+                            /*num_replicas=*/ nullptr);
+  if (!s.ok()) {
+    cb.Run(s);
   }
 }
 

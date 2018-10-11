@@ -80,7 +80,9 @@ using google::protobuf::Message;
 using kudu::consensus::ReplicaManagementInfoPB;
 using kudu::pb_util::SecureDebugString;
 using kudu::pb_util::SecureShortDebugString;
+using kudu::security::ColumnPrivilegePB;
 using kudu::security::SignedTokenPB;
+using kudu::security::TablePrivilegePB;
 using kudu::server::ServerBase;
 using std::shared_ptr;
 using std::string;
@@ -399,6 +401,7 @@ void MasterServiceImpl::GetTableLocations(const GetTableLocationsRequestPB* req,
 void MasterServiceImpl::GetTableSchema(const GetTableSchemaRequestPB* req,
                                        GetTableSchemaResponsePB* resp,
                                        rpc::RpcContext* rpc) {
+  // TODO(awong): authorize the user via some external privilege service.
   CatalogManager::ScopedLeaderSharedLock l(server_->catalog_manager());
   if (!l.CheckIsInitializedAndIsLeaderOrRespond(resp, rpc)) {
     return;
@@ -406,6 +409,20 @@ void MasterServiceImpl::GetTableSchema(const GetTableSchemaRequestPB* req,
 
   Status s = server_->catalog_manager()->GetTableSchema(req, resp);
   CheckRespErrorOrSetUnknown(s, resp);
+
+  // TODO(awong): fill this token in with actual privileges for the user and
+  // table. For now, assume the user has all privileges for the table.
+  SignedTokenPB authz_token;
+  TablePrivilegePB table_privilege;
+  table_privilege.set_table_id(resp->table_id());
+  table_privilege.set_all_privileges(true);
+  s = server_->token_signer()->GenerateAuthzToken(rpc->remote_user().username(),
+                                                  std::move(table_privilege), &authz_token);
+  if (!s.ok()) {
+    LOG(FATAL) << Substitute("unable to generate signed token for $0: $1",
+                             rpc->requestor_string(), s.ToString());
+  }
+  resp->mutable_authz_token()->Swap(&authz_token);
   rpc->RespondSuccess();
 }
 

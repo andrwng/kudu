@@ -24,6 +24,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -34,6 +35,7 @@
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/rpc/rpc_controller.h"
 #include "kudu/rpc/user_credentials.h"
+#include "kudu/security/token.pb.h"
 #include "kudu/util/atomic.h"
 #include "kudu/util/locks.h"
 #include "kudu/util/monotime.h"
@@ -200,6 +202,18 @@ class KuduClient::Data {
                           const MonoTime& deadline,
                           ReconnectionReason reason);
 
+  // Asynchronously fetches an authz token for the given table.
+  //
+  // Invokes 'cb' with the appropriate status when finished.
+  void AuthorizeForTableAsync(KuduClient* client,
+                              const MonoTime& deadline,
+                              const StatusCallback& cb,
+                              const std::string& table_name);
+  Status AuthorizeForTable(
+      KuduClient* client,
+      const MonoTime& deadline,
+      const std::string& table_name);
+
   std::shared_ptr<master::MasterServiceProxy> master_proxy() const;
 
   HostPort leader_master_hostport() const;
@@ -254,6 +268,9 @@ class KuduClient::Data {
   std::shared_ptr<rpc::Messenger> messenger_;
   gscoped_ptr<DnsResolver> dns_resolver_;
   scoped_refptr<internal::MetaCache> meta_cache_;
+
+  // Authorization tokens stored for each table.
+  std::unordered_map<std::string, security::SignedTokenPB> authz_tokens_;
 
   // Set of hostnames and IPs on the local host.
   // This is initialized at client startup.

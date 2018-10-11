@@ -241,8 +241,15 @@ class WriteRpc : public RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteRe
   RetriableRpcStatus AnalyzeResponse(const Status& rpc_cb_status) override;
   void Finish(const Status& status) override;
   bool GetNewAuthnTokenAndRetry() override;
+  bool GetNewAuthzTokenAndRetry() override;
+  void GetNewAuthzTokenAndRetryCb(const Status& status) override;
 
  private:
+  // Refreshes the authz token for this request with the one currently cached
+  // by the client. Note that this doesn't get a new token from the master, but
+  // rather, it updates in case the client has recently received one.
+  void RefreshAuthzToken();
+
   // Pointer back to the batcher. Processes the write response when it
   // completes, regardless of success or failure.
   scoped_refptr<Batcher> batcher_;
@@ -290,6 +297,8 @@ WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
   CHECK_OK(SchemaToPB(*schema, req_.mutable_schema(),
                       SCHEMA_PB_WITHOUT_STORAGE_ATTRIBUTES | SCHEMA_PB_WITHOUT_IDS));
 
+  // Pick up the authz token for the table.
+  RefreshAuthzToken();
   RowOperationsPB* requested = req_.mutable_row_operations();
 
   // Add the rows
@@ -450,6 +459,31 @@ bool WriteRpc::GetNewAuthnTokenAndRetry() {
       Bind(&RetriableRpc::GetNewAuthnTokenAndRetryCb, Unretained(this)),
       CredentialsPolicy::PRIMARY_CREDENTIALS);
   return true;
+}
+
+bool WriteRpc::GetNewAuthzTokenAndRetry() {
+  KuduClient* c = batcher_->client_;
+  c->data_->AuthorizeForTableAsync(c, retrier().deadline(),
+      Bind(&WriteRpc::GetNewAuthzTokenAndRetryCb, Unretained(this)),
+      table()->name());
+  return true;
+}
+
+void WriteRpc::RefreshAuthzToken() {
+  security::SignedTokenPB* authz_token = FindOrNull(batcher_->client_->data_->authz_tokens_,
+                                                    table()->id());
+  if (authz_token) {
+    req_.mutable_authz_token()->CopyFrom(*authz_token);
+  } else {
+    LOG(INFO) << "AWONG: no authz token for table " << table()->id();
+  }
+}
+
+void WriteRpc::GetNewAuthzTokenAndRetryCb(const Status& status) {
+  if (status.ok()) {
+    RefreshAuthzToken();
+  }
+  RetriableRpc::GetNewAuthnTokenAndRetryCb(status);
 }
 
 Batcher::Batcher(KuduClient* client,

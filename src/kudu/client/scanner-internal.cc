@@ -36,11 +36,13 @@
 #include "kudu/common/scan_spec.h"
 #include "kudu/common/schema.h"
 #include "kudu/common/wire_protocol.h"
+#include "kudu/gutil/map-util.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/rpc/connection.h"
 #include "kudu/rpc/rpc_controller.h"
 #include "kudu/rpc/rpc_header.pb.h"
+#include "kudu/security/token.pb.h"
 #include "kudu/tserver/tserver_service.proxy.h"
 #include "kudu/util/async_util.h"
 #include "kudu/util/bitmap.h"
@@ -59,6 +61,7 @@ namespace kudu {
 
 using rpc::CredentialsPolicy;
 using rpc::RpcController;
+using security::SignedTokenPB;
 using strings::Substitute;
 using tserver::NewScanRequestPB;
 using tserver::TabletServerFeatures;
@@ -105,6 +108,7 @@ Status KuduScanner::Data::HandleError(const ScanRpcStatus& err,
   bool can_retry = true;
   bool backoff = false;
   bool reacquire_authn_token = false;
+  bool reacquire_authz_token = false;
   switch (err.result) {
     case ScanRpcStatus::SERVICE_UNAVAILABLE:
       backoff = true;
@@ -125,6 +129,9 @@ Status KuduScanner::Data::HandleError(const ScanRpcStatus& err,
       // Usually this happens if doing an RPC call with an expired auth token.
       // Retrying with a new authn token should help.
       reacquire_authn_token = true;
+      break;
+    case ScanRpcStatus::RPC_INVALID_AUTHORIZATION_TOKEN:
+      reacquire_authz_token = true;
       break;
     case ScanRpcStatus::TABLET_NOT_RUNNING:
       blacklist_location = true;
@@ -162,6 +169,17 @@ Status KuduScanner::Data::HandleError(const ScanRpcStatus& err,
     if (!s.ok()) {
       KLOG_EVERY_N_SECS(WARNING, 1)
           << "Couldn't reconnect to the cluster: " << s.ToString();
+      backoff = true;
+    }
+  }
+
+  if (reacquire_authz_token) {
+    KuduClient* c = table_->client();
+    const Status& s = c->data_->AuthorizeForTable(
+        c, deadline, table_->name());
+    if (!s.ok()) {
+      KLOG_EVERY_N_SECS(WARNING, 1)
+          << Substitute("Couldn't authorize client $0: ", table_->name()) << s.ToString();
       backoff = true;
     }
   }
@@ -233,6 +251,9 @@ ScanRpcStatus KuduScanner::Data::AnalyzeResponse(const Status& rpc_status,
         case rpc::ErrorStatusPB::FATAL_INVALID_AUTHENTICATION_TOKEN:
           return ScanRpcStatus{
               ScanRpcStatus::RPC_INVALID_AUTHENTICATION_TOKEN, rpc_status};
+        case rpc::ErrorStatusPB::FATAL_INVALID_AUTHORIZATION_TOKEN:
+          return ScanRpcStatus{
+              ScanRpcStatus::RPC_INVALID_AUTHORIZATION_TOKEN, rpc_status};
         default:
           return ScanRpcStatus{ScanRpcStatus::OTHER_TS_ERROR, rpc_status};
       }
@@ -302,6 +323,15 @@ ScanRpcStatus KuduScanner::Data::SendScanRpc(const MonoTime& overall_deadline,
   }
   if (configuration().row_format_flags() & KuduScanner::PAD_UNIXTIME_MICROS_TO_16_BYTES) {
     controller_.RequireServerFeature(TabletServerFeatures::PAD_UNIXTIME_MICROS_TO_16_BYTES);
+  }
+  if (next_req_.has_new_scan_request()) {
+    SignedTokenPB* authz_token = FindOrNull(table_->client()->data_->authz_tokens_,
+                                            table_->id());
+    if (authz_token) {
+      next_req_.mutable_authz_token()->CopyFrom(*authz_token);
+    } else {
+      LOG(INFO) << "AWONG: no authz token for table " << table_->id();
+    }
   }
   ScanRpcStatus scan_status = AnalyzeResponse(
       proxy_->Scan(next_req_,

@@ -23,6 +23,7 @@
 #include <new>
 #include <ostream>
 #include <type_traits>
+#include <unordered_set>
 #include <vector>
 
 #include <gflags/gflags.h>
@@ -113,6 +114,10 @@ Status WriteTransaction::Prepare() {
   Tablet* tablet = state()->tablet_replica()->tablet();
 
   Status s = tablet->DecodeWriteOperations(&client_schema, state());
+  if (s.IsNotAuthorized()) {
+    for (const auto& t : state()->op_types()) {
+    }
+  }
   if (!s.ok()) {
     // TODO: is MISMATCHED_SCHEMA always right here? probably not.
     state()->completion_callback()->set_error(s, TabletServerErrorPB::MISMATCHED_SCHEMA);
@@ -283,6 +288,7 @@ void WriteTransactionState::SetRowOps(vector<DecodedRowOperation> decoded_ops) {
 
   Arena* arena = this->arena();
   for (DecodedRowOperation& op : decoded_ops) {
+    op_types_.insert(op.type);
     row_ops_.push_back(arena->NewObject<RowOp>(std::move(op)));
   }
 
