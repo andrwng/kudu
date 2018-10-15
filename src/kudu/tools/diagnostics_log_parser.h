@@ -19,6 +19,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -37,7 +38,6 @@ namespace kudu {
 namespace tools {
 
 // One of the record types from the log.
-// TODO(KUDU-2353) support metrics records.
 enum class RecordType {
   kSymbols,
   kStacks,
@@ -129,16 +129,21 @@ enum class MetricType {
 class MetricValue {
  public:
   MetricValue();
+
   Status FromJson(const rapidjson::Value& metric_json);
-  Status MergeMetric(const MetricValue& v);
+
+  // May consume the contents of v if passing by r-value.
+  Status MergeMetric(MetricValue v);
+
   MetricType type() const { return type_; }
+
   Status CheckMatchingType(const MetricValue& v);
  protected:
   friend class MetricCollectingLogVisitor;
   MetricType type_;
 
   boost::optional<int64_t> value_;
-  boost::optional<std::unordered_map<int64_t, int>> counts_;
+  boost::optional<std::map<int64_t, int>> counts_;
 };
 
 // For a given metric, a collection of entity ids and their metric value.

@@ -21,8 +21,10 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <boost/optional/optional.hpp>
 #include <glog/logging.h>
@@ -42,7 +44,9 @@ using std::array;
 using std::cout;
 using std::endl;
 using std::ifstream;
+using std::multiset;
 using std::string;
+using std::vector;
 using strings::Substitute;
 
 
@@ -112,6 +116,7 @@ std::ostream& operator<<(std::ostream& o, RecordType r) {
 
 Status SymbolsRecord::FromParsedLine(const ParsedLine& pl) {
   DCHECK_EQ(RecordType::kSymbols, pl.type());
+
   if (!pl.json()->IsObject()) {
     return Status::InvalidArgument("expected symbols data to be a JSON object");
   }
@@ -147,7 +152,8 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
     InsertIfNotPresent(&m, full_metric_name, EntityIdToValue());
   }
 
-  // [{<entity>}, {<entity>}, {<entity>}]
+  // Each json blob has a list of metrics for entities:
+  //   [{<entity>}, {<entity>}, {<entity>}]
   // Iterate through each entity blob and pick out the metrics.
   for (const auto* entity_json = pl.json()->Begin();
        entity_json != pl.json()->End();
@@ -173,7 +179,9 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
       continue;
     }
 
-    // [{"name":"<metric_name>","value":"<metric_value>"}]
+    // Each entity has a list of metrics:
+    //   [{"name":"<metric_name>","value":"<metric_value>"},
+    //    {"name":"<hist_metric_name>","counts":"<hist_metric_counts>"]
     const auto& metrics = (*entity_json)["metrics"];
     if (!metrics.IsArray()) {
       return Status::InvalidArgument(
@@ -195,8 +203,10 @@ Status MetricsRecord::FromParsedLine(const MetricsCollectingOpts& opts, const Pa
         continue;
       }
       MetricValue v;
-      RETURN_NOT_OK(v.FromJson(*metric_json));
-
+      Status s = v.FromJson(*metric_json);
+      if (!s.ok()) {
+        continue;
+      }
       // We expect that in a given line, each entity reports a given metric
       // only once. In case this isn't true, we just update the value.
       EmplaceOrUpdate(entity_id_to_value, entity_id, std::move(v));
@@ -211,17 +221,24 @@ Status MetricValue::FromJson(const rapidjson::Value& metric_json) {
   DCHECK(MetricType::kUninitialized == type_);
   DCHECK(boost::none == counts_);
   DCHECK(boost::none == value_);
-  if (metric_json.HasMember("counts")) {
+  if (metric_json.HasMember("counts") && metric_json.HasMember("values")) {
     // Add the counts from histogram metrics.
     const rapidjson::Value& counts_json = metric_json["counts"];
-    if (counts_json.IsArray()) {
-      return Status::InvalidArgument("Expected 'counts' to be array type");
+    const rapidjson::Value& values_json = metric_json["values"];
+    if (!counts_json.IsArray() || !values_json.IsArray()) {
+      return Status::InvalidArgument(Substitute("Expected 'counts' and 'values' to be arrays: $0",
+                                                metric_json.GetString()));
     }
-    std::vector<int64_t> counts = {};
+    if (counts_json.Size() != values_json.Size()) {
+      return Status::InvalidArgument("Expected 'counts' and 'values' to be the same size");
+    }
+    std::map<int64_t, int> counts;
     for (int i = 0; i < counts_json.Size(); i++) {
-      counts.push_back(counts_json.GetInt64());
+      int64_t v = values_json[i].GetInt64();
+      int c = counts_json[i].GetInt();
+      InsertOrUpdate(&counts, v, c);
     }
-    AddTokenCounts(counts, 1, &(*counts_));
+    counts_ = std::move(counts);
     type_ = MetricType::kHistogram;
   } else if (metric_json.HasMember("value")) {
     const rapidjson::Value& value_json = metric_json["value"];
@@ -242,7 +259,7 @@ MetricValue::MetricValue()
     value_(boost::none),
     counts_(boost::none) {}
 
-Status MetricValue::MergeMetric(const MetricValue& v) {
+Status MetricValue::MergeMetric(MetricValue v) {
   // If this is an empty value, just copy over the state.
   if (type_ == MetricType::kUninitialized) {
     type_ = v.type();
@@ -260,12 +277,12 @@ Status MetricValue::MergeMetric(const MetricValue& v) {
   switch (type_) {
     case MetricType::kHistogram: {
       DCHECK(counts_ && v.counts_);
-      MergeTokenCounts(&(*counts_), *v.counts_);
+      counts_->swap(*v.counts_);
       break;
     }
     case MetricType::kPlain: {
       DCHECK(value_ && v.value_);
-      *value_ += *v.value_;
+      *value_ = *v.value_;
       break;
     }
     default:
@@ -284,10 +301,12 @@ MetricCollectingLogVisitor::MetricCollectingLogVisitor(MetricsCollectingOpts opt
   }
   for (const auto& full_and_display : opts_.rate_metric_names) {
     const auto& full_name = full_and_display.first;
+    LOG(INFO) << "collecting rate metric " << full_name;
     InsertIfNotPresent(&metric_to_entities_, full_name, EntityIdToValue());
   }
   for (const auto& full_and_display : opts_.hist_metric_names) {
     const auto& full_name = full_and_display.first;
+    LOG(INFO) << "collecting hist metric " << full_name;
     InsertIfNotPresent(&metric_to_entities_, full_name, EntityIdToValue());
   }
 }
@@ -297,41 +316,105 @@ Status MetricCollectingLogVisitor::VisitMetricsRecord(const MetricsRecord& mr) {
   cout << mr.timestamp;
   for (const auto& full_and_display : opts_.simple_metric_names) {
     const auto& full_name = full_and_display.first;
-    const auto& entities_to_values = FindOrDie(mr.metric_to_entities, full_name);
-    // TODO(awong): we could probably cache the sum from the previous
-    // iteration.
+    const auto& mr_entities_to_vals = FindOrDie(mr.metric_to_entities, full_name);
+    const auto& entities_to_vals = FindOrDie(metric_to_entities_, full_name);
     int64_t sum = 0;
-    for (const auto& e : entities_to_values) {
+    // Add everything that the visitor already knows about that isn't stale.
+    for (const auto& e : entities_to_vals) {
+      if (!ContainsKey(mr_entities_to_vals, e.first)) {
+        DCHECK(e.second.value_);
+        sum += *e.second.value_;
+      }
+    }
+    // Add all of the values from the new record.
+    for (const auto& e : mr_entities_to_vals) {
+      DCHECK(e.second.value_);
       sum += *e.second.value_;
     }
     cout << Substitute("\t$0", sum);
   }
-  cout << std::endl;
+
+  // TODO(awong): there's a fair amount of code duplication here. Clean it up.
   for (const auto& full_and_display : opts_.rate_metric_names) {
+    if (last_visited_timestamp_ == 0) {
+      cout << "\t0";
+      continue;
+    }
     const auto& full_name = full_and_display.first;
-    LOG(INFO) << "full_name: " << full_name;
-  }
-  for (const auto& full_and_display : opts_.hist_metric_names) {
-    const auto& full_name = full_and_display.first;
-    LOG(INFO) << "full_name: " << full_name;
+    const auto& mr_entities_to_vals = FindOrDie(mr.metric_to_entities, full_name);
+    const auto& entities_to_vals = FindOrDie(metric_to_entities_, full_name);
+    int64_t sum = 0;
+    int64_t prev_sum = 0;
+    // Add everything that the visitor already knows about that isn't stale.
+    for (const auto& e : entities_to_vals) {
+      DCHECK(e.second.value_);
+      prev_sum += *e.second.value_;
+      if (!ContainsKey(mr_entities_to_vals, e.first)) {
+        sum += *e.second.value_;
+      }
+    }
+    // Add all of the values from the new record.
+    for (const auto& e : mr_entities_to_vals) {
+      DCHECK(e.second.value_);
+      sum += *e.second.value_;
+    }
+    cout << Substitute("\t$0",
+        double(sum - prev_sum) / ((mr.timestamp - last_visited_timestamp_) / 1e6));
   }
 
+  for (const auto& full_and_display : opts_.hist_metric_names) {
+    const auto& full_name = full_and_display.first;
+    const auto& mr_entities_to_vals = FindOrDie(mr.metric_to_entities, full_name);
+    const auto& entities_to_vals = FindOrDie(metric_to_entities_, full_name);
+    std::map<int64_t, int> all_counts;
+    for (auto& e : entities_to_vals) {
+      DCHECK(e.second.counts_);
+      if (!ContainsKey(mr_entities_to_vals, e.first)) {
+        MergeTokenCounts(&all_counts, *e.second.counts_);
+      }
+    }
+    for (auto& e : mr_entities_to_vals) {
+      DCHECK(e.second.counts_);
+      MergeTokenCounts(&all_counts, *e.second.counts_);
+    }
+    int counts_size = 0;
+    for (const auto& vals_and_counts : all_counts) {
+      counts_size += vals_and_counts.second;
+    }
+
+    // TODO(awong): would using HdrHistogram be cleaner?
+    const vector<int> quantiles = { 0,
+                                    counts_size / 2,
+                                    counts_size * 75 / 100,
+                                    counts_size * 99 / 100,
+                                    counts_size - 1 };
+    int quantile_idx = 0;
+    int count_idx = 0;
+    for (const auto& vals_and_counts : all_counts) {
+      count_idx += vals_and_counts.second;
+      while (quantile_idx < quantiles.size() && quantiles[quantile_idx] <= count_idx) {
+        cout << Substitute("\t$0", vals_and_counts.first);
+        quantile_idx++;
+      }
+    }
+  }
+
+  cout << std::endl;
   // Update the visitor's metrics.
   for (const auto& metric_and_enties_map : mr.metric_to_entities) {
     const string& metric_name = metric_and_enties_map.first;
 
     // Update the visitor's internal map with the metrics from the record.
-    // Note: The metric record should only have parsed metrics that the visitor
-    // has in its internal map, so we can FindOrDie here.
+    // Note: The metric record should only have parsed user-requested metrics
+    // that the visitor has in its internal map, so we can FindOrDie here.
     auto& visitor_entities_map = FindOrDie(metric_to_entities_, metric_name);
-    const auto& record_entities_map = metric_and_enties_map.second;
-    for (const auto& record_entity_and_val : record_entities_map) {
-      const string& entity_id = record_entity_and_val.first;
-      MetricValue& val = LookupOrInsert(&visitor_entities_map, entity_id, MetricValue());
-      RETURN_NOT_OK_PREPEND(val.MergeMetric(record_entity_and_val.second),
-          Substitute("Failed to merge metric $0 for entity $1", metric_name, entity_id));
+    const auto& mr_entities_map = metric_and_enties_map.second;
+    for (const auto& mr_entity_and_val : mr_entities_map) {
+      const string& entity_id = mr_entity_and_val.first;
+      InsertOrUpdate(&visitor_entities_map, entity_id, mr_entity_and_val.second);
     }
   }
+  last_visited_timestamp_ = mr.timestamp;
   return Status::OK();
 }
 
@@ -339,23 +422,25 @@ Status MetricCollectingLogVisitor::ParseRecord(const ParsedLine& pl) {
   // Do something with the metric record.
   if (pl.type() == RecordType::kMetrics) {
     MetricsRecord mr;
-    RETURN_NOT_OK(mr.FromParsedLine(opts_, pl));
-    RETURN_NOT_OK(VisitMetricsRecord(mr));
+    RETURN_NOT_OK(mr.FromParsedLine(opts_, std::move(pl)));
+    RETURN_NOT_OK(VisitMetricsRecord(std::move(mr)));
   }
   return Status::OK();
 }
 
 Status StackDumpingLogVisitor::ParseRecord(const ParsedLine& pl) {
+  // We're not going to do any fancy parsing, so do it up front with the deault
+  // json parsing.
   switch (pl.type()) {
     case RecordType::kSymbols: {
       SymbolsRecord sr;
-      RETURN_NOT_OK(sr.FromParsedLine(pl));
+      RETURN_NOT_OK(sr.FromParsedLine(std::move(pl)));
       VisitSymbolsRecord(sr);
       break;
     }
     case RecordType::kStacks: {
       StacksRecord sr;
-      RETURN_NOT_OK(sr.FromParsedLine(pl));
+      RETURN_NOT_OK(sr.FromParsedLine(std::move(pl)));
       VisitStacksRecord(sr);
       break;
     }
@@ -542,7 +627,7 @@ Status LogFileParser::ParseLine() {
   const string error_msg = Substitute("Failed to parse line $0 in file $1",
                                       line_number_, path_);
   RETURN_NOT_OK_PREPEND(pl.Parse(), error_msg);
-  RETURN_NOT_OK_PREPEND(log_visitor_->ParseRecord(pl), error_msg);
+  RETURN_NOT_OK_PREPEND(log_visitor_->ParseRecord(std::move(pl)), error_msg);
   return Status::OK();
 }
 

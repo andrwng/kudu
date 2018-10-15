@@ -535,7 +535,7 @@ void AddTokenCounts(
 
 template <typename Collection>
 void MergeTokenCounts(Collection* const count_map,
-                    const Collection& counts_to_add) {
+                      const Collection& counts_to_add) {
   for (const auto& value_and_count : counts_to_add) {
     typename Collection::mapped_type& value = LookupOrInsert(
         count_map, value_and_count.first, typename Collection::mapped_type());
