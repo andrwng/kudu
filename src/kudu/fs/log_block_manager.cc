@@ -136,6 +136,11 @@ METRIC_DEFINE_counter(server, log_block_manager_holes_punched,
                       kudu::MetricUnit::kHoles,
                       "Number of holes punched since service start");
 
+METRIC_DEFINE_counter(server, log_block_manager_dead_containers_deleted,
+                      "Number of Dead Block Containers Deleted",
+                      kudu::MetricUnit::kHoles,
+                      "Number of full (but dead) block containers that were deleted");
+
 namespace kudu {
 
 namespace fs {
@@ -180,6 +185,7 @@ struct LogBlockManagerMetrics {
   scoped_refptr<AtomicGauge<uint64_t>> full_containers;
 
   scoped_refptr<Counter> holes_punched;
+  scoped_refptr<Counter> dead_containers_deleted;
 };
 
 #define MINIT(x) x(METRIC_log_block_manager_##x.Instantiate(metric_entity))
@@ -190,7 +196,8 @@ LogBlockManagerMetrics::LogBlockManagerMetrics(const scoped_refptr<MetricEntity>
     GINIT(blocks_under_management),
     GINIT(containers),
     GINIT(full_containers),
-    MINIT(holes_punched) {
+    MINIT(holes_punched),
+    MINIT(dead_containers_deleted) {
 }
 #undef GINIT
 
@@ -217,7 +224,7 @@ class LogBlock : public RefCountedThreadSafe<LogBlock> {
   ~LogBlock() = default;
 
   const BlockId& block_id() const { return block_id_; }
-  LogBlockContainer* container() const { return container_.get();  }
+  LogBlockContainer* container() const { return container_.get(); }
   int64_t offset() const { return offset_; }
   int64_t length() const { return length_; }
 
@@ -518,6 +525,17 @@ class LogBlockContainer: public RefCountedThreadSafe<LogBlockContainer> {
   DataDir* data_dir() const { return data_dir_; }
   const PathInstanceMetadataPB* instance() const { return data_dir_->instance()->metadata(); }
 
+  // Try to mark the container to death and return true,
+  // otherwise return false.
+  // Note:
+  // 1.the container should be full and none live blocks;
+  // 2.the dead state can only be set successfully once.
+  bool TrySetDead();
+
+  // Return whether the container has been marked dead.
+  bool dead() { return dead_.Load(); }
+
+  virtual ~LogBlockContainer();
  private:
   LogBlockContainer(LogBlockManager* block_manager, DataDir* data_dir,
                     unique_ptr<WritablePBContainerFile> metadata_file,
@@ -588,6 +606,9 @@ class LogBlockContainer: public RefCountedThreadSafe<LogBlockContainer> {
   // The number of not-yet-deleted blocks in the container.
   AtomicInt<int64_t> live_blocks_;
 
+  // Whether or not this container has been dead.
+  AtomicBool dead_;
+
   // The metrics. Not owned by the log container; it has the same lifespan
   // as the block manager.
   const LogBlockManagerMetrics* metrics_;
@@ -600,6 +621,13 @@ class LogBlockContainer: public RefCountedThreadSafe<LogBlockContainer> {
 
   DISALLOW_COPY_AND_ASSIGN(LogBlockContainer);
 };
+
+#define CONTAINER_DISK_FAILURE(status_expr, msg) do { \
+  Status s_ = (status_expr); \
+  HANDLE_DISK_FAILURE(s_, block_manager_->error_manager_->RunErrorNotificationCb( \
+      ErrorHandlerType::DISK_ERROR, data_dir_)); \
+  WARN_NOT_OK(s_, msg); \
+} while (0);
 
 LogBlockContainer::LogBlockContainer(
     LogBlockManager* block_manager,
@@ -618,7 +646,40 @@ LogBlockContainer::LogBlockContainer(
       live_bytes_(0),
       live_bytes_aligned_(0),
       live_blocks_(0),
+      dead_(false),
       metrics_(block_manager->metrics()) {
+}
+
+LogBlockContainer::~LogBlockContainer() {
+  if (dead()) {
+    string data_file_name = data_file_->filename();
+    string metadata_file_name = metadata_file_->filename();
+
+    uint64_t metadata_size = 0;
+    Status s = block_manager_->env_->GetFileSize(metadata_file_name, &metadata_size);
+    if (!s.ok()) {
+      CONTAINER_DISK_FAILURE(s,
+          "Could not get size of dead container metadata file " + metadata_file_name);
+    }
+
+    CONTAINER_DISK_FAILURE(block_manager_->file_cache_.DeleteFile(data_file_name),
+        "Could not delete dead container data file " + data_file_name);
+    CONTAINER_DISK_FAILURE(block_manager_->file_cache_.DeleteFile(metadata_file_name),
+        "Could not delete dead container metadata file " + metadata_file_name);
+
+    // After the deletions, the data directory is sync'ed to reduce the chance
+    // of a data file existing without its corresponding metadata file (or vice
+    // versa) in the event of a crash. The block manager would treat such a case
+    // as corruption and require manual intervention.
+    //
+    // TODO(adar) the above is not fool-proof; a crash could manifest in between
+    // any pair of deletions. That said, the odds of it happening are incredibly
+    // rare, and manual resolution isn't hard (just delete the existing file).
+    CONTAINER_DISK_FAILURE(block_manager_->env_->SyncDir(data_dir_->dir()),
+        "Could not sync data directory");
+    LOG(INFO) << Substitute("Deleted 1 dead container ($0 metadata bytes)",
+                            metadata_size);
+  }
 }
 
 void LogBlockContainer::HandleError(const Status& s) const {
@@ -1159,11 +1220,22 @@ void LogBlockContainer::SetReadOnly(const Status& error) {
 }
 
 void LogBlockContainer::ContainerDeletionAsync(int64_t offset, int64_t length) {
+  // Let the destructor delete the files outright instead of
+  // punching hole when the container has been dead already.
+  if (dead()) return;
+
   VLOG(3) << "Freeing space belonging to container " << ToString();
   Status s = PunchHole(offset, length);
   if (s.ok() && metrics_) metrics_->holes_punched->Increment();
   WARN_NOT_OK(s, Substitute("could not delete blocks in container $0",
                             data_dir()->dir()));
+}
+
+bool LogBlockContainer::TrySetDead() {
+  if (full() && live_blocks() == 0) {
+    return dead_.CompareAndSet(false, true);
+  }
+  return false;
 }
 
 ///////////////////////////////////////////////////////////
@@ -1229,9 +1301,11 @@ class LogBlockDeletionTransaction : public BlockDeletionTransaction,
       : lbm_(lbm) {
   }
 
-  // Given the shared ownership of LogBlockDeletionTransaction, at this point
-  // all registered blocks should be destructed. Thus, coalescing deletions
-  // for blocks that are contiguous in a container and schedules hole punching.
+  // Due to the shared ownership of LogBlockDeletionTransaction,
+  // the destructor is responsible for destroying all registered
+  // blocks. This includes:
+  // 1. Punching holes in deleted blocks, and
+  // 2. Deleting dead containers outright.
   virtual ~LogBlockDeletionTransaction();
 
   virtual void AddDeletedBlock(BlockId block) override;
@@ -1265,13 +1339,28 @@ void LogBlockDeletionTransaction::AddDeletedBlock(BlockId block) {
 LogBlockDeletionTransaction::~LogBlockDeletionTransaction() {
   for (auto& entry : deleted_interval_map_) {
     LogBlockContainer* container = entry.first.get();
+
+    // For the full and dead containers, it is much cheaper
+    // to delete the container files outright, rather than
+    // punching holes.
+    if (container->full() && container->live_blocks() == 0) {
+      // Mark the container as deleted and remove it from the global map.
+      // Be careful that the container should not be removed twice when a
+      // bunch of deletion transactions run in different threads and all
+      // of them affecting the same container. .
+      if (container->TrySetDead()) {
+        lbm_->RemoveDeadContainer(container->ToString());
+      }
+      continue;
+    }
+
     CHECK_OK_PREPEND(CoalesceIntervals<int64_t>(&entry.second),
                      Substitute("could not coalesce hole punching for container: $0",
                                 container->ToString()));
 
     for (const auto& interval : entry.second) {
       container->ExecClosure(Bind(&LogBlockContainer::ContainerDeletionAsync,
-                                  Unretained(container),
+                                  container,
                                   interval.first,
                                   interval.second - interval.first));
     }
@@ -1599,6 +1688,12 @@ LogReadableBlock::~LogReadableBlock() {
 
 Status LogReadableBlock::Close() {
   if (closed_.CompareAndSet(false, true)) {
+    // We may not safely access container_ after calling log_block_.reset().
+    //
+    // log_block_.reset() may cause the LogBlock() to lose its last reference and
+    // be destroyed. This may cause a registered LogBlockDeletionTransaction to lose
+    // its last reference and be destroyed, which will trigger the asynchronous code
+    // in its destructor that will eventually destroy the (now dead) container.
     if (log_block_->container()->metrics()) {
       log_block_->container()->metrics()->generic_metrics.blocks_open_reading->Decrement();
     }
@@ -1920,9 +2015,24 @@ void LogBlockManager::RemoveFullContainerUnlocked(const string& container_name) 
   CHECK(to_delete);
   CHECK(to_delete->full())
       << Substitute("Container $0 is not full", container_name);
+  CHECK(to_delete->dead())
+      << Substitute("Container $0 is not dead", container_name);
   if (metrics()) {
     metrics()->containers->Decrement();
     metrics()->full_containers->Decrement();
+  }
+}
+
+void LogBlockManager::RemoveDeadContainer(const string& container_name) {
+  // Remove the container from memory.
+  {
+    std::lock_guard<simple_spinlock> l(lock_);
+    RemoveFullContainerUnlocked(container_name);
+  }
+
+  // Update the metrics if necessary.
+  if (metrics()) {
+    metrics()->dead_containers_deleted->Increment();
   }
 }
 
@@ -2268,6 +2378,7 @@ void LogBlockManager::OpenDataDir(DataDir* dir,
       // confusing to report it as such since it'll be a natural event at startup.
       if (container->live_blocks() == 0) {
         DCHECK(live_blocks.empty());
+        CHECK(container->TrySetDead());
         dead_containers.emplace_back(container->ToString());
       } else if (static_cast<double>(container->live_blocks()) /
           container->total_blocks() <= FLAGS_log_container_live_metadata_before_compact_ratio) {
@@ -2487,42 +2598,6 @@ Status LogBlockManager::Repair(
         containers_by_name[e.first] = c;
       }
     }
-  }
-
-
-  // Delete all dead containers.
-  //
-  // After the deletions, the data directory is sync'ed to reduce the chance
-  // of a data file existing without its corresponding metadata file (or vice
-  // versa) in the event of a crash. The block manager would treat such a case
-  // as corruption and require manual intervention.
-  //
-  // TODO(adar) the above is not fool-proof; a crash could manifest in between
-  // any pair of deletions. That said, the odds of it happening are incredibly
-  // rare, and manual resolution isn't hard (just delete the existing file).
-  int64_t deleted_metadata_bytes = 0;
-  for (const auto& d : dead_containers) {
-    string data_file_name = StrCat(d, kContainerDataFileSuffix);
-    string metadata_file_name = StrCat(d, kContainerMetadataFileSuffix);
-
-    uint64_t metadata_size;
-    Status s = env_->GetFileSize(metadata_file_name, &metadata_size);
-    if (s.ok()) {
-      deleted_metadata_bytes += metadata_size;
-    } else {
-      WARN_NOT_OK_LBM_DISK_FAILURE(s,
-          "Could not get size of dead container metadata file " + metadata_file_name);
-    }
-
-    WARN_NOT_OK_LBM_DISK_FAILURE(file_cache_.DeleteFile(data_file_name),
-                "Could not delete dead container data file " + data_file_name);
-    WARN_NOT_OK_LBM_DISK_FAILURE(file_cache_.DeleteFile(metadata_file_name),
-                "Could not delete dead container metadata file " + metadata_file_name);
-  }
-  if (!dead_containers.empty()) {
-    WARN_NOT_OK_LBM_DISK_FAILURE(env_->SyncDir(dir->dir()), "Could not sync data directory");
-    LOG(INFO) << Substitute("Deleted $0 dead containers ($1 metadata bytes)",
-                            dead_containers.size(), deleted_metadata_bytes);
   }
 
   // Truncate partial metadata records.

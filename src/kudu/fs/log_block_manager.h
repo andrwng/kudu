@@ -269,6 +269,9 @@ class LogBlockManager : public BlockManager {
   // Must be called with 'lock_' held.
   void RemoveFullContainerUnlocked(const std::string& container_name);
 
+  // Removes a dead container, and it must be full.
+  void RemoveDeadContainer(const std::string& container_name);
+
   // Returns a container appropriate for the given CreateBlockOptions, creating
   // a new container if necessary.
   //
