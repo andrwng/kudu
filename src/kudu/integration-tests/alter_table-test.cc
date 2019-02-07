@@ -34,11 +34,13 @@
 #include <gtest/gtest.h>
 
 #include "kudu/client/client-test-util.h"
+#include "kudu/client/client-internal.h"
 #include "kudu/client/client.h"
 #include "kudu/client/row_result.h"
 #include "kudu/client/scan_batch.h"
 #include "kudu/client/schema.h"
 #include "kudu/client/shared_ptr.h"
+#include "kudu/client/table_alterer-internal.h"
 #include "kudu/client/value.h"
 #include "kudu/client/write_op.h"
 #include "kudu/common/common.pb.h"
@@ -56,6 +58,8 @@
 #include "kudu/master/master.h"
 #include "kudu/master/master.pb.h"
 #include "kudu/master/mini_master.h"
+#include "kudu/master/sys_catalog.h"
+#include "kudu/master/ts_manager.h"
 #include "kudu/mini-cluster/internal_mini_cluster.h"
 #include "kudu/tablet/rowset.h"
 #include "kudu/tablet/tablet.h"
@@ -64,7 +68,10 @@
 #include "kudu/tserver/mini_tablet_server.h"
 #include "kudu/tserver/tablet_server.h"
 #include "kudu/tserver/ts_tablet_manager.h"
+#include "kudu/tserver/tserver_admin.proxy.h"
+#include "kudu/util/barrier.h"
 #include "kudu/util/monotime.h"
+#include "kudu/util/pb_util.h"
 #include "kudu/util/random.h"
 #include "kudu/util/scoped_cleanup.h"
 #include "kudu/util/status.h"
@@ -72,11 +79,13 @@
 #include "kudu/util/test_util.h"
 #include "kudu/util/thread.h"
 
-DECLARE_bool(enable_maintenance_manager);
 DECLARE_int32(heartbeat_interval_ms);
 DECLARE_int32(flush_threshold_mb);
 DECLARE_bool(use_hybrid_clock);
 DECLARE_bool(scanner_allow_snapshot_scans_with_logical_timestamps);
+DECLARE_bool(log_preallocate_segments);
+DECLARE_bool(log_async_preallocate_segments);
+DECLARE_bool(enable_maintenance_manager);
 
 using kudu::client::CountTableRows;
 using kudu::client::KuduClient;
@@ -130,6 +139,9 @@ class AlterTableTest : public KuduTest {
   void SetUp() override {
     // Make heartbeats faster to speed test runtime.
     FLAGS_heartbeat_interval_ms = 10;
+    FLAGS_log_preallocate_segments = false;
+    FLAGS_log_async_preallocate_segments = false;
+    FLAGS_enable_maintenance_manager = false;
 
     KuduTest::SetUp();
 
@@ -618,8 +630,10 @@ void AlterTableTest::InsertRows(int start_row, int num_rows) {
     int32_t key = bswap_32(i);
     CHECK_OK(insert->mutable_row()->SetInt32(0, key));
 
-    if (table->schema().num_columns() > 1) {
-      CHECK_OK(insert->mutable_row()->SetInt32(1, i));
+    for (int c = 0; c < 10; c++) {
+      if (table->schema().num_columns() > c) {
+        CHECK_OK(insert->mutable_row()->SetInt32(c, i));
+      }
     }
 
     CHECK_OK(session->Apply(insert.release()));
@@ -2123,5 +2137,143 @@ TEST_F(AlterTableTest, TestKUDU2132) {
   table_alterer->DropColumn("c0");
   ASSERT_OK(table_alterer->Alter());
 }
+
+namespace master {
+
+TEST_F(AlterTableTest, TestReplayFailedAlters) {
+  // Send an update to the schema version, keeping track of the request. We'll
+  // use this later.
+  // Now add another column.
+
+  // The goal of this test is to send a duplicated alter schema request close
+  // enough to another alter schema request that the following race happens:
+  // 1. tserver receives op 1(->s2)
+  // 2. tserver receives op 2(->s2)
+  // 3. tserver checks op 1(->s2) is valid under lock
+  // 4. tserver checks op 2(->s2) is valid under lock
+  // 5. tserver performs op 1(->s2) succeed
+  // 6. tserver receives op 3(->s3)
+  // 7. tserver checks op 3(->s3) is valid under lock
+  // 8. tserver performs op 3(->s3) succeed
+  // GC op 3
+  // 9. tserver performs op 2(->s2) fail, but the log segment has s2
+  // write a bunch of stuff with s3
+  // replay:
+  // 1. see s2 in the WAL header
+  // 2. writes are in s3
+  LOG(INFO) << "Create an alter schema request";
+  Master* master = cluster_->mini_master()->master();
+  scoped_refptr<TabletReplica> ts_replica = LookupTabletReplica();
+  const string ts_uuid = cluster_->mini_tablet_server(0)->uuid();
+  const string tablet_id = ts_replica->tablet_id();
+  ts_replica.reset();
+
+  // Apply a change to the sys catalog.
+  Schema new_schema;
+  SchemaPB new_schema_pb;
+  ColumnId next_col_id;
+  scoped_refptr<TabletInfo> tablet = FindPtrOrNull(
+      master->catalog_manager()->tablet_map_, tablet_id);
+  {
+    // Manually commit an ALTER TABLE request to the SysCatalog.
+    AlterTableRequestPB req;
+    req.mutable_table()->set_table_name(kTableName);
+    AlterTableRequestPB::Step* step = req.add_alter_schema_steps();
+    step->set_type(AlterTableRequestPB::ADD_COLUMN);
+    ColumnSchemaToPB(ColumnSchema("new", INT32, true),
+                    step->mutable_add_column()->mutable_schema());
+
+    TableMetadataLock l(tablet->table().get(), LockMode::WRITE);
+    ASSERT_OK(master->catalog_manager()->ApplyAlterSchemaSteps(l.data().pb, { *step },
+              &new_schema, &next_col_id));
+    l.mutable_data()->pb.mutable_fully_applied_schema()->CopyFrom(l.data().pb.schema());
+    l.mutable_data()->pb.set_version(l.data().pb.version() + 1);
+    l.mutable_data()->pb.set_next_column_id(next_col_id);
+    l.mutable_data()->set_state(SysTablesEntryPB::ALTERING, "manual injection");
+    ASSERT_OK(SchemaToPB(new_schema, &new_schema_pb));
+    SysCatalogTable::Actions actions;
+    actions.table_to_update = tablet->table();
+    ASSERT_OK(master->catalog_manager()->sys_catalog()->Write(actions));
+    l.Commit();
+  }
+
+  tserver::AlterSchemaRequestPB tserver_req;
+  {
+    // Manually put together an alter schema request from the master. We're
+    // going to send this repeatedly to the tservers, as if we were the master
+    // scheduling many tasks at once.
+    TableMetadataLock l(tablet->table().get(), LockMode::READ);
+    tserver_req.set_dest_uuid(ts_uuid);
+    tserver_req.set_tablet_id(tablet_id);
+    tserver_req.set_schema_version(l.data().pb.version());
+    tserver_req.mutable_schema()->CopyFrom(new_schema_pb);
+    l.Unlock();
+    LOG(INFO) << pb_util::SecureShortDebugString(new_schema_pb);
+  }
+
+  std::shared_ptr<master::TSDescriptor> ts_desc;
+  ASSERT_TRUE(cluster_->mini_master()->master()->ts_manager()->LookupTSByUUID(ts_uuid, &ts_desc));
+  std::shared_ptr<tserver::TabletServerAdminServiceProxy> ts_proxy;
+  ASSERT_OK(ts_desc->GetTSAdminProxy(master->messenger(), &ts_proxy));
+  const int kNumThreads = 10;
+  Barrier b(kNumThreads + 1);
+  vector<std::thread> ts;
+  for (int i = 0; i < kNumThreads; i++) {
+    ts.emplace_back([&] {
+      rpc::RpcController rpc;
+      tserver::AlterSchemaResponsePB tserver_resp;
+      b.Wait();
+      Status s = ts_proxy->AlterSchema(tserver_req, &tserver_resp, &rpc);
+      LOG(INFO) << "AWONG: " << s.ToString();
+    });
+  }
+  b.Wait();
+  ASSERT_OK(AddNewI32Column(kTableName, "another", 0));
+  for (auto& t : ts) {
+    t.join();
+  }
+
+  SleepFor(MonoDelta::FromSeconds(2));
+  LOG(INFO) << "Sending writes";
+  // Now write some rows with the new schema.
+  NO_FATALS(InsertRows(10, 10));
+  SleepFor(MonoDelta::FromSeconds(10));
+  LOG(INFO) << "Sent writes and finished waiting...";
+
+  // Roll over.
+  LOG(INFO) << "WAITING FOR ALL TO FLUSH";
+  ASSERT_OK(tablet_replica_->log()->WaitUntilAllFlushed());
+  ASSERT_OK(tablet_replica_->log()->AllocateSegmentAndRollOver());
+  ASSERT_OK(tablet_replica_->tablet()->Flush());
+
+  SleepFor(MonoDelta::FromSeconds(2));
+  LOG(INFO) << "Sending writes";
+  // Now write some rows with the new schema.
+  NO_FATALS(InsertRows(20, 10));
+  SleepFor(MonoDelta::FromSeconds(10));
+  LOG(INFO) << "Sent writes and finished waiting...";
+
+  ASSERT_OK(tablet_replica_->log()->WaitUntilAllFlushed());
+  ASSERT_OK(tablet_replica_->log()->AllocateSegmentAndRollOver());
+  ASSERT_OK(tablet_replica_->tablet()->Flush());
+
+  // GC.
+  ASSERT_OK(tablet_replica_->RunLogGC());
+  LOG(INFO) << "Sending writes";
+  // Now write some rows with the new schema but don't flush them, so we're
+  // forced to replay them.
+  NO_FATALS(InsertRows(30, 10));
+  LOG(INFO) << "Sent writes and finished waiting...";
+
+  // Reboot the tablet server and see what happens.
+  ShutdownTS();
+  RestartTabletServer();
+  ASSERT_EVENTUALLY([&] {
+    ASSERT_EQ(tablet::TabletStatePB::RUNNING, tablet_replica_->state());
+    LOG(INFO) << "Tablet is running";
+  });
+}
+
+} // namespace master
 
 } // namespace kudu

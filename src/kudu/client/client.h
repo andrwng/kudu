@@ -627,6 +627,7 @@ class KUDU_EXPORT KuduClient : public sp::enable_shared_from_this<KuduClient> {
   friend class tools::LeaderMasterProxy;
 
   FRIEND_TEST(kudu::ClientStressTest, TestUniqueClientIds);
+  FRIEND_TEST(AlterTableTest, TestReplayFailedAlters);
   FRIEND_TEST(ClientTest, TestGetSecurityInfoFromMaster);
   FRIEND_TEST(ClientTest, TestGetTabletServerBlacklist);
   FRIEND_TEST(ClientTest, TestMasterDown);
@@ -1294,6 +1295,8 @@ class KUDU_EXPORT KuduTableAlterer {
   class KUDU_NO_EXPORT Data;
 
   friend class KuduClient;
+
+  FRIEND_TEST(AlterTableTest, TestReplayFailedAlters);
 
   KuduTableAlterer(KuduClient* client,
                    const std::string& name);

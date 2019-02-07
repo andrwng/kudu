@@ -111,6 +111,7 @@ Status WriteTransaction::Prepare() {
   }
 
   Tablet* tablet = state()->tablet_replica()->tablet();
+  LOG(INFO) << "AWONG prepare client schema: " << client_schema.ToString();
 
   Status s = tablet->DecodeWriteOperations(&client_schema, state());
   if (!s.ok()) {
@@ -155,6 +156,7 @@ Status WriteTransaction::Apply(gscoped_ptr<CommitMsg>* commit_msg) {
   }
 
   Tablet* tablet = state()->tablet_replica()->tablet();
+  LOG(INFO) << "AWONG tablet schema: " << tablet->schema()->ToString();
   RETURN_NOT_OK(tablet->ApplyRowOperations(state()));
 
   // Add per-row errors to the result, update metrics.

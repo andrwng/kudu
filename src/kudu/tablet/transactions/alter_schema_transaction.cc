@@ -113,15 +113,18 @@ Status AlterSchemaTransaction::Start() {
 Status AlterSchemaTransaction::Apply(gscoped_ptr<CommitMsg>* commit_msg) {
   TRACE("APPLY ALTER-SCHEMA: Starting");
 
+  LOG(INFO) <<" AWONG APPLYING";
   Tablet* tablet = state_->tablet_replica()->tablet();
   RETURN_NOT_OK(tablet->AlterSchema(state()));
-  state_->tablet_replica()->log()
-    ->SetSchemaForNextLogSegment(*DCHECK_NOTNULL(state_->schema()),
-                                                 state_->schema_version());
+  if (state()->succeeded) {
+    state_->tablet_replica()->log()
+      ->SetSchemaForNextLogSegment(*DCHECK_NOTNULL(state_->schema()),
+                                                  state_->schema_version());
 
-  // Altered tablets should be included in the next tserver heartbeat so that
-  // clients waiting on IsAlterTableDone() are unblocked promptly.
-  state_->tablet_replica()->MarkTabletDirty("Alter schema finished");
+    // Altered tablets should be included in the next tserver heartbeat so that
+    // clients waiting on IsAlterTableDone() are unblocked promptly.
+    state_->tablet_replica()->MarkTabletDirty("Alter schema finished");
+  }
 
   commit_msg->reset(new CommitMsg());
   (*commit_msg)->set_op_type(ALTER_SCHEMA_OP);
@@ -140,6 +143,7 @@ void AlterSchemaTransaction::Finish(TransactionResult result) {
   // but currently we need to wait until after the COMMIT message is logged
   // to release this lock as a workaround for KUDU-915. See the TODO in
   // Tablet::AlterSchema().
+  LOG(INFO) << "AWONG: RELEASING SCHEMA LOCK FOR " << state()->schema_version();
   state()->ReleaseSchemaLock();
 
   DCHECK_EQ(result, Transaction::COMMITTED);

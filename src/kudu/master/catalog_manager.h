@@ -701,6 +701,8 @@ class CatalogManager : public tserver::TabletReplicaLookupIf {
   // This test exclusively acquires the leader_lock_ directly.
   FRIEND_TEST(kudu::client::ServiceUnavailableRetryClientTest, CreateTable);
 
+  FRIEND_TEST(AlterTableTest, TestReplayFailedAlters);
+
   friend class TableLoader;
   friend class TabletLoader;
 

@@ -1366,7 +1366,7 @@ Status ExternalTabletServer::Start() {
   flags.push_back(Substitute("--webserver_interface=$0",
                              rpc_bind_address().host()));
   flags.emplace_back("--webserver_port=0");
-  flags.push_back(Substitute("--tserver_master_addrs=$0",
+  flags.push_back(Substitute("--tserver_master_addrs=$0,$0",
                              HostPort::ToCommaSeparatedString(master_addrs_)));
   RETURN_NOT_OK(StartProcess(flags));
   return Status::OK();

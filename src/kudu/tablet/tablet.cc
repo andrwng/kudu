@@ -439,6 +439,8 @@ Status Tablet::DecodeWriteOperations(const Schema* client_schema,
   TRACE("PREPARE: Decoding operations");
   vector<DecodedRowOperation> ops;
 
+  LOG(INFO) << "AWONG DECODE WRITE WITH SCHEMA: " << schema()->ToString();
+
   // Decode the ops
   RowOperationsPBDecoder dec(&tx_state->request()->row_operations(),
                              client_schema,
@@ -1240,6 +1242,7 @@ Status Tablet::CreatePreparedAlterSchema(AlterSchemaTransactionState *tx_state,
   // Alter schema must run when no reads/writes are in progress.
   // However, compactions and flushes can continue to run in parallel
   // with the schema change,
+  LOG(INFO) << "AWONG: TAKING SCHEMA LOCK FOR " << tx_state->schema_version();
   tx_state->AcquireSchemaLock(&schema_lock_);
 
   tx_state->set_schema(schema);
@@ -1249,6 +1252,7 @@ Status Tablet::CreatePreparedAlterSchema(AlterSchemaTransactionState *tx_state,
 Status Tablet::AlterSchema(AlterSchemaTransactionState *tx_state) {
   DCHECK(key_schema_.KeyTypeEquals(*DCHECK_NOTNULL(tx_state->schema()))) <<
     "Schema keys cannot be altered(except name)";
+  LOG(INFO) << "AWONG: call ALTER_SCHEMA";
 
   // Prevent any concurrent flushes. Otherwise, we run into issues where
   // we have an MRS in the rowset tree, and we can't alter its schema
@@ -1260,6 +1264,7 @@ Status Tablet::AlterSchema(AlterSchemaTransactionState *tx_state) {
   if (metadata_->schema_version() >= tx_state->schema_version()) {
     LOG_WITH_PREFIX(INFO) << "Already running schema version " << metadata_->schema_version()
                           << " got alter request for version " << tx_state->schema_version();
+    // tx_state->succeeded = false;
     return Status::OK();
   }
 
@@ -1275,6 +1280,7 @@ Status Tablet::AlterSchema(AlterSchemaTransactionState *tx_state) {
       metric_entity_->SetAttribute("table_name", tx_state->new_table_name());
     }
   }
+  tx_state->succeeded = true;
 
   // If the current schema and the new one are equal, there is nothing to do.
   if (same_schema) {

@@ -101,11 +101,16 @@ class AlterTableRandomized : public KuduTest,
     KuduTest::SetUp();
 
     ExternalMiniClusterOptions opts;
-    opts.num_tablet_servers = 3;
+    opts.num_tablet_servers = 1;
     opts.hms_mode = GetParam();
     // This test produces tables with lots of columns. With container preallocation,
     // we end up using quite a bit of disk space. So, we disable it.
     opts.extra_tserver_flags.emplace_back("--log_container_preallocate_bytes=0");
+    // opts.extra_tserver_flags.emplace_back("--rpc_num_service_threads=1");
+    opts.extra_tserver_flags.emplace_back("--rpc_service_queue_length=20");
+    opts.extra_tserver_flags.emplace_back("--heartbeat_interval_ms=10");
+    // opts.extra_tserver_flags.emplace_back("--raft_heartbeat_interval_ms=200");
+    // opts.extra_tserver_flags.emplace_back("--consensus_inject_latency_ms_in_notifications=200");
     cluster_.reset(new ExternalMiniCluster(std::move(opts)));
     ASSERT_OK(cluster_->Start());
 
@@ -131,7 +136,8 @@ class AlterTableRandomized : public KuduTest,
     cluster_->master()->Shutdown();
     CHECK_OK(cluster_->master()->Restart());
     CHECK_OK(cluster_->master()->WaitForCatalogManager());
-    CHECK_OK(cluster_->WaitForTabletServerCount(3, MonoDelta::FromSeconds(60)));
+    CHECK_OK(cluster_->WaitForTabletServerCount(cluster_->num_tablet_servers(),
+                                                MonoDelta::FromSeconds(60)));
     LOG(INFO) << "Master Restarted";
   }
 
@@ -142,7 +148,7 @@ class AlterTableRandomized : public KuduTest,
 
 // Run the test with the HMS integration enabled and disabled.
 INSTANTIATE_TEST_CASE_P(HmsConfigurations, AlterTableRandomized,
-                        ::testing::Values(HmsMode::NONE, HmsMode::ENABLE_METASTORE_INTEGRATION));
+                        ::testing::Values(HmsMode::NONE));
 
 struct RowState {
   // We use this special value to denote NULL values.
@@ -377,7 +383,7 @@ struct MirrorTable {
     table_creator->table_name(kTableName)
                   .schema(&schema)
                   .set_range_partition_columns({ "key" })
-                  .num_replicas(3);
+                  .num_replicas(1);
 
     for (const auto& partition : ts_.range_partitions_) {
       unique_ptr<KuduPartialRow> lower(schema.NewRow());
@@ -454,32 +460,19 @@ struct MirrorTable {
     CHECK_OK(client_->GetTableSchema(kTableName, &schema));
     unique_ptr<KuduTableAlterer> table_alterer(client_->NewTableAlterer(kTableName));
 
-    int step_count = 1 + ts_.rand_.Uniform(10);
+    int step_count = 1 + ts_.rand_.Uniform(2);
     for (int step = 0; step < step_count; step++) {
-      int r = ts_.rand_.Uniform(9);
-      if (r < 1 && num_columns() < kMaxColumns) {
-        AddAColumn(table_alterer.get());
-      } else if (r < 2 && num_columns() > 1) {
-        DropAColumn(table_alterer.get());
-      } else if (num_range_partitions() == 0 ||
-                 (r < 3 && num_range_partitions() < kMaxRangePartitions)) {
-        AddARangePartition(schema, table_alterer.get());
-      } else if (r < 4 && num_columns() > 1) {
-        RenameAColumn(table_alterer.get());
-      } else if (r < 5 && num_columns() > 1) {
-        RenamePrimaryKeyColumn(table_alterer.get());
-      } else if (r < 6 && num_columns() > 1) {
-        RenameAColumn(table_alterer.get());
-      } else if (r < 7 && num_columns() > 1) {
-        ChangeADefault(table_alterer.get());
-      } else if (r < 8 && num_columns() > 1) {
-        ChangeAStorageAttribute(table_alterer.get());
-      } else {
-        DropARangePartition(schema, table_alterer.get());
-      }
+      AddAColumn(table_alterer.get());
     }
     LOG(INFO) << "Committing Alterations";
-    CHECK_OK(table_alterer->Alter());
+    Status s;
+    do {
+      s = table_alterer->Alter();
+      if (s.IsAlreadyPresent() || s.IsInvalidArgument()) {
+        break;
+      }
+      LOG(INFO) << s.ToString();
+    } while (!s.ok());
   }
 
   void AddAColumn(KuduTableAlterer* table_alterer) {
@@ -726,20 +719,15 @@ TEST_P(AlterTableRandomized, TestRandomSequence) {
 
     if (r < 3) {
       RestartMaster();
-    } else if (r < 10) {
+    } else if (r < 50) {
       RestartTabletServer(rng.Uniform(cluster_->num_tablet_servers()));
-    } else if (r < 35 || t.num_range_partitions() == 0) {
-      t.RandomAlterTable();
-    } else if (r < 500) {
-      t.InsertRandomRow();
-    } else if (r < 750) {
-      t.DeleteRandomRow();
     } else {
-      t.UpdateRandomRow(rng.Next());
+      t.RandomAlterTable();
+      t.InsertRandomRow();
     }
 
     if (i % 1000 == 0) {
-      NO_FATALS(t.Verify());
+      //NO_FATALS(t.Verify());
     }
   }
 

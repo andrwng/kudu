@@ -670,6 +670,13 @@ bool TabletServiceAdminImpl::AuthorizeServiceUser(const google::protobuf::Messag
 void TabletServiceAdminImpl::AlterSchema(const AlterSchemaRequestPB* req,
                                          AlterSchemaResponsePB* resp,
                                          rpc::RpcContext* context) {
+  LOG(INFO) << "AWONG service ALTER_SCHEMA " << req->schema_version();
+  if (rand() % 2 != 0) {
+    LOG(INFO) << "AWONG: INJECTING DROP OF ALTER SCHEMA TO " << req->schema_version();
+    Status s = Status::RemoteError("INJECTED TSERVER AWONG");
+    context->RespondRpcFailure(rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY, s);
+    return;
+  }
   if (!CheckUuidMatchOrRespond(server_->tablet_manager(), "AlterSchema", req, resp, context)) {
     return;
   }
@@ -697,10 +704,12 @@ void TabletServiceAdminImpl::AlterSchema(const AlterSchemaRequestPB* req,
 
     Schema tablet_schema = replica->tablet_metadata()->schema();
     if (req_schema.Equals(tablet_schema)) {
+      LOG(INFO) << "AWONG: no change to schema";
       context->RespondSuccess();
       return;
     }
 
+    // XXX(awong): isn't this redundant?
     schema_version = replica->tablet_metadata()->schema_version();
     if (schema_version == req->schema_version()) {
       LOG(ERROR) << "The current schema does not match the request schema."
@@ -733,6 +742,7 @@ void TabletServiceAdminImpl::AlterSchema(const AlterSchemaRequestPB* req,
   // Submit the alter schema op. The RPC will be responded to asynchronously.
   Status s = replica->SubmitAlterSchema(std::move(tx_state));
   if (PREDICT_FALSE(!s.ok())) {
+    LOG(INFO) << "AWONG: failed to submit alter schema";
     SetupErrorAndRespond(resp->mutable_error(), s,
                          TabletServerErrorPB::UNKNOWN_ERROR,
                          context);

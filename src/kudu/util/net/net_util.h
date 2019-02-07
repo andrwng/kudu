@@ -113,8 +113,7 @@ struct HostPortEqualityPredicate {
   }
 };
 
-typedef std::unordered_set<HostPort, HostPortHasher, HostPortEqualityPredicate>
-    UnorderedHostPortSet;
+typedef std::vector<HostPort> UnorderedHostPortSet;
 
 // A container for addr:mask pair.
 // Both addr and netmask are in big-endian byte order

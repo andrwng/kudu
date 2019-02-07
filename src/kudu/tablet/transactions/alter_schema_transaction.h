@@ -28,6 +28,7 @@
 #include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/port.h"
+#include "kudu/tablet/tablet.pb.h"
 #include "kudu/tablet/transactions/transaction.h"
 #include "kudu/tserver/tserver_admin.pb.h"
 #include "kudu/util/status.h"
@@ -90,6 +91,8 @@ class AlterSchemaTransactionState : public TransactionState {
   }
 
   virtual std::string ToString() const OVERRIDE;
+
+  bool succeeded = false;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(AlterSchemaTransactionState);

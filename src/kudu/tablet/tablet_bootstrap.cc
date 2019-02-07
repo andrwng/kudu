@@ -1069,10 +1069,12 @@ Status TabletBootstrap::HandleEntryPair(const IOContext* io_context, LogEntryPB*
 
   switch (op_type) {
     case WRITE_OP:
+      LOG(INFO) << "AWONG PLAYING WRITE";
       RETURN_NOT_OK_REPLAY(PlayWriteRequest, io_context, replicate, commit);
       break;
 
     case ALTER_SCHEMA_OP:
+      LOG(INFO) << "AWONG PLAYING ALTER";
       RETURN_NOT_OK_REPLAY(PlayAlterSchemaRequest, io_context, replicate, commit);
       break;
 
@@ -1167,6 +1169,8 @@ Status TabletBootstrap::PlaySegments(const IOContext* io_context,
     Schema pit_schema;
     RETURN_NOT_OK_PREPEND(SchemaFromPB(segment->header().schema(), &pit_schema),
                           "Couldn't decode log segment schema");
+    LOG(INFO) << "AWONG REWINDING THE SCHEMA TO: " << segment->header().schema_version();
+    LOG(INFO) << "AWONG: " << SecureShortDebugString(segment->header().schema());
     RETURN_NOT_OK_PREPEND(tablet_->RewindSchemaForBootstrap(
                               pit_schema, segment->header().schema_version()),
                           "couldn't set point-in-time schema");
@@ -1368,6 +1372,7 @@ Status TabletBootstrap::PlayWriteRequest(const IOContext* io_context,
   DCHECK(replicate_msg->has_timestamp());
   WriteRequestPB* write = replicate_msg->mutable_write_request();
 
+  LOG(INFO) << "AWONG: " << SecureShortDebugString(*write);
   WriteTransactionState tx_state(nullptr, write, nullptr);
   tx_state.mutable_op_id()->CopyFrom(replicate_msg->id());
   tx_state.set_timestamp(Timestamp(replicate_msg->timestamp()));
@@ -1463,9 +1468,11 @@ Status TabletBootstrap::PlayAlterSchemaRequest(const IOContext* /*io_context*/,
   // Apply the alter schema to the tablet
   RETURN_NOT_OK_PREPEND(tablet_->AlterSchema(&tx_state), "Failed to AlterSchema:");
 
-  // Also update the log information. Normally, the AlterSchema() call above
-  // takes care of this, but our new log isn't hooked up to the tablet yet.
-  log_->SetSchemaForNextLogSegment(schema, tx_state.schema_version());
+  if (tx_state.succeeded) {
+    // Also update the log segment header. Note that our new log isn't hooked
+    // up to the tablet yet.
+    log_->SetSchemaForNextLogSegment(schema, tx_state.schema_version());
+  }
 
   return AppendCommitMsg(commit_msg);
 }
@@ -1500,6 +1507,7 @@ Status TabletBootstrap::PlayRowOperations(const IOContext* io_context,
                                           WriteTransactionState* tx_state,
                                           const TxResultPB& orig_result,
                                           TxResultPB* new_result) {
+  LOG(INFO) << "Playing row op";
   Schema inserts_schema;
   RETURN_NOT_OK_PREPEND(SchemaFromPB(tx_state->request()->schema(), &inserts_schema),
                         "Couldn't decode client schema");

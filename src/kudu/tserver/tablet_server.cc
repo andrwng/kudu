@@ -90,7 +90,7 @@ Status TabletServer::Init() {
 
   UnorderedHostPortSet master_addrs;
   for (auto addr : opts_.master_addresses) {
-    master_addrs.emplace(std::move(addr));
+    master_addrs.emplace_back(std::move(addr));
   }
   // If we deduplicated some masters addresses, log something about it.
   if (master_addrs.size() < opts_.master_addresses.size()) {

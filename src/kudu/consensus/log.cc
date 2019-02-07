@@ -934,6 +934,7 @@ void Log::SetSchemaForNextLogSegment(const Schema& schema,
   std::lock_guard<rw_spinlock> l(schema_lock_);
   schema_ = schema;
   schema_version_ = version;
+  LOG(INFO) << "AWONG: set schema for next segment " << version;
 }
 
 Status Log::Close() {

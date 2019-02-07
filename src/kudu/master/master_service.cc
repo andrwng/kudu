@@ -407,6 +407,7 @@ void MasterServiceImpl::GetTableSchema(const GetTableSchemaRequestPB* req,
 
   Status s = server_->catalog_manager()->GetTableSchema(req, resp);
   CheckRespErrorOrSetUnknown(s, resp);
+  LOG(INFO) << "AWONG: master returning schema " << pb_util::SecureShortDebugString(resp->schema());
   rpc->RespondSuccess();
 }
 

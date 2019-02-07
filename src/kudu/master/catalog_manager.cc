@@ -3276,6 +3276,7 @@ class AsyncAlterTable : public RetryingTSRpcTask {
 
     VLOG(1) << Substitute("Sending alter table request to $0 (attempt $1): $2",
                           target_ts_desc_->ToString(), attempt, SecureDebugString(req));
+    LOG(INFO) << "AWONG: MASTER SENDING REQ FOR SCHEMA " << req.schema_version();
     ts_proxy_->AlterSchemaAsync(req, &resp_, &rpc_,
                                 boost::bind(&AsyncAlterTable::RpcCallback, this));
     return true;

@@ -426,6 +426,11 @@ Status TabletReplica::SubmitAlterSchema(unique_ptr<AlterSchemaTransactionState> 
       new AlterSchemaTransaction(std::move(state), consensus::LEADER));
   scoped_refptr<TransactionDriver> driver;
   RETURN_NOT_OK(NewLeaderTransactionDriver(transaction.PassAs<Transaction>(), &driver));
+  if (rand() % 2 == 0) {
+    int r = 1000 + rand() % 300;
+    LOG(INFO) << "AWONG: Sleeping for " << r << " ms";
+    SleepFor(MonoDelta::FromMilliseconds(r));
+  }
   return driver->ExecuteAsync();
 }
 
