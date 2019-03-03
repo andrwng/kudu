@@ -45,6 +45,7 @@ set(TABLET_SRCS
   svg_dump.cc
   tablet_metadata.cc
   tablet_meta_manager.cc
+  rocksdb_tmeta_manager.cc
   rowset_metadata.cc
   deltafile.cc
   deltamemstore.cc
@@ -83,7 +84,8 @@ target_link_libraries(tablet
   gutil
   kudu_fs
   kudu_util
-  consensus)
+  consensus
+  rocksdb)
 
 add_library(tablet_test_util
   tablet-test-util.cc)

@@ -265,6 +265,7 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   friend class RefCountedThreadSafe<TabletMetadata>;
   friend class MetadataTest;
   friend class TabletMetadataManager;
+  friend class RocksDbTabletMetadataManager;
 
   // Compile time assert that no one deletes TabletMetadata objects.
   ~TabletMetadata();

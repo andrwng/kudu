@@ -1087,6 +1087,9 @@ include_directories(SYSTEM ${MUSTACHE_INCLUDE_DIR})
 ADD_THIRDPARTY_LIB(mustache
   STATIC_LIB "${MUSTACHE_STATIC_LIB}")
 
+ADD_THIRDPARTY_LIB(rocksdb
+  SHARED_LIB "${THIRDPARTY_INSTALL_UNINSTRUMENTED_DIR}/lib/librocksdb.so")
+
 ## OpenSSL
 ##
 ## Version 1.0.0 or higher is required because we are using the following
