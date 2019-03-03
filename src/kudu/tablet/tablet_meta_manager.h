@@ -28,6 +28,7 @@ class FsManager;
 
 namespace tablet {
 
+class SuperBlockUpdatePB;
 class TabletSuperBlockPB;
 class TabletMetadata;
 
@@ -37,8 +38,12 @@ class TabletMetadataManager : public RefCountedThreadSafe<TabletMetadataManager>
   Status Load(const std::string& tablet_id, scoped_refptr<TabletMetadata>* tmeta);
   Status Delete(const std::string& tablet_id);
   Status Flush(const TabletSuperBlockPB& pb) const;
+  Status FlushUpdate(const std::string& tablet_id, const SuperBlockUpdatePB& pb) const;
   bool Exists(const std::string& tablet_id) const;
   Status GetSize(const std::string& tablet_id, uint64_t* size) const;
+  bool SupportsIncrementalUpdates() const {
+    return false;
+  }
  private:
   friend class RefCountedThreadSafe<TabletMetadataManager>;
 

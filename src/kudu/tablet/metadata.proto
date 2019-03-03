@@ -133,6 +133,33 @@ message TabletSuperBlockPB {
   optional DataDirGroupPB data_dir_group = 15;
 }
 
+// An update to a TabletSuperBlockPB. Non-repeated fields in a
+// TabletSuperBlockPB can be set to their corresponding fields in this message.
+// Repeated fields in TabletSuperBlockPB can have members removed or added
+// based on their corresponding "removed" and "added" fields in this message.
+message SuperBlockUpdatePB {
+  optional bytes table_id = 1;
+  optional bytes tablet_id = 2;
+  optional int64 last_durable_mrs_id = 3;
+  optional PartitionPB partition = 4;
+
+  repeated int64 removed_rowsets_ids = 5;
+  repeated RowSetDataPB added_rowsets = 6;
+
+  optional string table_name = 7;
+  optional SchemaPB schema = 8;
+  optional uint32 schema_version = 9;
+
+  optional PartitionSchemaPB partition_schema = 10;
+  optional TabletDataState tablet_data_state = 11;
+
+  repeated BlockIdPB removed_orphaned_blocks = 12;
+  repeated BlockIdPB added_orphaned_blocks = 13;
+
+  optional consensus.OpId tombstone_last_logged_opid = 14;
+  optional DataDirGroupPB data_dir_group = 15;
+}
+
 // Tablet states represent stages of a TabletReplica's object lifecycle and are
 // reported to the master via tablet reports.
 //

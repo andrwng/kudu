@@ -456,6 +456,9 @@ void TabletMetadata::AddOrphanedBlocks(const vector<BlockId>& blocks) {
 void TabletMetadata::AddOrphanedBlocksUnlocked(const vector<BlockId>& blocks) {
   DCHECK(data_lock_.is_locked());
   orphaned_blocks_.insert(blocks.begin(), blocks.end());
+  for (const auto& block : blocks) {
+    block.CopyToPB(update_to_flush_.add_added_orphaned_blocks());
+  }
 }
 
 void TabletMetadata::DeleteOrphanedBlocks(const vector<BlockId>& blocks) {
@@ -480,6 +483,7 @@ void TabletMetadata::DeleteOrphanedBlocks(const vector<BlockId>& blocks) {
     std::lock_guard<LockType> l(data_lock_);
     for (const BlockId& b : deleted) {
       orphaned_blocks_.erase(b);
+      b.CopyToPB(update_to_flush_.add_removed_orphaned_blocks());
     }
   }
 }
@@ -509,6 +513,7 @@ Status TabletMetadata::Flush() {
   MutexLock l_flush(flush_lock_);
   vector<BlockId> orphaned;
   TabletSuperBlockPB pb;
+  SuperBlockUpdatePB update_pb;
   {
     std::lock_guard<LockType> l(data_lock_);
     CHECK_GE(num_flush_pins_, 0);
@@ -519,7 +524,12 @@ Status TabletMetadata::Flush() {
     }
     needs_flush_ = false;
 
-    RETURN_NOT_OK(ToSuperBlockUnlocked(&pb, rowsets_));
+    if (tmeta_manager_->SupportsIncrementalUpdates()) {
+      update_pb = std::move(update_to_flush_);
+      update_to_flush_.Clear();
+    } else {
+      RETURN_NOT_OK(ToSuperBlockUnlocked(&pb, rowsets_));
+    }
 
     // Make a copy of the orphaned blocks list which corresponds to the superblock
     // that we're writing. It's important to take this local copy to avoid a race
@@ -530,7 +540,14 @@ Status TabletMetadata::Flush() {
     orphaned.assign(orphaned_blocks_.begin(), orphaned_blocks_.end());
   }
   pre_flush_callback_.Run();
-  RETURN_NOT_OK(ReplaceSuperBlockUnlocked(pb));
+  if (tmeta_manager_->SupportsIncrementalUpdates()) {
+    RETURN_NOT_OK(FlushUpdateUnlocked(update_pb));
+    RETURN_NOT_OK(UpdateOnDiskSize());
+    flush_count_for_tests_++;
+  } else {
+    RETURN_NOT_OK(ReplaceSuperBlockUnlocked(pb));
+  }
+
   TRACE("Metadata flushed");
   l_flush.Unlock();
 
@@ -551,12 +568,14 @@ Status TabletMetadata::UpdateUnlocked(
   if (last_durable_mrs_id != kNoMrsFlushed) {
     DCHECK_GE(last_durable_mrs_id, last_durable_mrs_id_);
     last_durable_mrs_id_ = last_durable_mrs_id;
+    update_to_flush_.set_last_durable_mrs_id(last_durable_mrs_id);
   }
 
   RowSetMetadataVector new_rowsets = rowsets_;
   auto it = new_rowsets.begin();
   while (it != new_rowsets.end()) {
     if (ContainsKey(to_remove, (*it)->id())) {
+      update_to_flush_.add_removed_rowsets_ids((*it)->id());
       AddOrphanedBlocksUnlocked((*it)->GetAllBlocks());
       it = new_rowsets.erase(it);
     } else {
@@ -566,6 +585,7 @@ Status TabletMetadata::UpdateUnlocked(
 
   for (const shared_ptr<RowSetMetadata>& meta : to_add) {
     new_rowsets.push_back(meta);
+    meta->ToProtobuf(update_to_flush_.add_added_rowsets());
   }
   rowsets_ = new_rowsets;
 
@@ -592,6 +612,12 @@ Status TabletMetadata::ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb) {
   flush_count_for_tests_++;
   RETURN_NOT_OK(UpdateOnDiskSize());
 
+  return Status::OK();
+}
+
+Status TabletMetadata::FlushUpdateUnlocked(const SuperBlockUpdatePB& pb) {
+  flush_lock_.AssertAcquired();
+  RETURN_NOT_OK(tmeta_manager_->FlushUpdate(tablet_id_, pb));
   return Status::OK();
 }
 
@@ -698,11 +724,14 @@ void TabletMetadata::SetSchemaUnlocked(gscoped_ptr<Schema> new_schema, uint32_t 
     old_schemas_.push_back(old_schema);
   }
   schema_version_ = version;
+  update_to_flush_.set_schema_version(version);
+  CHECK_OK(SchemaToPB(*schema_, update_to_flush_.mutable_schema()));
 }
 
 void TabletMetadata::SetTableName(const string& table_name) {
   std::lock_guard<LockType> l(data_lock_);
   table_name_ = table_name;
+  update_to_flush_.set_table_name(table_name);
 }
 
 string TabletMetadata::table_name() const {
@@ -721,6 +750,7 @@ void TabletMetadata::set_tablet_data_state(TabletDataState state) {
     tombstone_last_logged_opid_ = boost::none;
   }
   tablet_data_state_ = state;
+  update_to_flush_.set_tablet_data_state(state);
 }
 
 string TabletMetadata::LogPrefix() const {

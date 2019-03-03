@@ -298,6 +298,8 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // Requires 'flush_lock_'.
   Status ReplaceSuperBlockUnlocked(const TabletSuperBlockPB &pb);
 
+  Status FlushUpdateUnlocked(const SuperBlockUpdatePB& pb);
+
   // Requires 'data_lock_'.
   Status UpdateUnlocked(const RowSetMetadataIds& to_remove,
                         const RowSetMetadataVector& to_add,
@@ -383,6 +385,9 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // The on-disk size of the tablet metadata, as of the last successful
   // call to Flush().
   std::atomic<int64_t> on_disk_size_;
+
+  // Updates accumulated on this metadata. Protected by data_lock_.
+  SuperBlockUpdatePB update_to_flush_;
 
   DISALLOW_COPY_AND_ASSIGN(TabletMetadata);
 };

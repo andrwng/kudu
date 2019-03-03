@@ -56,6 +56,12 @@ Status TabletMetadataManager::Flush(const TabletSuperBlockPB& pb) const {
   return Status::OK();
 }
 
+Status TabletMetadataManager::FlushUpdate(const string& tablet_id,
+                                          const SuperBlockUpdatePB& pb) const {
+  LOG(FATAL) << "Tablet metadta manager doesn't support incremental updates";
+  return Status::OK();
+}
+
 Status TabletMetadataManager::Delete(const string& tablet_id) {
   const string& path = fs_manager_->GetTabletMetadataPath(tablet_id);
   RETURN_NOT_OK_PREPEND(fs_manager_->env()->DeleteFile(path),
