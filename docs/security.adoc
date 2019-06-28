@@ -278,6 +278,7 @@ The following configurations must be set on the tablet servers:
 --tserver_enforce_access_control=true
 ```
 
+[[trusted-users]]
 === Trusted Users
 
 It may be desirable to allow certain users to view and modify any data stored
