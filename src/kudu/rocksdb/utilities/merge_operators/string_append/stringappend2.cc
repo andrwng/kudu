@@ -3,7 +3,7 @@
  * Copyright 2013 Facebook
  */
 
-#include "kudu/rocksdb/stringappend2.h"
+#include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend2.h"
 
 #include <memory>
 #include <string>

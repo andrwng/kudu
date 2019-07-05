@@ -11,8 +11,7 @@
 
 #include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_tier.h"
 
-#include "kudu/rocksdb/inttypes.h"
-
+#include <inttypes.h>
 #include <string>
 #include <sstream>
 

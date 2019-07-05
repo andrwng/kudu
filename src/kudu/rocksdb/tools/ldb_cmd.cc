@@ -1005,51 +1005,52 @@ ManifestDumpCommand::ManifestDumpCommand(
 
 void ManifestDumpCommand::DoCommand() {
 
-  std::string manifestfile;
-
-  if (!path_.empty()) {
-    manifestfile = path_;
-  } else {
-    bool found = false;
-    // We need to find the manifest file by searching the directory
-    // containing the db for files of the form MANIFEST_[0-9]+
-
-    auto CloseDir = [](DIR* p) { closedir(p); };
-    std::unique_ptr<DIR, decltype(CloseDir)> d(opendir(db_path_.c_str()),
-                                               CloseDir);
-
-    if (d == nullptr) {
-      exec_state_ =
-          LDBCommandExecuteResult::Failed(db_path_ + " is not a directory");
-      return;
-    }
-    struct dirent* entry;
-    while ((entry = readdir(d.get())) != nullptr) {
-      unsigned int match;
-      uint64_t num;
-      if (sscanf(entry->d_name, "MANIFEST-%" PRIu64 "%n", &num, &match) &&
-          match == strlen(entry->d_name)) {
-        if (!found) {
-          manifestfile = db_path_ + "/" + std::string(entry->d_name);
-          found = true;
-        } else {
-          exec_state_ = LDBCommandExecuteResult::Failed(
-              "Multiple MANIFEST files found; use --path to select one");
-          return;
-        }
-      }
-    }
-  }
-
-  if (verbose_) {
-    printf("Processing Manifest file %s\n", manifestfile.c_str());
-  }
-
-  DumpManifestFile(options_, manifestfile, verbose_, is_key_hex_, json_);
-
-  if (verbose_) {
-    printf("Processing Manifest file %s done\n", manifestfile.c_str());
-  }
+// TODO(awong): yeah, I know.
+//   std::string manifestfile;
+// 
+//   if (!path_.empty()) {
+//     manifestfile = path_;
+//   } else {
+//     bool found = false;
+//     // We need to find the manifest file by searching the directory
+//     // containing the db for files of the form MANIFEST_[0-9]+
+// 
+//     auto CloseDir = [](DIR* p) { closedir(p); };
+//     std::unique_ptr<DIR, decltype(CloseDir)> d(opendir(db_path_.c_str()),
+//                                                CloseDir);
+// 
+//     if (d == nullptr) {
+//       exec_state_ =
+//           LDBCommandExecuteResult::Failed(db_path_ + " is not a directory");
+//       return;
+//     }
+//     struct dirent* entry;
+//     while ((entry = readdir(d.get())) != nullptr) {
+//       unsigned int match;
+//       uint64_t num;
+//       if (sscanf(entry->d_name, "MANIFEST-%" PRIu64 "%n", &num, &match) &&
+//           match == strlen(entry->d_name)) {
+//         if (!found) {
+//           manifestfile = db_path_ + "/" + std::string(entry->d_name);
+//           found = true;
+//         } else {
+//           exec_state_ = LDBCommandExecuteResult::Failed(
+//               "Multiple MANIFEST files found; use --path to select one");
+//           return;
+//         }
+//       }
+//     }
+//   }
+// 
+//   if (verbose_) {
+//     printf("Processing Manifest file %s\n", manifestfile.c_str());
+//   }
+// 
+//   DumpManifestFile(options_, manifestfile, verbose_, is_key_hex_, json_);
+// 
+//   if (verbose_) {
+//     printf("Processing Manifest file %s done\n", manifestfile.c_str());
+//   }
 }
 
 // ----------------------------------------------------------------------------
