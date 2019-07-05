@@ -58,8 +58,8 @@
 #include <chrono>
 #include <vector>
 #include <memory>
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {

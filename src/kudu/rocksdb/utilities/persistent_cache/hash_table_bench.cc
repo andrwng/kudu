@@ -19,7 +19,7 @@ int main() { fprintf(stderr, "Please install gflags to run tools\n"); }
 #include <sys/time.h>
 
 #include "kudu/rocksdb/port/port_posix.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/gflags_compat.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/util/random.h"

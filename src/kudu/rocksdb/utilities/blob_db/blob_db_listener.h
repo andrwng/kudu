@@ -9,7 +9,7 @@
 
 #include <atomic>
 
-#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/listener.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/utilities/blob_db/blob_db_impl.h"
 

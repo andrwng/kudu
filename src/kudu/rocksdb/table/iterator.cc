@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/iterator.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 #include "kudu/rocksdb/table/iterator_wrapper.h"
 #include "kudu/rocksdb/util/arena.h"

@@ -19,9 +19,9 @@
 #include <string>
 #include <thread>
 
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/persistent_cache.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/persistent_cache.h"
 
 #include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_file.h"
 #include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_metadata.h"

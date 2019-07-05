@@ -10,9 +10,9 @@
 #include "kudu/rocksdb/monitoring/file_read_sample.h"
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
 #include "kudu/rocksdb/monitoring/statistics.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/statistics.h"
 
 namespace rocksdb {
 

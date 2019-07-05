@@ -11,9 +11,9 @@
 #include <sstream>
 #include <string>
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/listener.h"
-#include "kudu/rocksdb/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/listener.h"
+#include "kudu/rocksdb/rate_limiter.h"
 #include "kudu/rocksdb/util/aligned_buffer.h"
 #include "kudu/rocksdb/util/sync_point.h"
 

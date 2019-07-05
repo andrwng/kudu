@@ -8,9 +8,9 @@
 #include <algorithm>
 #include <memory>
 #include <string>
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/utilities/merge_operators.h"
 

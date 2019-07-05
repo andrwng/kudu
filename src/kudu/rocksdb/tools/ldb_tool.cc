@@ -4,8 +4,8 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #ifndef ROCKSDB_LITE
-#include "kudu/rocksdb/rocksdb/ldb_tool.h"
-#include "kudu/rocksdb/rocksdb/utilities/ldb_cmd.h"
+#include "kudu/rocksdb/ldb_tool.h"
+#include "kudu/rocksdb/utilities/ldb_cmd.h"
 #include "kudu/rocksdb/tools/ldb_cmd_impl.h"
 
 namespace rocksdb {

@@ -15,7 +15,7 @@ int main() { fprintf(stderr, "Please install gflags to run tools\n"); }
 #include <sstream>
 #include <unordered_map>
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 #include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier.h"
 #include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_tier.h"

@@ -14,7 +14,7 @@
 #include <cstring>
 
 #include "kudu/rocksdb/options/options_helper.h"
-#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/convenience.h"
 #include "kudu/rocksdb/util/testharness.h"
 
 #ifndef GFLAGS

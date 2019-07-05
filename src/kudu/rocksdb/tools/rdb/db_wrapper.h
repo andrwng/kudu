@@ -4,9 +4,9 @@
 #include <map>
 #include <node.h>
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/options.h"
 
 using namespace v8;
 

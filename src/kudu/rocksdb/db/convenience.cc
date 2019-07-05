@@ -6,7 +6,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/convenience.h"
 
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/util/cast_util.h"

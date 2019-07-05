@@ -5,7 +5,7 @@
 #pragma once
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/sst_dump_tool.h"
+#include "kudu/rocksdb/sst_dump_tool.h"
 
 #include <memory>
 #include <string>

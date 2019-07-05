@@ -12,8 +12,8 @@
 #include <string>
 
 #include "kudu/rocksdb/include/org_rocksdb_Checkpoint.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/utilities/checkpoint.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/utilities/checkpoint.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 /*
  * Class:     org_rocksdb_Checkpoint

@@ -14,9 +14,9 @@
 #include <unordered_map>
 
 #include "kudu/rocksdb/options/options_parser.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/utilities/options_util.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"

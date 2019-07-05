@@ -10,7 +10,7 @@
 
 #include "kudu/rocksdb/port/jemalloc_helper.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/memory_allocator.h"
+#include "kudu/rocksdb/memory_allocator.h"
 #include "kudu/rocksdb/util/core_local.h"
 #include "kudu/rocksdb/util/thread_local.h"
 

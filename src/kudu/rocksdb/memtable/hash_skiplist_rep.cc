@@ -9,10 +9,10 @@
 
 #include <atomic>
 
-#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/memtablerep.h"
 #include "kudu/rocksdb/util/arena.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/slice_transform.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/util/murmurhash.h"
 #include "kudu/rocksdb/db/memtable.h"

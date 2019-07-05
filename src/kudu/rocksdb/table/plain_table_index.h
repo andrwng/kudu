@@ -13,7 +13,7 @@
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/monitoring/histogram.h"
 #include "kudu/rocksdb/options/cf_options.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/util/arena.h"
 #include "kudu/rocksdb/util/hash.h"
 #include "kudu/rocksdb/util/murmurhash.h"

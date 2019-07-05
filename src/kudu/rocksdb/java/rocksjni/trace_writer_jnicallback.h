@@ -12,7 +12,7 @@
 #include <jni.h>
 #include <memory>
 
-#include "kudu/rocksdb/rocksdb/trace_reader_writer.h"
+#include "kudu/rocksdb/trace_reader_writer.h"
 #include "kudu/rocksdb/rocksjni/jnicallback.h"
 
 namespace rocksdb {

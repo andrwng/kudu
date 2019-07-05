@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 #include "kudu/rocksdb/db/table_properties_collector.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/block_based_table_reader.h"
 #include "kudu/rocksdb/table/block_builder.h"

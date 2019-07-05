@@ -30,10 +30,10 @@ int main() { return 0; }
 #include <thread>
 
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/util/gflags_compat.h"
 #include "kudu/rocksdb/util/testharness.h"
 

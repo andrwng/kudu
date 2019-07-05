@@ -13,8 +13,8 @@
 #include <memory>
 #include <string>
 #include "kudu/rocksdb/rocksjni/jnicallback.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {

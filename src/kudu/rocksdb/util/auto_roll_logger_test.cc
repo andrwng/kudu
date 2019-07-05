@@ -18,7 +18,7 @@
 #include <thread>
 #include <vector>
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db.h"
 #include "kudu/rocksdb/util/logging.h"
 #include "kudu/rocksdb/util/sync_point.h"
 #include "kudu/rocksdb/util/testharness.h"

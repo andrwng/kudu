@@ -7,7 +7,7 @@
 #include <string>
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/db/table_properties_collector.h"
-#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/types.h"
 #include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {

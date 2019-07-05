@@ -21,8 +21,8 @@ int main() {
 
 #include "kudu/rocksdb/db/range_del_aggregator.h"
 #include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/util/stop_watch.h"

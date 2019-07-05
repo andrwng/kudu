@@ -13,8 +13,8 @@
 
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/db/write_callback.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/write_batch.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/util/sync_point.h"

@@ -8,8 +8,8 @@
 #include <algorithm>
 
 #include "kudu/rocksdb/env/mock_env.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/utilities/object_registry.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/utilities/object_registry.h"
 #include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {

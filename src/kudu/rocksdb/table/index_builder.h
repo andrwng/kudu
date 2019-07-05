@@ -16,7 +16,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/comparator.h"
 #include "kudu/rocksdb/table/block_based_table_factory.h"
 #include "kudu/rocksdb/table/block_builder.h"
 #include "kudu/rocksdb/table/format.h"

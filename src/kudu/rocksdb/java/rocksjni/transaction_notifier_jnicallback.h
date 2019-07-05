@@ -11,7 +11,7 @@
 
 #include <jni.h>
 
-#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/utilities/transaction.h"
 #include "kudu/rocksdb/rocksjni/jnicallback.h"
 
 namespace rocksdb {

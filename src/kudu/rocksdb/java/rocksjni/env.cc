@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "kudu/rocksdb/portal.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/include/org_rocksdb_Env.h"
 #include "kudu/rocksdb/include/org_rocksdb_HdfsEnv.h"
 #include "kudu/rocksdb/include/org_rocksdb_RocksEnv.h"

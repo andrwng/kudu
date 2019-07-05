@@ -9,9 +9,9 @@
 #include <string>
 #include <unordered_map>
 #include "kudu/rocksdb/db/dbformat.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/slice_transform.h"
 
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/block_based_table_reader.h"

@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/env.h"
 
 #include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_file_buffer.h"
 #include "kudu/rocksdb/utilities/persistent_cache/lrulist.h"

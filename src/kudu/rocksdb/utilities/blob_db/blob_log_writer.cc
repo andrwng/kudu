@@ -10,7 +10,7 @@
 #include <string>
 
 #include "kudu/rocksdb/monitoring/statistics.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"
 #include "kudu/rocksdb/util/stop_watch.h"

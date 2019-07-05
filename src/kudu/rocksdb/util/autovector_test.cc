@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/autovector.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/testharness.h"

@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/table/data_block_hash_index.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/hash.h"

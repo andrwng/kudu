@@ -12,9 +12,9 @@
 #include <inttypes.h>
 #include <iostream>
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/db_dump_tool.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/db_dump_tool.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/coding.h"
 
 namespace rocksdb {

@@ -14,9 +14,9 @@
 #include <vector>
 
 #include "kudu/rocksdb/monitoring/histogram.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/persistent_cache.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/persistent_cache.h"
+#include "kudu/rocksdb/status.h"
 
 // Persistent Cache
 //

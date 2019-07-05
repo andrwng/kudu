@@ -13,7 +13,7 @@
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/db/table_properties_collector.h"
 #include "kudu/rocksdb/options/cf_options.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/block_based_table_factory.h"
 #include "kudu/rocksdb/table/meta_blocks.h"
 #include "kudu/rocksdb/table/plain_table_factory.h"

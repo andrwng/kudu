@@ -13,7 +13,7 @@
 
 #include "kudu/rocksdb/include/org_rocksdb_BloomFilter.h"
 #include "kudu/rocksdb/include/org_rocksdb_Filter.h"
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/filter_policy.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

@@ -7,8 +7,8 @@
 
 #include "kudu/rocksdb/include/org_rocksdb_RocksDBExceptionTest.h"
 
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/status.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

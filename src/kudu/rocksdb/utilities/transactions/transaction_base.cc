@@ -15,9 +15,9 @@
 
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/db/column_family.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/status.h"
 #include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {

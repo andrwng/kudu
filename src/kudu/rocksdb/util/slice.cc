@@ -8,8 +8,8 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include <algorithm>
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include <stdio.h>
 

@@ -9,9 +9,9 @@
 #include <iostream>
 #include <map>
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/utilities/db_ttl.h"
 #include "kudu/rocksdb/utilities/merge_operators.h"
 #include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend.h"
 #include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend2.h"

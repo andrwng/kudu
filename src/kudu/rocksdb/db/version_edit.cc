@@ -10,7 +10,7 @@
 #include "kudu/rocksdb/db/version_edit.h"
 
 #include "kudu/rocksdb/db/version_set.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/event_logger.h"
 #include "kudu/rocksdb/util/string_util.h"

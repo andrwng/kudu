@@ -15,7 +15,7 @@
 
 #include "kudu/rocksdb/db/db_test_util.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/utilities/debug.h"
+#include "kudu/rocksdb/utilities/debug.h"
 #include "kudu/rocksdb/util/cast_util.h"
 #include "kudu/rocksdb/util/fault_injection_test_env.h"
 #include "kudu/rocksdb/util/file_util.h"

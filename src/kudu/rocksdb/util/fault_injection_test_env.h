@@ -19,8 +19,8 @@
 
 #include "kudu/rocksdb/db/version_set.h"
 #include "kudu/rocksdb/env/mock_env.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/filename.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/util/random.h"

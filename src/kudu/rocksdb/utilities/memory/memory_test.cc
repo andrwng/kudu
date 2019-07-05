@@ -6,10 +6,10 @@
 #ifndef ROCKSDB_LITE
 
 #include "kudu/rocksdb/db/db_impl.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/utilities/memory_util.h"
-#include "kudu/rocksdb/rocksdb/utilities/stackable_db.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/utilities/memory_util.h"
+#include "kudu/rocksdb/utilities/stackable_db.h"
 #include "kudu/rocksdb/table/block_based_table_factory.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/testharness.h"

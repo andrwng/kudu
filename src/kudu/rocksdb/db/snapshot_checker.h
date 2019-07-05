@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #pragma once
-#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/types.h"
 
 namespace rocksdb {
 

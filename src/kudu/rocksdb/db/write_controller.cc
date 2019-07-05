@@ -8,7 +8,7 @@
 #include <atomic>
 #include <cassert>
 #include <ratio>
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 namespace rocksdb {
 

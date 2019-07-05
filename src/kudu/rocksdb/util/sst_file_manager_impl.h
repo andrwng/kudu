@@ -13,7 +13,7 @@
 
 #include "kudu/rocksdb/db/compaction.h"
 #include "kudu/rocksdb/db/error_handler.h"
-#include "kudu/rocksdb/rocksdb/sst_file_manager.h"
+#include "kudu/rocksdb/sst_file_manager.h"
 #include "kudu/rocksdb/util/delete_scheduler.h"
 
 namespace rocksdb {

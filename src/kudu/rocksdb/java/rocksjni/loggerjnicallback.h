@@ -14,7 +14,7 @@
 #include <string>
 #include "kudu/rocksdb/rocksjni/jnicallback.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 namespace rocksdb {
 

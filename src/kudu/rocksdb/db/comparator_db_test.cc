@@ -7,8 +7,8 @@
 #include <string>
 
 #include "kudu/rocksdb/memtable/stl_wrappers.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/hash.h"
 #include "kudu/rocksdb/util/kv_map.h"
 #include "kudu/rocksdb/util/string_util.h"

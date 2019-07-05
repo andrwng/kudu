@@ -10,9 +10,9 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/slice_transform.h"
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/util/hash.h"
 #include "kudu/rocksdb/table/filter_block.h"

@@ -5,9 +5,9 @@
 
 #include "kudu/rocksdb/db/db_iter.h"
 #include "kudu/rocksdb/db/dbformat.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/testharness.h"

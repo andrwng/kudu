@@ -23,10 +23,10 @@ int main() {
 #include <thread>
 
 #include "kudu/rocksdb/db/db_test_util.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/trace_reader_writer.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/trace_reader_writer.h"
 #include "kudu/rocksdb/tools/trace_analyzer_tool.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"

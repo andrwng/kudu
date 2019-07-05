@@ -16,8 +16,8 @@
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/options/options_helper.h"
 #include "kudu/rocksdb/options/options_parser.h"
-#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/table.h"
 
 namespace rocksdb {
 

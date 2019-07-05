@@ -9,8 +9,8 @@
 
 #include "kudu/rocksdb/table/two_level_iterator.h"
 #include "kudu/rocksdb/db/pinned_iterators_manager.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/format.h"
 #include "kudu/rocksdb/util/arena.h"

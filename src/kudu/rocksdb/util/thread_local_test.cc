@@ -7,7 +7,7 @@
 #include <atomic>
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/util/autovector.h"
 #include "kudu/rocksdb/util/sync_point.h"

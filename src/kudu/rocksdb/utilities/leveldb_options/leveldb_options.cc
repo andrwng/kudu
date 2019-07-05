@@ -7,13 +7,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "kudu/rocksdb/rocksdb/utilities/leveldb_options.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/utilities/leveldb_options.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/table.h"
 
 namespace rocksdb {
 

@@ -37,8 +37,8 @@ RocksDB code:
 
 ```c++
 #include <string>  
-#include "kudu/rocksdb/rocksdb/db.h"  
-#include "kudu/rocksdb/rocksdb/utilities/leveldb_options.h"  
+#include "kudu/rocksdb/db.h"  
+#include "kudu/rocksdb/utilities/leveldb_options.h"  
 
 using namespace rocksdb;  
 
@@ -63,8 +63,8 @@ The difference is:
 
 ```diff
 -#include "kudu/rocksdb/leveldb/db.h"
-+#include "kudu/rocksdb/rocksdb/db.h"
-+#include "kudu/rocksdb/rocksdb/utilities/leveldb_options.h"
++#include "kudu/rocksdb/db.h"
++#include "kudu/rocksdb/utilities/leveldb_options.h"
 
 -using namespace leveldb;
 +using namespace rocksdb;
@@ -87,8 +87,8 @@ RocksDB code from scratch:
 
 ```c++
 #include <string>
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/table.h"
 
 using namespace rocksdb;
 

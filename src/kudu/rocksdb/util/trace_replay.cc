@@ -9,8 +9,8 @@
 #include <sstream>
 #include <thread>
 #include "kudu/rocksdb/db/db_impl.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/write_batch.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/string_util.h"
 

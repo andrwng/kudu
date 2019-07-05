@@ -12,8 +12,8 @@
 
 #include "kudu/rocksdb/db/db_test_util.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/utilities/table_properties_collectors.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/utilities/table_properties_collectors.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"
 

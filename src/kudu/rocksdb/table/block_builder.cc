@@ -36,7 +36,7 @@
 #include <assert.h>
 #include <algorithm>
 #include "kudu/rocksdb/db/dbformat.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/comparator.h"
 #include "kudu/rocksdb/table/data_block_footer.h"
 #include "kudu/rocksdb/util/coding.h"
 

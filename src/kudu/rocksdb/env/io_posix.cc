@@ -30,7 +30,7 @@
 #include "kudu/rocksdb/env/posix_logger.h"
 #include "kudu/rocksdb/monitoring/iostats_context_imp.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/sync_point.h"

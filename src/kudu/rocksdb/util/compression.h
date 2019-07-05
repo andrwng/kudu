@@ -20,8 +20,8 @@
 #endif  // ROCKSDB_MALLOC_USABLE_SIZE
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/compression_context_cache.h"
 #include "kudu/rocksdb/util/memory_allocator.h"

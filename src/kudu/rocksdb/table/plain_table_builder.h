@@ -8,10 +8,10 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/table_properties.h"
 #include "kudu/rocksdb/table/bloom_block.h"
 #include "kudu/rocksdb/table/plain_table_index.h"
 #include "kudu/rocksdb/table/plain_table_key_coding.h"

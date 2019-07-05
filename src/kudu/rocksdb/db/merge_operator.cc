@@ -7,7 +7,7 @@
  * Back-end implementation details specific to the Merge Operator.
  */
 
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/merge_operator.h"
 
 namespace rocksdb {
 

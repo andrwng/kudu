@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/hdfs/env_hdfs.h"
 
 #ifdef USE_HDFS
@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/status.h"
 #include "kudu/rocksdb/util/logging.h"
 #include "kudu/rocksdb/util/string_util.h"
 

@@ -12,11 +12,11 @@
 #include <limits>
 #include <map>
 
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/plain_table_factory.h"
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/table/block_builder.h"

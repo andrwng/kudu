@@ -10,8 +10,8 @@
 #include <stdint.h>
 
 #include "kudu/rocksdb/options/options_helper.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/table.h"
 
 namespace rocksdb {
 

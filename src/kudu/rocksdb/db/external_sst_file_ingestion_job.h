@@ -13,9 +13,9 @@
 #include "kudu/rocksdb/db/internal_stats.h"
 #include "kudu/rocksdb/db/snapshot_impl.h"
 #include "kudu/rocksdb/options/db_options.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/sst_file_writer.h"
 #include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {

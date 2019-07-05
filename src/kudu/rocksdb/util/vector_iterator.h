@@ -5,8 +5,8 @@
 #include <vector>
 
 #include "kudu/rocksdb/db/dbformat.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/iterator.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 
 namespace rocksdb {

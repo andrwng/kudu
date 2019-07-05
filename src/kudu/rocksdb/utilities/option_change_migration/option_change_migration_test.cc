@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "kudu/rocksdb/rocksdb/utilities/option_change_migration.h"
+#include "kudu/rocksdb/utilities/option_change_migration.h"
 #include <set>
 #include "kudu/rocksdb/db/db_test_util.h"
 #include "kudu/rocksdb/port/stack_trace.h"

@@ -10,8 +10,8 @@
 #include "kudu/rocksdb/db/memtable.h"
 #include "kudu/rocksdb/db/range_del_aggregator.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/memtablerep.h"
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/slice_transform.h"
 
 namespace rocksdb {
 

@@ -12,8 +12,8 @@
 #include <thread>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/util/delete_scheduler.h"
 #include "kudu/rocksdb/util/sst_file_manager_impl.h"
 #include "kudu/rocksdb/util/string_util.h"

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/status.h"
 
 namespace rocksdb {
 

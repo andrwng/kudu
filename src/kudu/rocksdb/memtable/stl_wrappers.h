@@ -7,9 +7,9 @@
 #include <map>
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/memtablerep.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/coding.h"
 
 namespace rocksdb {

@@ -13,7 +13,7 @@
 #pragma once
 #include <cerrno>
 #include <cstddef>
-#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/write_buffer_manager.h"
 
 namespace rocksdb {
 

@@ -5,10 +5,10 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/utilities/options_util.h"
 
 #include "kudu/rocksdb/options/options_parser.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/util/filename.h"
 
 namespace rocksdb {

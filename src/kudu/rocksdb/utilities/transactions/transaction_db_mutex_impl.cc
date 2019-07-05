@@ -12,7 +12,7 @@
 #include <functional>
 #include <mutex>
 
-#include "kudu/rocksdb/rocksdb/utilities/transaction_db_mutex.h"
+#include "kudu/rocksdb/utilities/transaction_db_mutex.h"
 
 namespace rocksdb {
 

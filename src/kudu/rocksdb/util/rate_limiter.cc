@@ -10,7 +10,7 @@
 #include "kudu/rocksdb/util/rate_limiter.h"
 #include "kudu/rocksdb/monitoring/statistics.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/aligned_buffer.h"
 #include "kudu/rocksdb/util/sync_point.h"
 

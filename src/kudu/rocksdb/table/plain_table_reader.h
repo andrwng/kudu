@@ -12,11 +12,11 @@
 #include <stdint.h>
 
 #include "kudu/rocksdb/db/dbformat.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/iterator.h"
+#include "kudu/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/table_properties.h"
 #include "kudu/rocksdb/table/table_reader.h"
 #include "kudu/rocksdb/table/plain_table_factory.h"
 #include "kudu/rocksdb/table/plain_table_index.h"

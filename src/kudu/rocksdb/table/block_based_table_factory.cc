@@ -21,9 +21,9 @@
 
 #include "kudu/rocksdb/options/options_helper.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/convenience.h"
-#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/convenience.h"
+#include "kudu/rocksdb/flush_block_policy.h"
 #include "kudu/rocksdb/table/block_based_table_builder.h"
 #include "kudu/rocksdb/table/block_based_table_reader.h"
 #include "kudu/rocksdb/table/format.h"

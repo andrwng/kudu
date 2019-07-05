@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "kudu/rocksdb/db/merge_helper.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/comparator.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"

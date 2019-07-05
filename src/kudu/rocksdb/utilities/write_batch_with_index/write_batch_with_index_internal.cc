@@ -10,9 +10,9 @@
 #include "kudu/rocksdb/db/column_family.h"
 #include "kudu/rocksdb/db/merge_context.h"
 #include "kudu/rocksdb/db/merge_helper.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/utilities/write_batch_with_index.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/string_util.h"
 

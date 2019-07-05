@@ -10,7 +10,7 @@
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/options/options_helper.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/convenience.h"
 #include "kudu/rocksdb/table/plain_table_builder.h"
 #include "kudu/rocksdb/table/plain_table_reader.h"
 #include "kudu/rocksdb/util/string_util.h"

@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "kudu/rocksdb/monitoring/instrumented_mutex.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/utilities/transaction.h"
 #include "kudu/rocksdb/util/autovector.h"
 #include "kudu/rocksdb/util/hash_map.h"
 #include "kudu/rocksdb/util/thread_local.h"

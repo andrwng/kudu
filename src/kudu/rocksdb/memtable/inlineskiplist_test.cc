@@ -10,7 +10,7 @@
 #include "kudu/rocksdb/memtable/inlineskiplist.h"
 #include <set>
 #include <unordered_set>
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/concurrent_arena.h"
 #include "kudu/rocksdb/util/hash.h"
 #include "kudu/rocksdb/util/random.h"

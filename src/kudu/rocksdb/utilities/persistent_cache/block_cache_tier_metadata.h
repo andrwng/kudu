@@ -10,7 +10,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 
 #include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_file.h"
 #include "kudu/rocksdb/utilities/persistent_cache/hash_table.h"

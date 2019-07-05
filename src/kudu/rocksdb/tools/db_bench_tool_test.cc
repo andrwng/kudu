@@ -7,9 +7,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "kudu/rocksdb/rocksdb/db_bench_tool.h"
+#include "kudu/rocksdb/db_bench_tool.h"
 #include "kudu/rocksdb/options/options_parser.h"
-#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/utilities/options_util.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"

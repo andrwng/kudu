@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 #include "kudu/rocksdb/db/dbformat.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 
 namespace rocksdb {
 

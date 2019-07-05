@@ -14,8 +14,8 @@
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/db/range_del_aggregator.h"
 #include "kudu/rocksdb/options/cf_options.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/iterator.h"
 #include "kudu/rocksdb/util/arena.h"
 #include "kudu/rocksdb/util/autovector.h"
 

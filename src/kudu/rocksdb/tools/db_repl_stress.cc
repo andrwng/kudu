@@ -16,8 +16,8 @@ int main() {
 #include <cstdio>
 
 #include "kudu/rocksdb/db/write_batch_internal.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/types.h"
 #include "kudu/rocksdb/util/gflags_compat.h"
 #include "kudu/rocksdb/util/testutil.h"
 

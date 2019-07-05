@@ -4,10 +4,10 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include <iostream>
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db.h"
 #include "kudu/rocksdb/db/db_impl.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/utilities/db_ttl.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/utilities/merge_operators.h"

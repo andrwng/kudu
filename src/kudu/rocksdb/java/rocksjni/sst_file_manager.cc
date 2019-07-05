@@ -11,7 +11,7 @@
 #include <memory>
 
 #include "kudu/rocksdb/include/org_rocksdb_SstFileManager.h"
-#include "kudu/rocksdb/rocksdb/sst_file_manager.h"
+#include "kudu/rocksdb/sst_file_manager.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

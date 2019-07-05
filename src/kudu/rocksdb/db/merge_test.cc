@@ -8,12 +8,12 @@
 #include <iostream>
 
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/utilities/db_ttl.h"
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/db/write_batch_internal.h"

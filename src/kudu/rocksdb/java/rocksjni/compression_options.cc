@@ -9,7 +9,7 @@
 #include <jni.h>
 
 #include "kudu/rocksdb/include/org_rocksdb_CompressionOptions.h"
-#include "kudu/rocksdb/rocksdb/advanced_options.h"
+#include "kudu/rocksdb/advanced_options.h"
 
 /*
  * Class:     org_rocksdb_CompressionOptions

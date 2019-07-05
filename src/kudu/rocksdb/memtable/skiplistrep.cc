@@ -5,7 +5,7 @@
 //
 #include "kudu/rocksdb/memtable/inlineskiplist.h"
 #include "kudu/rocksdb/db/memtable.h"
-#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/memtablerep.h"
 #include "kudu/rocksdb/util/arena.h"
 
 namespace rocksdb {

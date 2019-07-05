@@ -6,8 +6,8 @@
 
 #include <map>
 #include <memory>
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
-#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/utilities/db_ttl.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/testharness.h"
 #ifndef OS_WIN

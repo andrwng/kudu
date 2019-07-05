@@ -9,7 +9,7 @@
 #include <jni.h>
 
 #include "kudu/rocksdb/include/org_rocksdb_CompactRangeOptions.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

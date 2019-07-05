@@ -16,7 +16,7 @@
 #include "kudu/rocksdb/db/builder.h"
 #include "kudu/rocksdb/db/error_handler.h"
 #include "kudu/rocksdb/options/options_helper.h"
-#include "kudu/rocksdb/rocksdb/wal_filter.h"
+#include "kudu/rocksdb/wal_filter.h"
 #include "kudu/rocksdb/table/block_based_table_factory.h"
 #include "kudu/rocksdb/util/rate_limiter.h"
 #include "kudu/rocksdb/util/sst_file_manager_impl.h"

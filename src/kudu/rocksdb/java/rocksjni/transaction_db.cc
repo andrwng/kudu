@@ -13,9 +13,9 @@
 
 #include "kudu/rocksdb/include/org_rocksdb_TransactionDB.h"
 
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/utilities/transaction_db.h"
 
 #include "kudu/rocksdb/rocksjni/portal.h"
 

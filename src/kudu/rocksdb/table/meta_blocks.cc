@@ -8,8 +8,8 @@
 #include <string>
 
 #include "kudu/rocksdb/db/table_properties_collector.h"
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/table_properties.h"
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/block_fetcher.h"
 #include "kudu/rocksdb/table/format.h"

@@ -13,7 +13,7 @@
 #include <jni.h>
 #include <memory>
 #include "kudu/rocksdb/rocksjni/jnicallback.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/write_batch.h"
 
 namespace rocksdb {
 /**

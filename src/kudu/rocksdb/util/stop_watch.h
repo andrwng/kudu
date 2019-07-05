@@ -5,7 +5,7 @@
 //
 #pragma once
 #include "kudu/rocksdb/monitoring/statistics.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 namespace rocksdb {
 // Auto-scoped.

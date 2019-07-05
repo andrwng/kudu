@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "kudu/rocksdb/include/org_rocksdb_TtlDB.h"
-#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/utilities/db_ttl.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

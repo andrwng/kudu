@@ -20,7 +20,7 @@
 #endif
 #include <algorithm>
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/logging.h"
 #include "kudu/rocksdb/util/sync_point.h"
 

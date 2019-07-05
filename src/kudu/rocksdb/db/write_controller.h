@@ -9,7 +9,7 @@
 
 #include <atomic>
 #include <memory>
-#include "kudu/rocksdb/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/rate_limiter.h"
 
 namespace rocksdb {
 

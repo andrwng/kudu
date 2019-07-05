@@ -9,7 +9,7 @@
 
 #include "kudu/rocksdb/table/block_based_filter_block.h"
 
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/filter_policy.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/hash.h"
 #include "kudu/rocksdb/util/string_util.h"

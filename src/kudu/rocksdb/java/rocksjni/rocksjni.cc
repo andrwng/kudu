@@ -17,10 +17,10 @@
 #include <vector>
 
 #include "kudu/rocksdb/include/org_rocksdb_RocksDB.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/types.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 #ifdef min

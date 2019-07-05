@@ -7,9 +7,9 @@
 #include <string>
 
 #include "kudu/rocksdb/options/db_options.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/types.h"
 #include "kudu/rocksdb/util/filename.h"
 
 namespace rocksdb {

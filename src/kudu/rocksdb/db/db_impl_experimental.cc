@@ -19,7 +19,7 @@
 #include "kudu/rocksdb/db/column_family.h"
 #include "kudu/rocksdb/db/job_context.h"
 #include "kudu/rocksdb/db/version_set.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/status.h"
 
 namespace rocksdb {
 

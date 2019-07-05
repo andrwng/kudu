@@ -10,9 +10,9 @@
 #ifndef ROCKSDB_LITE
 
 #include <stdint.h>
-#include "kudu/rocksdb/rocksdb/sst_dump_tool.h"
+#include "kudu/rocksdb/sst_dump_tool.h"
 
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/filter_policy.h"
 #include "kudu/rocksdb/table/block_based_table_factory.h"
 #include "kudu/rocksdb/table/table_builder.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"

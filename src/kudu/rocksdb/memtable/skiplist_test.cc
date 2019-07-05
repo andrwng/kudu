@@ -9,7 +9,7 @@
 
 #include "kudu/rocksdb/memtable/skiplist.h"
 #include <set>
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/arena.h"
 #include "kudu/rocksdb/util/hash.h"
 #include "kudu/rocksdb/util/random.h"

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "kudu/rocksdb/rocksdb/trace_reader_writer.h"
+#include "kudu/rocksdb/trace_reader_writer.h"
 
 namespace rocksdb {
 

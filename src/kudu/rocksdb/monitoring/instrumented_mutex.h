@@ -7,9 +7,9 @@
 
 #include "kudu/rocksdb/monitoring/statistics.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/statistics.h"
-#include "kudu/rocksdb/rocksdb/thread_status.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/statistics.h"
+#include "kudu/rocksdb/thread_status.h"
 #include "kudu/rocksdb/util/stop_watch.h"
 
 namespace rocksdb {

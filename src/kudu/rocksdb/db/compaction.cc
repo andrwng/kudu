@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "kudu/rocksdb/db/column_family.h"
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/compaction_filter.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/sync_point.h"
 

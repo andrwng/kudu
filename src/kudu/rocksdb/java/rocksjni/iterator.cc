@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #include "kudu/rocksdb/include/org_rocksdb_RocksIterator.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/iterator.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

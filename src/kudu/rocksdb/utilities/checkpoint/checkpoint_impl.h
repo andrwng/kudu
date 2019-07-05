@@ -6,10 +6,10 @@
 #pragma once
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/utilities/checkpoint.h"
+#include "kudu/rocksdb/utilities/checkpoint.h"
 
 #include <string>
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db.h"
 #include "kudu/rocksdb/util/filename.h"
 
 namespace rocksdb {

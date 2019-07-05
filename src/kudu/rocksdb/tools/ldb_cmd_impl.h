@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "kudu/rocksdb/rocksdb/utilities/ldb_cmd.h"
+#include "kudu/rocksdb/utilities/ldb_cmd.h"
 
 #include <map>
 #include <string>

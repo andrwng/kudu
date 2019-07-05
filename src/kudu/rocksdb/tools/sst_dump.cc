@@ -5,7 +5,7 @@
 //
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/sst_dump_tool.h"
+#include "kudu/rocksdb/sst_dump_tool.h"
 
 int main(int argc, char** argv) {
   rocksdb::SSTDumpTool tool;

@@ -13,9 +13,9 @@
 #include <utility>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/trace_reader_writer.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/trace_reader_writer.h"
+#include "kudu/rocksdb/write_batch.h"
 #include "kudu/rocksdb/util/trace_replay.h"
 
 namespace rocksdb {

@@ -10,10 +10,10 @@
 #pragma once
 #include <vector>
 #include "kudu/rocksdb/db/write_thread.h"
-#include "kudu/rocksdb/rocksdb/types.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/types.h"
+#include "kudu/rocksdb/write_batch.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {

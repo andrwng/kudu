@@ -9,7 +9,7 @@
 
 #include "kudu/rocksdb/data_block_footer.h"
 
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table.h"
 
 namespace rocksdb {
 

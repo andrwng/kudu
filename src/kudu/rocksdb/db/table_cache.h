@@ -18,10 +18,10 @@
 #include "kudu/rocksdb/db/range_del_aggregator.h"
 #include "kudu/rocksdb/options/cf_options.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/table_reader.h"
 
 namespace rocksdb {

@@ -14,11 +14,11 @@
 
 #include "kudu/rocksdb/db/db_test_util.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/listener.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/perf_context.h"
-#include "kudu/rocksdb/rocksdb/perf_level.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/listener.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/perf_context.h"
+#include "kudu/rocksdb/perf_level.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/util/string_util.h"
 

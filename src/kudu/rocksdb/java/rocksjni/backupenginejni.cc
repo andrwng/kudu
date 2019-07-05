@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "kudu/rocksdb/include/org_rocksdb_BackupEngine.h"
-#include "kudu/rocksdb/rocksdb/utilities/backupable_db.h"
+#include "kudu/rocksdb/utilities/backupable_db.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

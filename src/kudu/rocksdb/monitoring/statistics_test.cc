@@ -8,7 +8,7 @@
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"
 
-#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/statistics.h"
 
 namespace rocksdb {
 

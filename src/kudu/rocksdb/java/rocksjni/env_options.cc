@@ -10,7 +10,7 @@
 #include <jni.h>
 
 #include "kudu/rocksdb/include/org_rocksdb_EnvOptions.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 #define ENV_OPTIONS_SET_BOOL(_jhandle, _opt)                \
   reinterpret_cast<rocksdb::EnvOptions *>(_jhandle)->_opt = \

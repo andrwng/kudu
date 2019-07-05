@@ -17,10 +17,10 @@
 #include <malloc.h>
 #endif
 #endif
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/table.h"
 
 #include "kudu/rocksdb/options/cf_options.h"
 #include "kudu/rocksdb/port/port.h"  // noexcept

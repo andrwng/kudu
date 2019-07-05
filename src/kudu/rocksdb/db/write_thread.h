@@ -18,10 +18,10 @@
 #include "kudu/rocksdb/db/pre_release_callback.h"
 #include "kudu/rocksdb/db/write_callback.h"
 #include "kudu/rocksdb/monitoring/instrumented_mutex.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/types.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/types.h"
+#include "kudu/rocksdb/write_batch.h"
 #include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {

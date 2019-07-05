@@ -13,8 +13,8 @@
 #include <memory>
 
 #include "kudu/rocksdb/db/log_format.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/status.h"
 
 namespace rocksdb {
 

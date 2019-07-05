@@ -7,7 +7,7 @@
 
 #include "kudu/rocksdb/db/snapshot_checker.h"
 #include "kudu/rocksdb/port/likely.h"
-#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/listener.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 #include "kudu/rocksdb/util/sync_point.h"
 

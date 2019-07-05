@@ -19,7 +19,7 @@ A rocksdb database has a name which corresponds to a file system directory. All 
 
 ```c++
 #include <assert>
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db.h"
 
 rocksdb::DB* db;
 rocksdb::Options options;

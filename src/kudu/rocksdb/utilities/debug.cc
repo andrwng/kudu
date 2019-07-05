@@ -5,7 +5,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/utilities/debug.h"
+#include "kudu/rocksdb/utilities/debug.h"
 
 #include "kudu/rocksdb/db/db_impl.h"
 

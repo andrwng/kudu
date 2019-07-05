@@ -12,8 +12,8 @@
 #include <map>
 #include <string>
 #include <vector>
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/status.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 

@@ -8,7 +8,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "kudu/rocksdb/util/concurrent_task_limiter_impl.h"
-#include "kudu/rocksdb/rocksdb/concurrent_task_limiter.h"
+#include "kudu/rocksdb/concurrent_task_limiter.h"
 
 namespace rocksdb {
 

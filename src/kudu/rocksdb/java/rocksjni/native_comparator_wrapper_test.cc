@@ -6,8 +6,8 @@
 #include <jni.h>
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/slice.h"
 
 #include "kudu/rocksdb/include/org_rocksdb_NativeComparatorWrapperTest_NativeStringComparatorWrapper.h"
 

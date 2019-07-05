@@ -11,9 +11,9 @@
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
 #include "kudu/rocksdb/monitoring/statistics.h"
 #include "kudu/rocksdb/port/likely.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/merge_operator.h"
 #include "kudu/rocksdb/table/format.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 

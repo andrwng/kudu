@@ -48,7 +48,7 @@
 #include <type_traits>
 #include "kudu/rocksdb/port/likely.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/allocator.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/random.h"

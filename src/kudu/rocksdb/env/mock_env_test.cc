@@ -7,7 +7,7 @@
 #include <memory>
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {

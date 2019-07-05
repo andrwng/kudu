@@ -7,16 +7,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db.h"
 
 #include <memory>
 #include "kudu/rocksdb/db/column_family.h"
 #include "kudu/rocksdb/db/memtable.h"
 #include "kudu/rocksdb/db/write_batch_internal.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/memtablerep.h"
-#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
-#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/write_buffer_manager.h"
 #include "kudu/rocksdb/table/scoped_arena_iterator.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/testharness.h"

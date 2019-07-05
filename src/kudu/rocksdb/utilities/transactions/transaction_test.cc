@@ -17,11 +17,11 @@
 #include <thread>
 
 #include "kudu/rocksdb/db/db_impl.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/perf_context.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/perf_context.h"
+#include "kudu/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/utilities/transaction_db.h"
 #include "kudu/rocksdb/table/mock_table.h"
 #include "kudu/rocksdb/util/fault_injection_test_env.h"
 #include "kudu/rocksdb/util/random.h"

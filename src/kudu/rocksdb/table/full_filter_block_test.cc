@@ -5,7 +5,7 @@
 
 #include "kudu/rocksdb/table/full_filter_block.h"
 
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/filter_policy.h"
 #include "kudu/rocksdb/table/full_filter_bits_builder.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/hash.h"

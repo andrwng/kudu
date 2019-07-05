@@ -10,8 +10,8 @@
 #include "kudu/rocksdb/util/coding.h"
 
 #include <algorithm>
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/slice_transform.h"
 
 namespace rocksdb {
 

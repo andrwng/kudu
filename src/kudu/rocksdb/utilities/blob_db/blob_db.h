@@ -10,9 +10,9 @@
 #include <functional>
 #include <string>
 #include <vector>
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/utilities/stackable_db.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/utilities/stackable_db.h"
 
 namespace rocksdb {
 

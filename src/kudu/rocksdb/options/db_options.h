@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/options.h"
 
 namespace rocksdb {
 

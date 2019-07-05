@@ -13,7 +13,7 @@
 
 #include "kudu/rocksdb/rocksjni/portal.h"
 
-#include "kudu/rocksdb/rocksdb/utilities/memory_util.h"
+#include "kudu/rocksdb/utilities/memory_util.h"
 
 
 /*

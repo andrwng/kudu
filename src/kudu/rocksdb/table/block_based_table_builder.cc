@@ -21,13 +21,13 @@
 
 #include "kudu/rocksdb/db/dbformat.h"
 
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
-#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/table.h"
 
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/block_based_filter_block.h"

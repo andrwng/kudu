@@ -11,9 +11,9 @@
 
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/db/db_test_util.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/transaction_log.h"
 #include "kudu/rocksdb/util/file_util.h"
 #include "kudu/rocksdb/util/string_util.h"
 

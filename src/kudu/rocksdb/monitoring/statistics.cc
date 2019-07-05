@@ -10,7 +10,7 @@
 #endif
 
 #include <inttypes.h>
-#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/statistics.h"
 #include "kudu/rocksdb/port/likely.h"
 #include <algorithm>
 #include <cstdio>

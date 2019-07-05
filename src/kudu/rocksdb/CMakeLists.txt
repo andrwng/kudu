@@ -270,6 +270,8 @@ if (${KUDU_USE_ASAN})
 endif()
 
 add_library(rocksdb ${ROCKSDB_SRCS})
+target_link_libraries(rocksdb
+  kudu_util)
 
 # option(WITH_TESTS "build with tests" ON)
 # if(WITH_TESTS)

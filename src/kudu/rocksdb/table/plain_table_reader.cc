@@ -11,12 +11,12 @@
 
 #include "kudu/rocksdb/db/dbformat.h"
 
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/statistics.h"
 
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/bloom_block.h"

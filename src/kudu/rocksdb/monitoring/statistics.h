@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/statistics.h"
 
 #include <atomic>
 #include <map>

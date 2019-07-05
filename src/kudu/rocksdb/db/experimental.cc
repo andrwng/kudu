@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "kudu/rocksdb/rocksdb/experimental.h"
+#include "kudu/rocksdb/experimental.h"
 
 #include "kudu/rocksdb/db/db_impl.h"
 

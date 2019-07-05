@@ -7,7 +7,7 @@
 
 #include "kudu/rocksdb/db/write_controller.h"
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {

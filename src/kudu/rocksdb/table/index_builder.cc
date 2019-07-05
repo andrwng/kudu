@@ -14,8 +14,8 @@
 #include <list>
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/flush_block_policy.h"
 #include "kudu/rocksdb/table/format.h"
 #include "kudu/rocksdb/table/partitioned_filter_block.h"
 

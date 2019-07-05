@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #ifndef ROCKSDB_LITE
-#include "kudu/rocksdb/rocksdb/utilities/ldb_cmd.h"
+#include "kudu/rocksdb/utilities/ldb_cmd.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -17,15 +17,15 @@
 #include "kudu/rocksdb/db/log_reader.h"
 #include "kudu/rocksdb/db/write_batch_internal.h"
 #include "kudu/rocksdb/port/port_dirent.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/table_properties.h"
-#include "kudu/rocksdb/rocksdb/utilities/backupable_db.h"
-#include "kudu/rocksdb/rocksdb/utilities/checkpoint.h"
-#include "kudu/rocksdb/rocksdb/utilities/debug.h"
-#include "kudu/rocksdb/rocksdb/utilities/object_registry.h"
-#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
-#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/table_properties.h"
+#include "kudu/rocksdb/utilities/backupable_db.h"
+#include "kudu/rocksdb/utilities/checkpoint.h"
+#include "kudu/rocksdb/utilities/debug.h"
+#include "kudu/rocksdb/utilities/object_registry.h"
+#include "kudu/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/write_batch.h"
+#include "kudu/rocksdb/write_buffer_manager.h"
 #include "kudu/rocksdb/table/scoped_arena_iterator.h"
 #include "kudu/rocksdb/tools/ldb_cmd_impl.h"
 #include "kudu/rocksdb/tools/sst_dump_tool_imp.h"

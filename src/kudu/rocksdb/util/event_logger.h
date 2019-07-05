@@ -10,7 +10,7 @@
 #include <string>
 #include <chrono>
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/log_buffer.h"
 
 namespace rocksdb {

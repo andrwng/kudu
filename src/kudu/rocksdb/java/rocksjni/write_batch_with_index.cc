@@ -6,10 +6,10 @@
 // This file implements the "bridge" between Java and C++ and enables
 // calling c++ rocksdb::WriteBatchWithIndex methods from Java side.
 
-#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/utilities/write_batch_with_index.h"
 #include "kudu/rocksdb/include/org_rocksdb_WBWIRocksIterator.h"
 #include "kudu/rocksdb/include/org_rocksdb_WriteBatchWithIndex.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/comparator.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

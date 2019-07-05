@@ -14,8 +14,8 @@
 #include "kudu/rocksdb/db/read_callback.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/persistent_cache.h"
-#include "kudu/rocksdb/rocksdb/wal_filter.h"
+#include "kudu/rocksdb/persistent_cache.h"
+#include "kudu/rocksdb/wal_filter.h"
 
 namespace rocksdb {
 

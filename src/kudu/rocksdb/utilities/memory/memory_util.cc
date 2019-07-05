@@ -5,7 +5,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/utilities/memory_util.h"
+#include "kudu/rocksdb/utilities/memory_util.h"
 
 #include "kudu/rocksdb/db/db_impl.h"
 

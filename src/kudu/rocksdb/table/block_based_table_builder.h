@@ -14,10 +14,10 @@
 #include <utility>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
-#include "kudu/rocksdb/rocksdb/listener.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/listener.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/status.h"
 #include "kudu/rocksdb/table/meta_blocks.h"
 #include "kudu/rocksdb/table/table_builder.h"
 #include "kudu/rocksdb/util/compression.h"

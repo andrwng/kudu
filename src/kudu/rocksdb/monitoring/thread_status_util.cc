@@ -6,7 +6,7 @@
 #include "kudu/rocksdb/monitoring/thread_status_util.h"
 
 #include "kudu/rocksdb/monitoring/thread_status_updater.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 namespace rocksdb {
 

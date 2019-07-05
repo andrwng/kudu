@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/arena.h"
 #include "kudu/rocksdb/util/autovector.h"
 #include "kudu/rocksdb/port/sys_time.h"

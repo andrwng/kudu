@@ -7,13 +7,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 #include <thread>
 #include "kudu/rocksdb/options/db_options.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/port/sys_time.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/util/arena.h"
 #include "kudu/rocksdb/util/autovector.h"
 

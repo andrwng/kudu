@@ -26,7 +26,7 @@
 #include <atomic>
 #include "kudu/rocksdb/env/io_posix.h"
 #include "kudu/rocksdb/monitoring/iostats_context_imp.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {

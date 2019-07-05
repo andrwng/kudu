@@ -10,7 +10,7 @@
 #include <iostream>
 #include <cassert>
 
-#include "kudu/rocksdb/rocksdb/env_encryption.h"
+#include "kudu/rocksdb/env_encryption.h"
 #include "kudu/rocksdb/util/aligned_buffer.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/random.h"

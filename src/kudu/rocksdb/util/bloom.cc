@@ -7,9 +7,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/filter_policy.h"
 
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/table/block_based_filter_block.h"
 #include "kudu/rocksdb/table/full_filter_bits_builder.h"
 #include "kudu/rocksdb/table/full_filter_block.h"

@@ -19,9 +19,9 @@ int main() {
 #include <stdio.h>
 
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/gflags_compat.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/util/random.h"

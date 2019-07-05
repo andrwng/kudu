@@ -8,7 +8,7 @@
 #include <string>
 #include <algorithm>
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/sst_file_manager_impl.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"
 

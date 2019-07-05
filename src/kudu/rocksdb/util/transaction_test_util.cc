@@ -17,10 +17,10 @@
 #include <string>
 #include <thread>
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/utilities/transaction_db.h"
 
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/db/snapshot_impl.h"

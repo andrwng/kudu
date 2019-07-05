@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/status.h"
 
 namespace rocksdb {
 

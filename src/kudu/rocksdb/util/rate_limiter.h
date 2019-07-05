@@ -14,8 +14,8 @@
 #include <chrono>
 #include <deque>
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/rate_limiter.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/util/random.h"
 

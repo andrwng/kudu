@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "kudu/rocksdb/db/db_test_util.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/cache.h"
 #include "kudu/rocksdb/table/block_builder.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/util/arena.h"

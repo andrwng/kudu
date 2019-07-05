@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/iterator.h"
 
 namespace rocksdb {
 

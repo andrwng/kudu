@@ -15,8 +15,8 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "kudu/rocksdb/rocksdb/iterator.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/iterator.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 #include "kudu/rocksdb/table/meta_blocks.h"
 #include "kudu/rocksdb/table/cuckoo_table_factory.h"

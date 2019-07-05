@@ -13,9 +13,9 @@
 #include "kudu/rocksdb/db/merge_context.h"
 #include "kudu/rocksdb/db/range_del_aggregator.h"
 #include "kudu/rocksdb/db/snapshot_checker.h"
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/stop_watch.h"
 
 namespace rocksdb {

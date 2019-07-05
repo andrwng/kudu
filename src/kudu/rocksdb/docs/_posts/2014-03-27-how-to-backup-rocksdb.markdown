@@ -11,7 +11,7 @@ In RocksDB, we have implemented an easy way to backup your DB. Here is a simple 
 
 
 
-    #include "kudu/rocksdb/rocksdb/db.h"
+    #include "kudu/rocksdb/db.h"
     #include "kudu/rocksdb/utilities/backupable_db.h"
     using namespace rocksdb;
 
@@ -44,7 +44,7 @@ An alternative API for backups is to use BackupEngine directly:
 
 
 
-    #include "kudu/rocksdb/rocksdb/db.h"
+    #include "kudu/rocksdb/db.h"
     #include "kudu/rocksdb/utilities/backupable_db.h"
     using namespace rocksdb;
 

@@ -18,9 +18,9 @@
 #include "kudu/rocksdb/db/compaction.h"
 #include "kudu/rocksdb/db/version_set.h"
 #include "kudu/rocksdb/options/cf_options.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/status.h"
 
 namespace rocksdb {
 

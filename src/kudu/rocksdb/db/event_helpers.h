@@ -10,8 +10,8 @@
 
 #include "kudu/rocksdb/db/column_family.h"
 #include "kudu/rocksdb/db/version_edit.h"
-#include "kudu/rocksdb/rocksdb/listener.h"
-#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/listener.h"
+#include "kudu/rocksdb/table_properties.h"
 #include "kudu/rocksdb/util/event_logger.h"
 
 namespace rocksdb {

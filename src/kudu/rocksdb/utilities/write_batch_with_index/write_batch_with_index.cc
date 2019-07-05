@@ -5,7 +5,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/utilities/write_batch_with_index.h"
 
 #include <memory>
 
@@ -15,8 +15,8 @@
 #include "kudu/rocksdb/db/merge_helper.h"
 #include "kudu/rocksdb/memtable/skiplist.h"
 #include "kudu/rocksdb/options/db_options.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/iterator.h"
 #include "kudu/rocksdb/util/arena.h"
 #include "kudu/rocksdb/util/cast_util.h"
 #include "kudu/rocksdb/util/string_util.h"

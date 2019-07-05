@@ -10,8 +10,8 @@
 
 #include "kudu/rocksdb/include/org_rocksdb_OptimisticTransactionOptions.h"
 
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/utilities/optimistic_transaction_db.h"
 
 /*
  * Class:     org_rocksdb_OptimisticTransactionOptions

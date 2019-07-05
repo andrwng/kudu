@@ -15,7 +15,7 @@
 #include "kudu/rocksdb/util/filename.h"
 
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
-#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/statistics.h"
 #include "kudu/rocksdb/table/get_context.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 #include "kudu/rocksdb/table/iterator_wrapper.h"

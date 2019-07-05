@@ -12,7 +12,7 @@
 
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/filter_policy.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/string_util.h"
 

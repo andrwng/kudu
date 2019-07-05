@@ -6,8 +6,8 @@
 
 #include "kudu/rocksdb/monitoring/instrumented_mutex.h"
 #include "kudu/rocksdb/options/db_options.h"
-#include "kudu/rocksdb/rocksdb/listener.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/listener.h"
+#include "kudu/rocksdb/status.h"
 
 namespace rocksdb {
 

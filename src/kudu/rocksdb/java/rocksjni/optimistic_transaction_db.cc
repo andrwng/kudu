@@ -10,9 +10,9 @@
 
 #include "kudu/rocksdb/include/org_rocksdb_OptimisticTransactionDB.h"
 
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/utilities/transaction.h"
 
 #include "kudu/rocksdb/rocksjni/portal.h"
 

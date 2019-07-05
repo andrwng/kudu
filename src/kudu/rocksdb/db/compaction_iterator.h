@@ -17,7 +17,7 @@
 #include "kudu/rocksdb/db/range_del_aggregator.h"
 #include "kudu/rocksdb/db/snapshot_checker.h"
 #include "kudu/rocksdb/options/cf_options.h"
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/compaction_filter.h"
 
 namespace rocksdb {
 

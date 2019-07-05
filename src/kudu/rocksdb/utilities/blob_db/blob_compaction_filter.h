@@ -8,8 +8,8 @@
 #include <unordered_set>
 
 #include "kudu/rocksdb/monitoring/statistics.h"
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/utilities/blob_db/blob_db_impl.h"
 #include "kudu/rocksdb/utilities/blob_db/blob_index.h"
 

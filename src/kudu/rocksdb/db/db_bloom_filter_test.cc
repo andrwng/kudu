@@ -9,7 +9,7 @@
 
 #include "kudu/rocksdb/db/db_test_util.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/perf_context.h"
 
 namespace rocksdb {
 

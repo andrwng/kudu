@@ -14,8 +14,8 @@
 
 #include "kudu/rocksdb/util/kv_map.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 #include "kudu/rocksdb/table/table_builder.h"
 #include "kudu/rocksdb/table/table_reader.h"

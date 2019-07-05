@@ -39,7 +39,7 @@
 
 #include "kudu/rocksdb/env/env_chroot.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/log_buffer.h"
 #include "kudu/rocksdb/util/mutexlock.h"

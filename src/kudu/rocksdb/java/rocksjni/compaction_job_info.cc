@@ -9,7 +9,7 @@
 #include <jni.h>
 
 #include "kudu/rocksdb/include/org_rocksdb_CompactionJobInfo.h"
-#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/listener.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

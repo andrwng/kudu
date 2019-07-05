@@ -10,13 +10,13 @@
 #include <string>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/utilities/options_util.h"
 
 using namespace rocksdb;
 

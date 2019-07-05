@@ -8,8 +8,8 @@
 
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/db/db_test_util.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {

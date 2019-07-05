@@ -9,9 +9,9 @@
 #include <string>
 #include <thread>
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/utilities/transaction.h"
 #include "kudu/rocksdb/util/crc32c.h"
 #include "kudu/rocksdb/util/logging.h"
 #include "kudu/rocksdb/util/random.h"

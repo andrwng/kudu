@@ -8,10 +8,10 @@
 #include <sstream>
 #include <cstdlib>
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/write_batch.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/port/port.h"
 

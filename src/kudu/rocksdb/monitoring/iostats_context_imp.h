@@ -5,7 +5,7 @@
 //
 #pragma once
 #include "kudu/rocksdb/monitoring/perf_step_timer.h"
-#include "kudu/rocksdb/rocksdb/iostats_context.h"
+#include "kudu/rocksdb/iostats_context.h"
 
 #ifdef ROCKSDB_SUPPORT_THREAD_LOCAL
 namespace rocksdb {

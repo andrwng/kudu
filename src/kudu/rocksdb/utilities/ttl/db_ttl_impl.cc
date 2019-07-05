@@ -6,10 +6,10 @@
 #include "kudu/rocksdb/utilities/ttl/db_ttl_impl.h"
 
 #include "kudu/rocksdb/db/write_batch_internal.h"
-#include "kudu/rocksdb/rocksdb/convenience.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
-#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/convenience.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/iterator.h"
+#include "kudu/rocksdb/utilities/db_ttl.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/filename.h"
 

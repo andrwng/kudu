@@ -21,8 +21,8 @@
 #include <vector>
 
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction_db_mutex.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/utilities/transaction_db_mutex.h"
 #include "kudu/rocksdb/util/cast_util.h"
 #include "kudu/rocksdb/util/hash.h"
 #include "kudu/rocksdb/util/sync_point.h"

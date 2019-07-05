@@ -20,12 +20,12 @@
 #include <vector>
 
 #include "kudu/rocksdb/db/db_iter.h"
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/listener.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/statistics.h"
-#include "kudu/rocksdb/rocksdb/wal_filter.h"
+#include "kudu/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/listener.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/statistics.h"
+#include "kudu/rocksdb/wal_filter.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/util/timer_queue.h"
 #include "kudu/rocksdb/utilities/blob_db/blob_db.h"

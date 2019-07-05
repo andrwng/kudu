@@ -14,8 +14,8 @@
 
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/sst_file_manager.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/sst_file_manager.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/util/sync_point.h"
 

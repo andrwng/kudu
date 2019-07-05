@@ -11,7 +11,7 @@
 #include <set>
 
 #include "kudu/rocksdb/include/org_rocksdb_Statistics.h"
-#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/statistics.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 #include "kudu/rocksdb/rocksjni/statisticsjni.h"
 

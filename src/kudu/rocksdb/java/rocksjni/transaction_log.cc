@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #include "kudu/rocksdb/include/org_rocksdb_TransactionLogIterator.h"
-#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/transaction_log.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

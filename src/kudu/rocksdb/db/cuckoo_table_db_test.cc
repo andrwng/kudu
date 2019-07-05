@@ -6,8 +6,8 @@
 #ifndef ROCKSDB_LITE
 
 #include "kudu/rocksdb/db/db_impl.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/table/cuckoo_table_factory.h"
 #include "kudu/rocksdb/table/cuckoo_table_reader.h"
 #include "kudu/rocksdb/table/meta_blocks.h"

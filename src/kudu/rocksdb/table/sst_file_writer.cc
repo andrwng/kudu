@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/sst_file_writer.h"
 
 #include <vector>
 #include "kudu/rocksdb/db/dbformat.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/block_based_table_builder.h"
 #include "kudu/rocksdb/table/sst_file_writer_collectors.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"

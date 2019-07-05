@@ -8,7 +8,7 @@
 #include <algorithm>
 
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/allocator.h"
 #include "kudu/rocksdb/util/hash.h"
 

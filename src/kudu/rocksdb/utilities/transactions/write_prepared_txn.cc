@@ -17,9 +17,9 @@
 
 #include "kudu/rocksdb/db/column_family.h"
 #include "kudu/rocksdb/db/db_impl.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/utilities/transaction_db.h"
 #include "kudu/rocksdb/util/cast_util.h"
 #include "kudu/rocksdb/utilities/transactions/pessimistic_transaction.h"
 #include "kudu/rocksdb/utilities/transactions/write_prepared_txn_db.h"

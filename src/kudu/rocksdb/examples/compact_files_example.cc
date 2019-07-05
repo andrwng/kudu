@@ -8,9 +8,9 @@
 
 #include <mutex>
 #include <string>
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
 
 using namespace rocksdb;
 std::string kDBPath = "/tmp/rocksdb_compact_files_example";

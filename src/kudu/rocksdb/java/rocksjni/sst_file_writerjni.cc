@@ -11,10 +11,10 @@
 #include <string>
 
 #include "kudu/rocksdb/include/org_rocksdb_SstFileWriter.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/sst_file_writer.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

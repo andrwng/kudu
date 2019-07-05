@@ -8,9 +8,9 @@
 #include <string>
 
 #include "kudu/rocksdb/monitoring/thread_status_updater.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/thread_status.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/thread_status.h"
 
 namespace rocksdb {
 

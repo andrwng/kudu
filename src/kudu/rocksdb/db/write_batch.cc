@@ -33,7 +33,7 @@
 //    len: varint32
 //    data: uint8[len]
 
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/write_batch.h"
 
 #include <map>
 #include <stack>
@@ -51,7 +51,7 @@
 #include "kudu/rocksdb/db/write_batch_internal.h"
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
 #include "kudu/rocksdb/monitoring/statistics.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/merge_operator.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/duplicate_detector.h"
 #include "kudu/rocksdb/util/string_util.h"

@@ -8,8 +8,8 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/status.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"
 #include "kudu/rocksdb/utilities/blob_db/blob_log_format.h"
 

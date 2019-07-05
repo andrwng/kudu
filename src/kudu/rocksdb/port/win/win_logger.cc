@@ -19,7 +19,7 @@
 #include <fcntl.h>
 #include <atomic>
 
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 #include "kudu/rocksdb/monitoring/iostats_context_imp.h"
 #include "kudu/rocksdb/port/sys_time.h"

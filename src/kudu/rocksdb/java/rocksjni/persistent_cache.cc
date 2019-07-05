@@ -10,7 +10,7 @@
 #include <string>
 
 #include "kudu/rocksdb/include/org_rocksdb_PersistentCache.h"
-#include "kudu/rocksdb/rocksdb/persistent_cache.h"
+#include "kudu/rocksdb/persistent_cache.h"
 #include "kudu/rocksdb/loggerjnicallback.h"
 #include "kudu/rocksdb/portal.h"
 

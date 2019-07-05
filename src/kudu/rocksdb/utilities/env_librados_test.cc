@@ -5,18 +5,18 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/utilities/env_librados.h"
+#include "kudu/rocksdb/utilities/env_librados.h"
 #include <rados/librados.hpp>
 #include "kudu/rocksdb/env/mock_env.h"
 #include "kudu/rocksdb/util/testharness.h"
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/util/random.h"
 #include <chrono>
 #include <ostream>
-#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/utilities/transaction_db.h"
 
 class Timer {
   typedef std::chrono::high_resolution_clock high_resolution_clock;

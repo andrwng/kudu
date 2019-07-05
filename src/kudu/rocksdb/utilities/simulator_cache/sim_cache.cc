@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "kudu/rocksdb/rocksdb/utilities/sim_cache.h"
+#include "kudu/rocksdb/utilities/sim_cache.h"
 #include <atomic>
 #include "kudu/rocksdb/monitoring/statistics.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/util/string_util.h"

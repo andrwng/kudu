@@ -8,9 +8,9 @@
 #include <map>
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
-#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/write_batch.h"
+#include "kudu/rocksdb/write_buffer_manager.h"
 
 #include "kudu/rocksdb/db/column_family.h"
 #include "kudu/rocksdb/db/db_impl.h"

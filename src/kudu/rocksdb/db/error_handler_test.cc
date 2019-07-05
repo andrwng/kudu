@@ -10,8 +10,8 @@
 
 #include "kudu/rocksdb/db/db_test_util.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/perf_context.h"
-#include "kudu/rocksdb/rocksdb/sst_file_manager.h"
+#include "kudu/rocksdb/perf_context.h"
+#include "kudu/rocksdb/sst_file_manager.h"
 #include "kudu/rocksdb/util/fault_injection_test_env.h"
 #if !defined(ROCKSDB_LITE)
 #include "kudu/rocksdb/util/sync_point.h"

@@ -10,8 +10,8 @@
 #include <algorithm>
 #include <memory>
 #include <stdint.h>
-#include "kudu/rocksdb/rocksdb/comparator.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/comparator.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/util/logging.h"
 

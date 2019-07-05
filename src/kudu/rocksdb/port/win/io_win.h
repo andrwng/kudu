@@ -12,8 +12,8 @@
 #include <mutex>
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/aligned_buffer.h"
 
 #include <windows.h>

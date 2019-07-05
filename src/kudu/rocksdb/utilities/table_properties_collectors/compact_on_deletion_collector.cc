@@ -7,7 +7,7 @@
 #include "kudu/rocksdb/utilities/table_properties_collectors/compact_on_deletion_collector.h"
 
 #include <memory>
-#include "kudu/rocksdb/rocksdb/utilities/table_properties_collectors.h"
+#include "kudu/rocksdb/utilities/table_properties_collectors.h"
 
 namespace rocksdb {
 

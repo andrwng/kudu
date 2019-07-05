@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "kudu/rocksdb/db/dbformat.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/block_builder.h"
 #include "kudu/rocksdb/table/cuckoo_table_factory.h"
 #include "kudu/rocksdb/table/format.h"

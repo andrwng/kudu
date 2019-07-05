@@ -5,7 +5,7 @@
 
 #include <sstream>
 #include "kudu/rocksdb/monitoring/iostats_context_imp.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 namespace rocksdb {
 

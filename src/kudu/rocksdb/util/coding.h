@@ -18,7 +18,7 @@
 #include <string.h>
 #include <string>
 
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/write_batch.h"
 #include "kudu/rocksdb/port/port.h"
 
 // Some processors does not allow unaligned access to memory

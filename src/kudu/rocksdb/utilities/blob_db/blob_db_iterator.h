@@ -7,7 +7,7 @@
 #ifndef ROCKSDB_LITE
 
 #include "kudu/rocksdb/monitoring/statistics.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/iterator.h"
 #include "kudu/rocksdb/util/stop_watch.h"
 #include "kudu/rocksdb/utilities/blob_db/blob_db_impl.h"
 

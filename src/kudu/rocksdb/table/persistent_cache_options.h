@@ -7,7 +7,7 @@
 #include <string>
 
 #include "kudu/rocksdb/monitoring/statistics.h"
-#include "kudu/rocksdb/rocksdb/persistent_cache.h"
+#include "kudu/rocksdb/persistent_cache.h"
 
 namespace rocksdb {
 

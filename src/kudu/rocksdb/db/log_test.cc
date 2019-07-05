@@ -9,7 +9,7 @@
 
 #include "kudu/rocksdb/db/log_reader.h"
 #include "kudu/rocksdb/db/log_writer.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/crc32c.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"

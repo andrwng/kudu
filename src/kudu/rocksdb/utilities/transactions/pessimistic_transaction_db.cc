@@ -17,9 +17,9 @@
 #include <vector>
 
 #include "kudu/rocksdb/db/db_impl.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/utilities/transaction_db.h"
 #include "kudu/rocksdb/util/cast_util.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 #include "kudu/rocksdb/util/sync_point.h"

@@ -9,12 +9,12 @@
 #include <string>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/utilities/utility_db.h"
-#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/utilities/utility_db.h"
+#include "kudu/rocksdb/utilities/db_ttl.h"
 #include "kudu/rocksdb/db/db_impl.h"
 
 #ifdef _WIN32

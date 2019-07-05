@@ -3,10 +3,10 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/table_properties.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/iterator.h"
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 #include "kudu/rocksdb/table/table_properties_internal.h"

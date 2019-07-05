@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "kudu/rocksdb/rocksdb/stats_history.h"
+#include "kudu/rocksdb/stats_history.h"
 
 namespace rocksdb {
 

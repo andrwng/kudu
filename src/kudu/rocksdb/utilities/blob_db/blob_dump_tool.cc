@@ -15,8 +15,8 @@
 #include <memory>
 #include <string>
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/convenience.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/convenience.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/table/format.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"

@@ -17,10 +17,10 @@
 
 #include "kudu/rocksdb/options/db_options.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/transaction_log.h"
 
 namespace rocksdb {
 

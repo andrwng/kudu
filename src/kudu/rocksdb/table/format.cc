@@ -14,7 +14,7 @@
 
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
 #include "kudu/rocksdb/monitoring/statistics.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/block_based_table_reader.h"
 #include "kudu/rocksdb/table/block_fetcher.h"

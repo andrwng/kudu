@@ -7,8 +7,8 @@
 
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/iostats_context.h"
-#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/iostats_context.h"
+#include "kudu/rocksdb/perf_context.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"
 

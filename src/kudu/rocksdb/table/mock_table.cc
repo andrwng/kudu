@@ -7,7 +7,7 @@
 
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/table_properties.h"
 #include "kudu/rocksdb/table/get_context.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"

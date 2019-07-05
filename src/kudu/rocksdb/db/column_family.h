@@ -20,10 +20,10 @@
 #include "kudu/rocksdb/db/write_batch_internal.h"
 #include "kudu/rocksdb/db/write_controller.h"
 #include "kudu/rocksdb/options/cf_options.h"
-#include "kudu/rocksdb/rocksdb/compaction_job_stats.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/compaction_job_stats.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/util/thread_local.h"
 
 namespace rocksdb {

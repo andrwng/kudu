@@ -10,7 +10,7 @@
 #include "kudu/rocksdb/db/db_test_util.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/sst_file_manager.h"
+#include "kudu/rocksdb/sst_file_manager.h"
 #include "kudu/rocksdb/util/sst_file_manager_impl.h"
 
 namespace rocksdb {

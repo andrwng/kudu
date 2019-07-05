@@ -16,8 +16,8 @@
 
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/options/cf_options.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/table/table_reader.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"
 

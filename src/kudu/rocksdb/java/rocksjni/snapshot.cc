@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 #include "kudu/rocksdb/include/org_rocksdb_Snapshot.h"
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

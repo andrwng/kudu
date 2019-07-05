@@ -14,9 +14,9 @@
 #include <cmath>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/table_properties.h"
-#include "kudu/rocksdb/rocksdb/utilities/table_properties_collectors.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/table_properties.h"
+#include "kudu/rocksdb/utilities/table_properties_collectors.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/utilities/table_properties_collectors/compact_on_deletion_collector.h"
 

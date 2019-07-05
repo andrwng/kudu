@@ -14,8 +14,8 @@
 #include <vector>
 
 #include "kudu/rocksdb/options/options_helper.h"
-#include "kudu/rocksdb/rocksdb/convenience.h"
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/convenience.h"
+#include "kudu/rocksdb/db.h"
 #include "kudu/rocksdb/util/cast_util.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"
 #include "kudu/rocksdb/util/string_util.h"

@@ -33,7 +33,7 @@
 
 #include "kudu/rocksdb/port/win/win_thread.h"
 
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/options.h"
 
 #undef min
 #undef max

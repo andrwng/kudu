@@ -14,7 +14,7 @@
 #include "kudu/rocksdb/include/org_rocksdb_AbstractSlice.h"
 #include "kudu/rocksdb/include/org_rocksdb_DirectSlice.h"
 #include "kudu/rocksdb/include/org_rocksdb_Slice.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 // <editor-fold desc="org.rocksdb.AbstractSlice>

@@ -5,7 +5,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/sst_file_reader.h"
+#include "kudu/rocksdb/sst_file_reader.h"
 
 #include "kudu/rocksdb/db/db_iter.h"
 #include "kudu/rocksdb/db/dbformat.h"

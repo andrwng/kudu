@@ -9,7 +9,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -19,11 +19,11 @@
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/db/log_format.h"
 #include "kudu/rocksdb/db/version_set.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/convenience.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/convenience.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/write_batch.h"
 #include "kudu/rocksdb/table/block_based_table_builder.h"
 #include "kudu/rocksdb/table/meta_blocks.h"
 #include "kudu/rocksdb/util/filename.h"

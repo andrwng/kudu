@@ -10,7 +10,7 @@
 
 #include "kudu/rocksdb/portal.h"
 #include "kudu/rocksdb/include/org_rocksdb_ThreadStatus.h"
-#include "kudu/rocksdb/rocksdb/thread_status.h"
+#include "kudu/rocksdb/thread_status.h"
 
 /*
  * Class:     org_rocksdb_ThreadStatus

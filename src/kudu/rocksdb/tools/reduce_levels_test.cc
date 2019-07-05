@@ -8,8 +8,8 @@
 
 #include "kudu/rocksdb/db/db_impl.h"
 #include "kudu/rocksdb/db/version_set.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/utilities/ldb_cmd.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/utilities/ldb_cmd.h"
 #include "kudu/rocksdb/tools/ldb_cmd_impl.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/testharness.h"

@@ -6,7 +6,7 @@
 
 #ifndef ROCKSDB_LITE  // Lite does not support C API
 
-#include "kudu/rocksdb/rocksdb/c.h"
+#include "kudu/rocksdb/c.h"
 
 #include <stddef.h>
 #include <stdlib.h>

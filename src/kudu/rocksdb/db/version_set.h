@@ -43,7 +43,7 @@
 #include "kudu/rocksdb/monitoring/instrumented_mutex.h"
 #include "kudu/rocksdb/options/db_options.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 
 namespace rocksdb {
 

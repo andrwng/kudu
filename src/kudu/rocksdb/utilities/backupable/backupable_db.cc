@@ -9,10 +9,10 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/utilities/backupable_db.h"
+#include "kudu/rocksdb/utilities/backupable_db.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/rate_limiter.h"
-#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/transaction_log.h"
 #include "kudu/rocksdb/util/channel.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/crc32c.h"

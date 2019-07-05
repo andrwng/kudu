@@ -18,7 +18,7 @@
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/comparator.h"
 #include "kudu/rocksdb/table/block_prefix_index.h"
 #include "kudu/rocksdb/table/data_block_footer.h"
 #include "kudu/rocksdb/table/format.h"

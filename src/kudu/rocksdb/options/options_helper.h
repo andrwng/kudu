@@ -12,10 +12,10 @@
 
 #include "kudu/rocksdb/options/cf_options.h"
 #include "kudu/rocksdb/options/db_options.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/table.h"
-#include "kudu/rocksdb/rocksdb/universal_compaction.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/table.h"
+#include "kudu/rocksdb/universal_compaction.h"
 
 namespace rocksdb {
 

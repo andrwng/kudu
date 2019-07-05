@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "kudu/rocksdb/db/db_impl.h"
-#include "kudu/rocksdb/rocksdb/status.h"
-#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/status.h"
+#include "kudu/rocksdb/utilities/write_batch_with_index.h"
 #include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {

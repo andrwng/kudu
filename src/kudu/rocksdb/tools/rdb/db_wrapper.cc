@@ -5,9 +5,9 @@
 #include <node.h>
 
 #include "kudu/rocksdb/db/_wrapper.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
 
 namespace {
   void printWithBackSlashes(std::string str) {

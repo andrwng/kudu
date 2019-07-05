@@ -10,7 +10,7 @@
 #pragma once
 #include <memory>
 #include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/slice_transform.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 
 namespace rocksdb {

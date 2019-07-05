@@ -13,13 +13,13 @@
 #include <string>
 #include <vector>
 
-#include "kudu/rocksdb/rocksdb/compaction_filter.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/iterator.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/iterator.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/table/block_based_table_factory.h"
 #include "kudu/rocksdb/table/internal_iterator.h"
 #include "kudu/rocksdb/table/plain_table_factory.h"

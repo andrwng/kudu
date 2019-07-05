@@ -5,7 +5,7 @@
 #pragma once
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/util/coding.h"
 #include "kudu/rocksdb/util/string_util.h"
 

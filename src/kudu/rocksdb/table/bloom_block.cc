@@ -6,7 +6,7 @@
 #include "kudu/rocksdb/table/bloom_block.h"
 
 #include <string>
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/dynamic_bloom.h"
 
 namespace rocksdb {

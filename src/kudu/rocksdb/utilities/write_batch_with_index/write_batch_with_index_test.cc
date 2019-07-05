@@ -13,7 +13,7 @@
 #include <map>
 #include "kudu/rocksdb/db/column_family.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/utilities/write_batch_with_index.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/testharness.h"

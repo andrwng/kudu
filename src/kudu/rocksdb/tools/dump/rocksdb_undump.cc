@@ -18,8 +18,8 @@ int main() {
 
 #else
 
-#include "kudu/rocksdb/rocksdb/convenience.h"
-#include "kudu/rocksdb/rocksdb/db_dump_tool.h"
+#include "kudu/rocksdb/convenience.h"
+#include "kudu/rocksdb/db_dump_tool.h"
 #include "kudu/rocksdb/util/gflags_compat.h"
 
 DEFINE_string(dump_location, "", "Path to the dump file that will be loaded");

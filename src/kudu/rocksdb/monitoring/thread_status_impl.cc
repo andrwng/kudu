@@ -6,8 +6,8 @@
 
 #include <sstream>
 
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/thread_status.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/thread_status.h"
 #include "kudu/rocksdb/util/string_util.h"
 #include "kudu/rocksdb/util/thread_operation.h"
 

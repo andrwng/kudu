@@ -5,7 +5,7 @@
 //
 #ifndef ROCKSDB_LITE
 
-#include "kudu/rocksdb/rocksdb/ldb_tool.h"
+#include "kudu/rocksdb/ldb_tool.h"
 
 int main(int argc, char** argv) {
   rocksdb::LDBTool tool;

@@ -12,10 +12,10 @@
 #include <inttypes.h>
 
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/cache.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/sst_file_manager.h"
-#include "kudu/rocksdb/rocksdb/wal_filter.h"
+#include "kudu/rocksdb/cache.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/sst_file_manager.h"
+#include "kudu/rocksdb/wal_filter.h"
 #include "kudu/rocksdb/util/logging.h"
 
 namespace rocksdb {

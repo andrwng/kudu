@@ -16,7 +16,7 @@
 
 #include "kudu/rocksdb/monitoring/perf_context_imp.h"
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/filter_policy.h"
 #include "kudu/rocksdb/table/block.h"
 #include "kudu/rocksdb/table/block_based_table_reader.h"
 #include "kudu/rocksdb/util/coding.h"

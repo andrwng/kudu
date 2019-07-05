@@ -5,7 +5,7 @@
 //
 #pragma once
 #include "kudu/rocksdb/monitoring/perf_level_imp.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/stop_watch.h"
 
 namespace rocksdb {

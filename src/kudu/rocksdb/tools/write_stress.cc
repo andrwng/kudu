@@ -68,10 +68,10 @@ int main() {
 #include <thread>
 
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/util/filename.h"
 #include "kudu/rocksdb/util/gflags_compat.h"
 

@@ -12,7 +12,7 @@
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/db/version_edit.h"
 #include "kudu/rocksdb/port/stack_trace.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/comparator.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"
 

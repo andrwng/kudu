@@ -10,8 +10,8 @@
 #include <vector>
 
 #include "kudu/rocksdb/options/options_sanity_check.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/table/block_based_table_factory.h"
 
 namespace rocksdb {

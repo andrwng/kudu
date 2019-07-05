@@ -9,8 +9,8 @@
 #include <memory>
 #include <assert.h>
 
-#include "kudu/rocksdb/rocksdb/slice.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/slice.h"
+#include "kudu/rocksdb/merge_operator.h"
 #include "kudu/rocksdb/utilities/merge_operators.h"
 
 namespace rocksdb {

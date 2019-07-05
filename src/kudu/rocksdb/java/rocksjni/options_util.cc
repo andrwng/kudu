@@ -11,9 +11,9 @@
 
 #include "kudu/rocksdb/include/org_rocksdb_OptionsUtil.h"
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/utilities/options_util.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 void build_column_family_descriptor_list(

@@ -18,7 +18,7 @@
 #include <limits>
 
 #include "kudu/rocksdb/db/db_test_util.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/random.h"
 #include "kudu/rocksdb/util/sync_point.h"
 #include "kudu/rocksdb/util/testharness.h"

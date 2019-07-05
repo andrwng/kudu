@@ -7,9 +7,9 @@
 #include <string>
 #include "kudu/rocksdb/db/merge_context.h"
 #include "kudu/rocksdb/db/read_callback.h"
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/statistics.h"
-#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/statistics.h"
+#include "kudu/rocksdb/types.h"
 #include "kudu/rocksdb/table/block.h"
 
 namespace rocksdb {

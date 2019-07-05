@@ -7,7 +7,7 @@
 #ifndef ROCKSDB_LITE
 
 #include <array>
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/slice.h"
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/table/plain_table_reader.h"
 

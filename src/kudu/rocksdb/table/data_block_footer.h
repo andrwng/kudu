@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table.h"
 
 namespace rocksdb {
 

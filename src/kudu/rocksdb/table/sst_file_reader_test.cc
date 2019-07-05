@@ -7,9 +7,9 @@
 
 #include <inttypes.h>
 
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/sst_file_reader.h"
-#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/sst_file_reader.h"
+#include "kudu/rocksdb/sst_file_writer.h"
 #include "kudu/rocksdb/table/sst_file_writer_collectors.h"
 #include "kudu/rocksdb/util/testharness.h"
 #include "kudu/rocksdb/util/testutil.h"

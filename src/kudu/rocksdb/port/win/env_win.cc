@@ -20,8 +20,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "kudu/rocksdb/rocksdb/env.h"
-#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/env.h"
+#include "kudu/rocksdb/slice.h"
 
 #include "kudu/rocksdb/port/port.h"
 #include "kudu/rocksdb/port/port_dirent.h"

@@ -9,7 +9,7 @@
 #include <string>
 
 #include "kudu/rocksdb/port/port.h"
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/mock_time_env.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 

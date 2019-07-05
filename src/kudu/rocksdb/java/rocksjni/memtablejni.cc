@@ -9,7 +9,7 @@
 #include "kudu/rocksdb/include/org_rocksdb_HashSkipListMemTableConfig.h"
 #include "kudu/rocksdb/include/org_rocksdb_SkipListMemTableConfig.h"
 #include "kudu/rocksdb/include/org_rocksdb_VectorMemTableConfig.h"
-#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/memtablerep.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 
 /*

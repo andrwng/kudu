@@ -9,7 +9,7 @@
 
 #include "kudu/rocksdb/db/db_test_util.h"
 #include "kudu/rocksdb/db/forward_iterator.h"
-#include "kudu/rocksdb/rocksdb/env_encryption.h"
+#include "kudu/rocksdb/env_encryption.h"
 
 namespace rocksdb {
 

@@ -10,13 +10,13 @@
 #include <string>
 
 #include "kudu/rocksdb/include/org_rocksdb_CassandraValueMergeOperator.h"
-#include "kudu/rocksdb/rocksdb/db.h"
-#include "kudu/rocksdb/rocksdb/memtablerep.h"
-#include "kudu/rocksdb/rocksdb/merge_operator.h"
-#include "kudu/rocksdb/rocksdb/options.h"
-#include "kudu/rocksdb/rocksdb/slice_transform.h"
-#include "kudu/rocksdb/rocksdb/statistics.h"
-#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/db.h"
+#include "kudu/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/options.h"
+#include "kudu/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/statistics.h"
+#include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/rocksjni/portal.h"
 #include "kudu/rocksdb/utilities/cassandra/merge_operator.h"
 

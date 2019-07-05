@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <functional>
 #include "kudu/rocksdb/db/version_edit.h"
-#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/comparator.h"
 
 namespace rocksdb {
 

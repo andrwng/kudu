@@ -16,7 +16,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <vector>
-#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/env.h"
 #include "kudu/rocksdb/util/file_reader_writer.h"
 #include "kudu/rocksdb/util/logging.h"
 #include "kudu/rocksdb/util/stop_watch.h"

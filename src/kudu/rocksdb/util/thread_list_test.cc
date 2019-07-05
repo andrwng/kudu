@@ -7,7 +7,7 @@
 #include <condition_variable>
 
 #include "kudu/rocksdb/monitoring/thread_status_updater.h"
-#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db.h"
 #include "kudu/rocksdb/util/testharness.h"
 
 #ifdef ROCKSDB_USING_THREAD_STATUS
