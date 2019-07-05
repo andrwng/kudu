@@ -396,7 +396,7 @@ Status UncompressBlockContentsForCompressionType(
 // contents are uncompresed into this buffer. This
 // buffer is returned via 'result' and it is upto the caller to
 // free this buffer.
-// format_version is the block format as defined in include/rocksdb/table.h
+// format_version is the block format as defined in table.h
 Status UncompressBlockContents(const UncompressionInfo& uncompression_info,
                                const char* data, size_t n,
                                BlockContents* contents, uint32_t format_version,

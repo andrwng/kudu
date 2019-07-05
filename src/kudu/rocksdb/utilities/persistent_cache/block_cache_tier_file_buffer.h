@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "kudu/rocksdb/include/rocksdb/comparator.h"
+#include "kudu/rocksdb/comparator.h"
 #include "kudu/rocksdb/util/arena.h"
 #include "kudu/rocksdb/util/mutexlock.h"
 

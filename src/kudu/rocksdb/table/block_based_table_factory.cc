@@ -248,7 +248,7 @@ Status BlockBasedTableFactory::SanitizeOptions(
   if (!BlockBasedTableSupportedVersion(table_options_.format_version)) {
     return Status::InvalidArgument(
         "Unsupported BlockBasedTable format_version. Please check "
-        "include/rocksdb/table.h for more info");
+        "table.h for more info");
   }
   if (table_options_.block_align && (cf_opts.compression != kNoCompression)) {
     return Status::InvalidArgument(

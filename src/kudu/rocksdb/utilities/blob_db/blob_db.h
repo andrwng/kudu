@@ -23,7 +23,7 @@ namespace blob_db {
 // It lacks lots of importatant functionalities, e.g. DB restarts,
 // garbage collection, iterators, etc.
 //
-// The factory needs to be moved to include/rocksdb/utilities to allow
+// The factory needs to be moved to utilities to allow
 // users to use blob DB.
 
 struct BlobDBOptions {

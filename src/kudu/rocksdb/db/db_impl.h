@@ -39,7 +39,7 @@
 #include "kudu/rocksdb/db/wal_manager.h"
 #include "kudu/rocksdb/db/write_controller.h"
 #include "kudu/rocksdb/db/write_thread.h"
-#include "kudu/rocksdb/memtable_list.h"
+#include "kudu/rocksdb/db/memtable_list.h"
 #include "kudu/rocksdb/monitoring/instrumented_mutex.h"
 #include "kudu/rocksdb/options/db_options.h"
 #include "kudu/rocksdb/port/port.h"

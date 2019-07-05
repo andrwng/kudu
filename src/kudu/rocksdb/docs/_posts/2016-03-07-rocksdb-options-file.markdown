@@ -13,11 +13,11 @@ In RocksDB 4.3, we added a new set of features that makes managing RocksDB optio
 
 
 
-  * **Load Options from File**: We added [LoadLatestOptions() / LoadOptionsFromFile()](https://github.com/facebook/rocksdb/blob/4.3.fb/include/rocksdb/utilities/options_util.h#L48-L58) that enables developers to construct RocksDB options object from an options file.
+  * **Load Options from File**: We added [LoadLatestOptions() / LoadOptionsFromFile()](https://github.com/facebook/rocksdb/blob/4.3.fb/utilities/options_util.h#L48-L58) that enables developers to construct RocksDB options object from an options file.
 
 
 
-  * **Sanity Check Options**: We added [CheckOptionsCompatibility](https://github.com/facebook/rocksdb/blob/4.3.fb/include/rocksdb/utilities/options_util.h#L64-L77) that performs compatibility check on two sets of RocksDB options.
+  * **Sanity Check Options**: We added [CheckOptionsCompatibility](https://github.com/facebook/rocksdb/blob/4.3.fb/utilities/options_util.h#L64-L77) that performs compatibility check on two sets of RocksDB options.
 
 <!--truncate-->
 

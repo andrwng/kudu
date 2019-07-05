@@ -22,7 +22,7 @@
 
 #include "kudu/rocksdb/db/dbformat.h"
 #include "kudu/rocksdb/db/pinned_iterators_manager.h"
-#include "kudu/rocksdb/format.h"
+#include "kudu/rocksdb/table/format.h"
 #include "kudu/rocksdb/iterator.h"
 #include "kudu/rocksdb/options.h"
 #include "kudu/rocksdb/statistics.h"

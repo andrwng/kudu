@@ -147,7 +147,7 @@ bool CompressBlockInternal(const Slice& raw,
 
 }  // namespace
 
-// format_version is the block format as defined in include/rocksdb/table.h
+// format_version is the block format as defined in table.h
 Slice CompressBlock(const Slice& raw, const CompressionInfo& info,
                     CompressionType* type, uint32_t format_version,
                     bool do_sample, std::string* compressed_output,

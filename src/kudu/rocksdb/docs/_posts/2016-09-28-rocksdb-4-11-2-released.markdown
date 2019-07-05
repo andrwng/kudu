@@ -30,7 +30,7 @@ We abandoned release candidates 4.10.x and directly go to 4.11.2 from 4.9, to ma
 
 ### New Features
 
-  * A tool to migrate DB after options change. See include/rocksdb/utilities/option_change_migration.h.
+  * A tool to migrate DB after options change. See utilities/option_change_migration.h.
   * Add ReadOptions.background_purge_on_iterator_cleanup. If true, we avoid file deletion when destorying iterators.
 
 ## 4.10.0 (7/5/2016)

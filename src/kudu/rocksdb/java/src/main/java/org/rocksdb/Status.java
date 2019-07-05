@@ -54,7 +54,7 @@ public class Status {
     return builder.toString();
   }
 
-  // should stay in sync with /include/rocksdb/status.h:Code and /java/rocksjni/portal.h:toJavaStatusCode
+  // should stay in sync with /status.h:Code and /java/rocksjni/portal.h:toJavaStatusCode
   public enum Code {
     Ok(                 (byte)0x0),
     NotFound(           (byte)0x1),
@@ -98,7 +98,7 @@ public class Status {
     }
   }
 
-  // should stay in sync with /include/rocksdb/status.h:SubCode and /java/rocksjni/portal.h:toJavaStatusSubCode
+  // should stay in sync with /status.h:SubCode and /java/rocksjni/portal.h:toJavaStatusSubCode
   public enum SubCode {
     None(         (byte)0x0),
     MutexTimeout( (byte)0x1),

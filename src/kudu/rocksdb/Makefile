@@ -612,9 +612,9 @@ endif
 LIBRARY = ${LIBNAME}.a
 TOOLS_LIBRARY = ${LIBNAME}_tools.a
 
-ROCKSDB_MAJOR = $(shell egrep "ROCKSDB_MAJOR.[0-9]" include/rocksdb/version.h | cut -d ' ' -f 3)
-ROCKSDB_MINOR = $(shell egrep "ROCKSDB_MINOR.[0-9]" include/rocksdb/version.h | cut -d ' ' -f 3)
-ROCKSDB_PATCH = $(shell egrep "ROCKSDB_PATCH.[0-9]" include/rocksdb/version.h | cut -d ' ' -f 3)
+ROCKSDB_MAJOR = $(shell egrep "ROCKSDB_MAJOR.[0-9]" version.h | cut -d ' ' -f 3)
+ROCKSDB_MINOR = $(shell egrep "ROCKSDB_MINOR.[0-9]" version.h | cut -d ' ' -f 3)
+ROCKSDB_PATCH = $(shell egrep "ROCKSDB_PATCH.[0-9]" version.h | cut -d ' ' -f 3)
 
 default: all
 
@@ -1045,7 +1045,7 @@ unity_test: db/db_test.o db/db_test_util.o $(TESTHARNESS) $(TOOLLIBOBJECTS) unit
 	./unity_test
 
 rocksdb.h rocksdb.cc: build_tools/amalgamate.py Makefile $(LIB_SOURCES) unity.cc
-	build_tools/amalgamate.py -I. -i./include unity.cc -x include/rocksdb/c.h -H rocksdb.h -o rocksdb.cc
+	build_tools/amalgamate.py -I. -i./include unity.cc -x c.h -H rocksdb.h -o rocksdb.cc
 
 clean:
 	rm -f $(BENCHMARKS) $(TOOLS) $(TESTS) $(LIBRARY) $(SHARED)

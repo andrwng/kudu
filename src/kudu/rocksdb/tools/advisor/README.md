@@ -61,8 +61,8 @@ For example, a log Condition (with 'source=LOG') is triggered if a particular
 'regex' is found in the Rocksdb LOG files. As of now the Rules Engine
 supports 3 types of Conditions (and consequently data-sources):
 LOG, OPTIONS, TIME_SERIES. The TIME_SERIES data can be sourced from the
-Rocksdb [statistics](https://github.com/facebook/rocksdb/blob/master/include/rocksdb/statistics.h)
-or [perf context](https://github.com/facebook/rocksdb/blob/master/include/rocksdb/perf_context.h).
+Rocksdb [statistics](https://github.com/facebook/rocksdb/blob/master/statistics.h)
+or [perf context](https://github.com/facebook/rocksdb/blob/master/perf_context.h).
 
 For more information about the remaining command-line arguments, run:
 

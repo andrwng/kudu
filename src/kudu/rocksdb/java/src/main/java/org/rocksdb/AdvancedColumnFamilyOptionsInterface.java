@@ -11,7 +11,7 @@ import java.util.List;
  * Advanced Column Family Options which are not
  * mutable (i.e. present in {@link AdvancedMutableColumnFamilyOptionsInterface}
  *
- * Taken from include/rocksdb/advanced_options.h
+ * Taken from advanced_options.h
  */
 public interface AdvancedColumnFamilyOptionsInterface
     <T extends AdvancedColumnFamilyOptionsInterface> {

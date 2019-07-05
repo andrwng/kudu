@@ -18,7 +18,7 @@ The hash index is disabled by default unless `BlockBasedTableOptions::data_block
 
 
 ```
-// the definitions can be found in include/rocksdb/table.h
+// the definitions can be found in table.h
 
 // The index type that will be used for the data block.
 enum DataBlockIndexType : char {
