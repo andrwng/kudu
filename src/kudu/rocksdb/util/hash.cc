@@ -8,9 +8,9 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include <string.h>
-#include "util/coding.h"
-#include "util/hash.h"
-#include "util/util.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/hash.h"
+#include "kudu/rocksdb/util/util.h"
 
 namespace rocksdb {
 

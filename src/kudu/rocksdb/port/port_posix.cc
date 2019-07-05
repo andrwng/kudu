@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "port/port_posix.h"
+#include "kudu/rocksdb/port/port_posix.h"
 
 #include <assert.h>
 #if defined(__i386__) || defined(__x86_64__)
@@ -22,7 +22,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <cstdlib>
-#include "util/logging.h"
+#include "kudu/rocksdb/util/logging.h"
 
 namespace rocksdb {
 

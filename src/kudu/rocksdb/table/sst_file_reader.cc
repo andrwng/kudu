@@ -5,15 +5,15 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/sst_file_reader.h"
+#include "kudu/rocksdb/rocksdb/sst_file_reader.h"
 
-#include "db/db_iter.h"
-#include "db/dbformat.h"
-#include "options/cf_options.h"
-#include "table/get_context.h"
-#include "table/table_builder.h"
-#include "table/table_reader.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/db/db_iter.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/table/get_context.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/table/table_reader.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 

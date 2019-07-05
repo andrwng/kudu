@@ -16,28 +16,28 @@
 #include <unordered_map>
 #include <inttypes.h>
 
-#include "cache/lru_cache.h"
-#include "cache/sharded_cache.h"
-#include "options/options_helper.h"
-#include "options/options_parser.h"
-#include "options/options_sanity_check.h"
-#include "port/port.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/convenience.h"
-#include "rocksdb/memtablerep.h"
-#include "rocksdb/utilities/leveldb_options.h"
-#include "rocksdb/utilities/object_registry.h"
-#include "util/random.h"
-#include "util/stderr_logger.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "utilities/merge_operators/bytesxor.h"
+#include "kudu/rocksdb/cache/lru_cache.h"
+#include "kudu/rocksdb/cache/sharded_cache.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/options/options_parser.h"
+#include "kudu/rocksdb/options/options_sanity_check.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksdb/utilities/leveldb_options.h"
+#include "kudu/rocksdb/rocksdb/utilities/object_registry.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/stderr_logger.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/utilities/merge_operators/bytesxor.h"
 
 #ifndef GFLAGS
 bool FLAGS_enable_print = false;
 #else
-#include "util/gflags_compat.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 DEFINE_bool(enable_print, false, "Print options generated to console.");
 #endif  // GFLAGS

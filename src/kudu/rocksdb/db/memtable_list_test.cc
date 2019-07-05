@@ -3,19 +3,19 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/memtable_list.h"
+#include "kudu/rocksdb/db/memtable_list.h"
 #include <algorithm>
 #include <string>
 #include <vector>
-#include "db/merge_context.h"
-#include "db/version_set.h"
-#include "db/write_controller.h"
-#include "rocksdb/db.h"
-#include "rocksdb/status.h"
-#include "rocksdb/write_buffer_manager.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/merge_context.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/db/write_controller.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

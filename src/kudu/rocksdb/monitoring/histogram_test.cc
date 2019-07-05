@@ -5,9 +5,9 @@
 //
 #include <cmath>
 
-#include "monitoring/histogram.h"
-#include "monitoring/histogram_windowing.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/monitoring/histogram_windowing.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

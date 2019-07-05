@@ -4,9 +4,9 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "monitoring/perf_level_imp.h"
-#include "rocksdb/env.h"
-#include "util/stop_watch.h"
+#include "kudu/rocksdb/monitoring/perf_level_imp.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/stop_watch.h"
 
 namespace rocksdb {
 

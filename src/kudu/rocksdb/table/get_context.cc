@@ -3,16 +3,16 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "table/get_context.h"
-#include "db/merge_helper.h"
-#include "db/pinned_iterators_manager.h"
-#include "db/read_callback.h"
-#include "monitoring/file_read_sample.h"
-#include "monitoring/perf_context_imp.h"
-#include "monitoring/statistics.h"
-#include "rocksdb/env.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/statistics.h"
+#include "kudu/rocksdb/table/get_context.h"
+#include "kudu/rocksdb/db/merge_helper.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/db/read_callback.h"
+#include "kudu/rocksdb/monitoring/file_read_sample.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
 
 namespace rocksdb {
 

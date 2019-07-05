@@ -11,18 +11,18 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
-#include "utilities/persistent_cache/block_cache_tier_file_buffer.h"
-#include "utilities/persistent_cache/lrulist.h"
-#include "utilities/persistent_cache/persistent_cache_tier.h"
-#include "utilities/persistent_cache/persistent_cache_util.h"
+#include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_file_buffer.h"
+#include "kudu/rocksdb/utilities/persistent_cache/lrulist.h"
+#include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_tier.h"
+#include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_util.h"
 
-#include "port/port.h"
-#include "util/crc32c.h"
-#include "util/file_reader_writer.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/crc32c.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 // The io code path of persistent cache uses pipelined architecture
 //

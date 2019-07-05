@@ -5,17 +5,17 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "util/delete_scheduler.h"
+#include "kudu/rocksdb/util/delete_scheduler.h"
 
 #include <thread>
 #include <vector>
 
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "util/logging.h"
-#include "util/mutexlock.h"
-#include "util/sst_file_manager_impl.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

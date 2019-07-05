@@ -7,8 +7,8 @@
 // JNI Callbacks from C++ to sub-classes or org.rocksdb.RocksCallbackObject
 
 #include <assert.h>
-#include "rocksjni/jnicallback.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksjni/jnicallback.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 namespace rocksdb {
 JniCallback::JniCallback(JNIEnv* env, jobject jcallback_obj) {

@@ -12,15 +12,15 @@
 #include <algorithm>
 #include <string>
 
-#include "db/db_test_util.h"
-#include "port/stack_trace.h"
-#include "rocksdb/listener.h"
-#include "rocksdb/options.h"
-#include "rocksdb/perf_context.h"
-#include "rocksdb/perf_level.h"
-#include "rocksdb/table.h"
-#include "util/random.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/rocksdb/perf_level.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

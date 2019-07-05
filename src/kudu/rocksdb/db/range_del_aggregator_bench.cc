@@ -19,16 +19,16 @@ int main() {
 #include <string>
 #include <vector>
 
-#include "db/range_del_aggregator.h"
-#include "db/range_tombstone_fragmenter.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
-#include "util/coding.h"
-#include "util/random.h"
-#include "util/stop_watch.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/testutil.h"
 
-#include "util/gflags_compat.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 

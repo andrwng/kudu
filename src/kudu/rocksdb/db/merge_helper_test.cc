@@ -7,12 +7,12 @@
 #include <string>
 #include <vector>
 
-#include "db/merge_helper.h"
-#include "rocksdb/comparator.h"
-#include "util/coding.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/db/merge_helper.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 namespace rocksdb {
 

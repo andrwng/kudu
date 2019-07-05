@@ -8,9 +8,9 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include <algorithm>
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/slice.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/string_util.h"
 #include <stdio.h>
 
 namespace rocksdb {

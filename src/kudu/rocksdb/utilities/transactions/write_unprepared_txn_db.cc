@@ -9,9 +9,9 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "utilities/transactions/write_unprepared_txn_db.h"
-#include "rocksdb/utilities/transaction_db.h"
-#include "util/cast_util.h"
+#include "kudu/rocksdb/utilities/transactions/write_unprepared_txn_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/util/cast_util.h"
 
 namespace rocksdb {
 

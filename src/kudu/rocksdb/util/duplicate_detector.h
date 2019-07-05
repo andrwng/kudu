@@ -11,7 +11,7 @@
 
 #include <inttypes.h>
 
-#include "util/set_comparator.h"
+#include "kudu/rocksdb/util/set_comparator.h"
 
 namespace rocksdb {
 // During recovery if the memtable is flushed we cannot rely on its help on

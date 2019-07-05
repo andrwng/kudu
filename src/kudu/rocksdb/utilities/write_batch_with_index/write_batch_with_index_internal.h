@@ -10,13 +10,13 @@
 #include <string>
 #include <vector>
 
-#include "options/db_options.h"
-#include "port/port.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
-#include "rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
 
 namespace rocksdb {
 

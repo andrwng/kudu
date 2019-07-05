@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/column_family.h"
+#include "kudu/rocksdb/db/column_family.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -19,24 +19,24 @@
 #include <algorithm>
 #include <limits>
 
-#include "db/compaction_picker.h"
-#include "db/compaction_picker_fifo.h"
-#include "db/compaction_picker_universal.h"
-#include "db/db_impl.h"
-#include "db/internal_stats.h"
-#include "db/job_context.h"
-#include "db/range_del_aggregator.h"
-#include "db/table_properties_collector.h"
-#include "db/version_set.h"
-#include "db/write_controller.h"
-#include "memtable/hash_skiplist_rep.h"
-#include "monitoring/thread_status_util.h"
-#include "options/options_helper.h"
-#include "table/block_based_table_factory.h"
-#include "table/merging_iterator.h"
-#include "util/autovector.h"
-#include "util/compression.h"
-#include "util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/db/compaction_picker.h"
+#include "kudu/rocksdb/db/compaction_picker_fifo.h"
+#include "kudu/rocksdb/db/compaction_picker_universal.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/internal_stats.h"
+#include "kudu/rocksdb/db/job_context.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/db/table_properties_collector.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/db/write_controller.h"
+#include "kudu/rocksdb/memtable/hash_skiplist_rep.h"
+#include "kudu/rocksdb/monitoring/thread_status_util.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/merging_iterator.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/compression.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
 
 namespace rocksdb {
 

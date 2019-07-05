@@ -7,13 +7,13 @@
 
 #include <inttypes.h>
 
-#include "rocksdb/db.h"
-#include "rocksdb/sst_file_reader.h"
-#include "rocksdb/sst_file_writer.h"
-#include "table/sst_file_writer_collectors.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/sst_file_reader.h"
+#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/table/sst_file_writer_collectors.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 namespace rocksdb {
 

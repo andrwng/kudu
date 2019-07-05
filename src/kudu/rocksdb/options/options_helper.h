@@ -10,12 +10,12 @@
 #include <string>
 #include <vector>
 
-#include "options/cf_options.h"
-#include "options/db_options.h"
-#include "rocksdb/options.h"
-#include "rocksdb/status.h"
-#include "rocksdb/table.h"
-#include "rocksdb/universal_compaction.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/universal_compaction.h"
 
 namespace rocksdb {
 

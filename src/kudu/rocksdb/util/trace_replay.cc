@@ -3,16 +3,16 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "util/trace_replay.h"
+#include "kudu/rocksdb/util/trace_replay.h"
 
 #include <chrono>
 #include <sstream>
 #include <thread>
-#include "db/db_impl.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/write_batch.h"
-#include "util/coding.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

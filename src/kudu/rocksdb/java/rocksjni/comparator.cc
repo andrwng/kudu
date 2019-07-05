@@ -12,11 +12,11 @@
 #include <functional>
 #include <string>
 
-#include "include/org_rocksdb_Comparator.h"
-#include "include/org_rocksdb_DirectComparator.h"
-#include "include/org_rocksdb_NativeComparatorWrapper.h"
-#include "rocksjni/comparatorjnicallback.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_Comparator.h"
+#include "kudu/rocksdb/include/org_rocksdb_DirectComparator.h"
+#include "kudu/rocksdb/include/org_rocksdb_NativeComparatorWrapper.h"
+#include "kudu/rocksdb/rocksjni/comparatorjnicallback.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 // <editor-fold desc="org.rocksdb.Comparator>
 

@@ -7,14 +7,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "util/testutil.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 #include <cctype>
 #include <sstream>
 
-#include "db/memtable_list.h"
-#include "port/port.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/db/memtable_list.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 namespace test {

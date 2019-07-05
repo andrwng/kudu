@@ -7,11 +7,11 @@
 
 #include <unordered_set>
 
-#include "monitoring/statistics.h"
-#include "rocksdb/compaction_filter.h"
-#include "rocksdb/env.h"
-#include "utilities/blob_db/blob_db_impl.h"
-#include "utilities/blob_db/blob_index.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_db_impl.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_index.h"
 
 namespace rocksdb {
 namespace blob_db {

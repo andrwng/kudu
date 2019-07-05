@@ -8,8 +8,8 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_AbstractWalFilter.h"
-#include "rocksjni/wal_filter_jnicallback.h"
+#include "kudu/rocksdb/include/org_rocksdb_AbstractWalFilter.h"
+#include "kudu/rocksdb/rocksjni/wal_filter_jnicallback.h"
 
 /*
  * Class:     org_rocksdb_AbstractWalFilter

@@ -5,12 +5,12 @@
 
 #pragma once
 
-#include "monitoring/statistics.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/thread_status.h"
-#include "util/stop_watch.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/thread_status.h"
+#include "kudu/rocksdb/util/stop_watch.h"
 
 namespace rocksdb {
 class InstrumentedCondVar;

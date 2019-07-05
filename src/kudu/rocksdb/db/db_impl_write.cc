@@ -6,17 +6,17 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-#include "db/db_impl.h"
+#include "kudu/rocksdb/db/db_impl.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
 #include <inttypes.h>
-#include "db/error_handler.h"
-#include "db/event_helpers.h"
-#include "monitoring/perf_context_imp.h"
-#include "options/options_helper.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/error_handler.h"
+#include "kudu/rocksdb/db/event_helpers.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 // Convenience methods

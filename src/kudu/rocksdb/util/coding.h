@@ -18,8 +18,8 @@
 #include <string.h>
 #include <string>
 
-#include "rocksdb/write_batch.h"
-#include "port/port.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/port/port.h"
 
 // Some processors does not allow unaligned access to memory
 #if defined(__sparc)

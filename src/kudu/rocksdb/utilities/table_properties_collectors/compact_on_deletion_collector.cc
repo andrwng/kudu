@@ -4,10 +4,10 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #ifndef ROCKSDB_LITE
-#include "utilities/table_properties_collectors/compact_on_deletion_collector.h"
+#include "kudu/rocksdb/utilities/table_properties_collectors/compact_on_deletion_collector.h"
 
 #include <memory>
-#include "rocksdb/utilities/table_properties_collectors.h"
+#include "kudu/rocksdb/rocksdb/utilities/table_properties_collectors.h"
 
 namespace rocksdb {
 

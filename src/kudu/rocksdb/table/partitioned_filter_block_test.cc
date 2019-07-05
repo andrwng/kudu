@@ -5,16 +5,16 @@
 
 #include <map>
 
-#include "rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
 
-#include "table/full_filter_bits_builder.h"
-#include "table/index_builder.h"
-#include "table/partitioned_filter_block.h"
-#include "util/coding.h"
-#include "util/hash.h"
-#include "util/logging.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/table/full_filter_bits_builder.h"
+#include "kudu/rocksdb/table/index_builder.h"
+#include "kudu/rocksdb/table/partitioned_filter_block.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/hash.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

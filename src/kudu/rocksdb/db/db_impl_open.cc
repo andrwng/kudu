@@ -6,21 +6,21 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-#include "db/db_impl.h"
+#include "kudu/rocksdb/db/db_impl.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
 #include <inttypes.h>
 
-#include "db/builder.h"
-#include "db/error_handler.h"
-#include "options/options_helper.h"
-#include "rocksdb/wal_filter.h"
-#include "table/block_based_table_factory.h"
-#include "util/rate_limiter.h"
-#include "util/sst_file_manager_impl.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/builder.h"
+#include "kudu/rocksdb/db/error_handler.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/rocksdb/wal_filter.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/util/rate_limiter.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 Options SanitizeOptions(const std::string& dbname, const Options& src) {

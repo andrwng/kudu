@@ -8,19 +8,19 @@
 #include <thread>
 #include <vector>
 
-#include "monitoring/histogram.h"
-#include "monitoring/instrumented_mutex.h"
-#include "monitoring/perf_context_imp.h"
-#include "monitoring/thread_status_util.h"
-#include "port/port.h"
-#include "rocksdb/db.h"
-#include "rocksdb/memtablerep.h"
-#include "rocksdb/perf_context.h"
-#include "rocksdb/slice_transform.h"
-#include "util/stop_watch.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/monitoring/thread_status_util.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 bool FLAGS_random_key = false;
 bool FLAGS_use_set_based_memetable = false;

@@ -12,8 +12,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "rocksdb/cache.h"
-#include "rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/db.h"
 
 namespace rocksdb {
 

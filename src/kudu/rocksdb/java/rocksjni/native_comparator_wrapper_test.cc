@@ -6,10 +6,10 @@
 #include <jni.h>
 #include <string>
 
-#include "rocksdb/comparator.h"
-#include "rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
 
-#include "include/org_rocksdb_NativeComparatorWrapperTest_NativeStringComparatorWrapper.h"
+#include "kudu/rocksdb/include/org_rocksdb_NativeComparatorWrapperTest_NativeStringComparatorWrapper.h"
 
 namespace rocksdb {
 

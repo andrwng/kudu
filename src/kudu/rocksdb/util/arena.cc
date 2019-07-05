@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "util/arena.h"
+#include "kudu/rocksdb/util/arena.h"
 #ifdef ROCKSDB_MALLOC_USABLE_SIZE
 #ifdef OS_FREEBSD
 #include <malloc_np.h>
@@ -19,10 +19,10 @@
 #include <sys/mman.h>
 #endif
 #include <algorithm>
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "util/logging.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

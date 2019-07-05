@@ -13,9 +13,9 @@ RocksDB options can be provided using a file or any string to RocksDB. The forma
 
 ```c++
 #include <string>
-#include "rocksdb/db.h"
-#include "rocksdb/table.h"
-#include "rocksdb/utilities/convenience.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/utilities/convenience.h"
 
 using namespace rocksdb;                                                                                           
 

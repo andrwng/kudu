@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include "port/win/win_thread.h"
+#include "kudu/rocksdb/port/win/win_thread.h"
 #include <rocksdb/env.h>
-#include "util/threadpool_imp.h"
+#include "kudu/rocksdb/util/threadpool_imp.h"
 
 #include <stdint.h>
 #include <windows.h>

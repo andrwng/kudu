@@ -10,12 +10,12 @@
 #include <memory>
 #include <string>
 
-#include "rocksdb/env.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/status.h"
-#include "rocksdb/types.h"
-#include "utilities/blob_db/blob_log_format.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_format.h"
 
 namespace rocksdb {
 

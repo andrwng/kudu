@@ -9,9 +9,9 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/comparator.h"
-#include "rocksdb/db.h"
-#include "rocksdb/utilities/stackable_db.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/utilities/stackable_db.h"
 
 namespace rocksdb {
 

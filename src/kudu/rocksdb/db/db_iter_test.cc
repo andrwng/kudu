@@ -8,19 +8,19 @@
 #include <algorithm>
 #include <utility>
 
-#include "db/db_iter.h"
-#include "db/dbformat.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/perf_context.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/statistics.h"
-#include "table/iterator_wrapper.h"
-#include "table/merging_iterator.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/db/db_iter.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/table/iterator_wrapper.h"
+#include "kudu/rocksdb/table/merging_iterator.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 namespace rocksdb {
 

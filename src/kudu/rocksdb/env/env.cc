@@ -7,15 +7,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 #include <thread>
-#include "options/db_options.h"
-#include "port/port.h"
-#include "port/sys_time.h"
-#include "rocksdb/options.h"
-#include "util/arena.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/sys_time.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

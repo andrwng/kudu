@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
 
 #if defined(TBB) && !defined(ROCKSDB_LITE)
 #define SUPPORT_CLOCK_CACHE

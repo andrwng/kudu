@@ -17,7 +17,7 @@
 #pragma once
 
 #include <string>
-#include "rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
 
 namespace rocksdb {
 

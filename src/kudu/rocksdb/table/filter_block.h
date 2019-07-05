@@ -23,12 +23,12 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/table.h"
-#include "util/hash.h"
-#include "format.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/util/hash.h"
+#include "kudu/rocksdb/format.h"
 
 namespace rocksdb {
 

@@ -3,17 +3,17 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #ifndef ROCKSDB_LITE
-#include "table/plain_table_factory.h"
+#include "kudu/rocksdb/table/plain_table_factory.h"
 
 #include <stdint.h>
 #include <memory>
-#include "db/dbformat.h"
-#include "options/options_helper.h"
-#include "port/port.h"
-#include "rocksdb/convenience.h"
-#include "table/plain_table_builder.h"
-#include "table/plain_table_reader.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/table/plain_table_builder.h"
+#include "kudu/rocksdb/table/plain_table_reader.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

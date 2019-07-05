@@ -9,8 +9,8 @@
 #include <jni.h>
 #include <memory>
 
-#include "include/org_rocksdb_AbstractCompactionFilterFactory.h"
-#include "rocksjni/compaction_filter_factory_jnicallback.h"
+#include "kudu/rocksdb/include/org_rocksdb_AbstractCompactionFilterFactory.h"
+#include "kudu/rocksdb/rocksjni/compaction_filter_factory_jnicallback.h"
 
 /*
  * Class:     org_rocksdb_AbstractCompactionFilterFactory

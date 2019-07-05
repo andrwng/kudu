@@ -8,10 +8,10 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_OptimisticTransactionOptions.h"
+#include "kudu/rocksdb/include/org_rocksdb_OptimisticTransactionOptions.h"
 
-#include "rocksdb/comparator.h"
-#include "rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
 
 /*
  * Class:     org_rocksdb_OptimisticTransactionOptions

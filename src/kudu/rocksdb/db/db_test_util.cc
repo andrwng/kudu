@@ -7,9 +7,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/db_test_util.h"
-#include "db/forward_iterator.h"
-#include "rocksdb/env_encryption.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/db/forward_iterator.h"
+#include "kudu/rocksdb/rocksdb/env_encryption.h"
 
 namespace rocksdb {
 

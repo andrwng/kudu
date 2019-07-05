@@ -9,18 +9,18 @@
 //
 // A portable implementation of crc32c, optimized to handle
 // four bytes at a time.
-#include "util/crc32c.h"
+#include "kudu/rocksdb/util/crc32c.h"
 #include <stdint.h>
 #ifdef HAVE_SSE42
 #include <nmmintrin.h>
 #include <wmmintrin.h>
 #endif
-#include "util/coding.h"
-#include "util/util.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/util.h"
 
 #ifdef __powerpc64__
-#include "util/crc32c_ppc.h"
-#include "util/crc32c_ppc_constants.h"
+#include "kudu/rocksdb/util/crc32c_ppc.h"
+#include "kudu/rocksdb/util/crc32c_ppc_constants.h"
 
 #if __linux__
 #include <sys/auxv.h>

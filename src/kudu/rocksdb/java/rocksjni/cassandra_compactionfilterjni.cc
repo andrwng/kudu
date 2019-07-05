@@ -5,8 +5,8 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_CassandraCompactionFilter.h"
-#include "utilities/cassandra/cassandra_compaction_filter.h"
+#include "kudu/rocksdb/include/org_rocksdb_CassandraCompactionFilter.h"
+#include "kudu/rocksdb/utilities/cassandra/cassandra_compaction_filter.h"
 
 /*
  * Class:     org_rocksdb_CassandraCompactionFilter

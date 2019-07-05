@@ -14,15 +14,15 @@
 #include <type_traits>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "db/pre_release_callback.h"
-#include "db/write_callback.h"
-#include "monitoring/instrumented_mutex.h"
-#include "rocksdb/options.h"
-#include "rocksdb/status.h"
-#include "rocksdb/types.h"
-#include "rocksdb/write_batch.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/pre_release_callback.h"
+#include "kudu/rocksdb/db/write_callback.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

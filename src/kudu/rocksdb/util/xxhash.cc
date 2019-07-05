@@ -49,7 +49,7 @@ You can contact the author at :
  * for details. Prefer these methods in priority order (0 > 1 > 2)
  */
 
-#include "util/util.h"
+#include "kudu/rocksdb/util/util.h"
 
 #ifndef XXH_FORCE_MEMORY_ACCESS /* can be defined externally, on command line \
                                    for example */
@@ -130,7 +130,7 @@ You can contact the author at :
 //**************************************
 // Includes & Memory related functions
 //**************************************
-#include "xxhash.h"
+#include "kudu/rocksdb/xxhash.h"
 // Modify the local functions below should you wish to use some other memory related routines
 // for malloc(), free()
 #include <stdlib.h>

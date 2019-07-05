@@ -5,15 +5,15 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "db/db_impl.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "table/cuckoo_table_factory.h"
-#include "table/cuckoo_table_reader.h"
-#include "table/meta_blocks.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/table/cuckoo_table_factory.h"
+#include "kudu/rocksdb/table/cuckoo_table_reader.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

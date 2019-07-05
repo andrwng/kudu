@@ -13,14 +13,14 @@
 
 #include <cstring>
 
-#include "options/options_helper.h"
-#include "rocksdb/convenience.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 #ifndef GFLAGS
 bool FLAGS_enable_print = false;
 #else
-#include "util/gflags_compat.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 DEFINE_bool(enable_print, false, "Print options generated to console.");
 #endif  // GFLAGS

@@ -8,17 +8,17 @@
 #include <vector>
 #include <memory>
 
-#include "rocksdb/db.h"
-#include "rocksdb/options.h"
-#include "rocksdb/env.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/table.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/filter_policy.h"
-#include "port/port.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

@@ -4,7 +4,7 @@
 
 #include <node.h>
 #include <v8.h>
-#include "db/_wrapper.h"
+#include "kudu/rocksdb/db/_wrapper.h"
 
 using namespace v8;
 

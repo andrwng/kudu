@@ -23,8 +23,8 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "rocksdb/status.h"
-#include "rocksdb/thread_status.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/thread_status.h"
 
 #ifdef _WIN32
 // Windows API macro interference

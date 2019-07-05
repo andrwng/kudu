@@ -14,17 +14,17 @@
 #include <vector>
 #include <atomic>
 
-#include "db/memtable_list.h"
-#include "db/table_cache.h"
-#include "db/table_properties_collector.h"
-#include "db/write_batch_internal.h"
-#include "db/write_controller.h"
-#include "options/cf_options.h"
-#include "rocksdb/compaction_job_stats.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "util/thread_local.h"
+#include "kudu/rocksdb/db/memtable_list.h"
+#include "kudu/rocksdb/db/table_cache.h"
+#include "kudu/rocksdb/db/table_properties_collector.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/db/write_controller.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/compaction_job_stats.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/thread_local.h"
 
 namespace rocksdb {
 

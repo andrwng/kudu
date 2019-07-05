@@ -17,13 +17,13 @@
 #include <set>
 #include <string>
 
-#include "db/version_set.h"
-#include "env/mock_env.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "util/filename.h"
-#include "util/mutexlock.h"
-#include "util/random.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/env/mock_env.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/random.h"
 
 namespace rocksdb {
 

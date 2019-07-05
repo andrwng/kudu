@@ -7,24 +7,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/table_cache.h"
+#include "kudu/rocksdb/db/table_cache.h"
 
-#include "db/dbformat.h"
-#include "db/range_tombstone_fragmenter.h"
-#include "db/version_edit.h"
-#include "util/filename.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/util/filename.h"
 
-#include "monitoring/perf_context_imp.h"
-#include "rocksdb/statistics.h"
-#include "table/get_context.h"
-#include "table/internal_iterator.h"
-#include "table/iterator_wrapper.h"
-#include "table/table_builder.h"
-#include "table/table_reader.h"
-#include "util/coding.h"
-#include "util/file_reader_writer.h"
-#include "util/stop_watch.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/table/get_context.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/iterator_wrapper.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/table/table_reader.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

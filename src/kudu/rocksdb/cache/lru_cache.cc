@@ -11,14 +11,14 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "cache/lru_cache.h"
+#include "kudu/rocksdb/cache/lru_cache.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

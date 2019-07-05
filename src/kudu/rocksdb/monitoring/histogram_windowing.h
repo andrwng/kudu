@@ -9,8 +9,8 @@
 
 #pragma once
 
-#include "monitoring/histogram.h"
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 namespace rocksdb {
 

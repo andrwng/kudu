@@ -7,10 +7,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/version_edit.h"
-#include "util/coding.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

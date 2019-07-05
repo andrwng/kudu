@@ -7,14 +7,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/version_edit.h"
+#include "kudu/rocksdb/db/version_edit.h"
 
-#include "db/version_set.h"
-#include "rocksdb/slice.h"
-#include "util/coding.h"
-#include "util/event_logger.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/event_logger.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

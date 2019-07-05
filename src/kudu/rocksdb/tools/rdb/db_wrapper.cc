@@ -4,10 +4,10 @@
 #include <v8.h>
 #include <node.h>
 
-#include "db/_wrapper.h"
-#include "rocksdb/db.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
+#include "kudu/rocksdb/db/_wrapper.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
 
 namespace {
   void printWithBackSlashes(std::string str) {

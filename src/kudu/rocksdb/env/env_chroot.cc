@@ -5,7 +5,7 @@
 
 #if !defined(ROCKSDB_LITE) && !defined(OS_WIN)
 
-#include "env/env_chroot.h"
+#include "kudu/rocksdb/env/env_chroot.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

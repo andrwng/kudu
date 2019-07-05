@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include "monitoring/perf_context_imp.h"
-#include "rocksdb/comparator.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
 
 namespace rocksdb {
 

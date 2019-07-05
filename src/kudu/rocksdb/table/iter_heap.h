@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include "db/dbformat.h"
-#include "table/iterator_wrapper.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/table/iterator_wrapper.h"
 
 namespace rocksdb {
 

@@ -12,8 +12,8 @@
 #include <functional>
 #include <jni.h>
 #include <memory>
-#include "rocksjni/jnicallback.h"
-#include "rocksdb/write_batch.h"
+#include "kudu/rocksdb/rocksjni/jnicallback.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
 
 namespace rocksdb {
 /**

@@ -7,8 +7,8 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/db.h"
-#include "rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/types.h"
 
 namespace rocksdb {
 

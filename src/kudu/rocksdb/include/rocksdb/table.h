@@ -21,11 +21,11 @@
 #include <string>
 #include <unordered_map>
 
-#include "rocksdb/cache.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

@@ -37,16 +37,16 @@
 #include <errno.h>
 #endif
 
-#include "env/env_chroot.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "util/coding.h"
-#include "util/log_buffer.h"
-#include "util/mutexlock.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/env/env_chroot.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/log_buffer.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 #ifdef OS_LINUX
 static const size_t kPageSize = sysconf(_SC_PAGESIZE);

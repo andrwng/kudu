@@ -18,11 +18,11 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/slice_transform.h"
-#include "table/filter_block.h"
-#include "util/hash.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/table/filter_block.h"
+#include "kudu/rocksdb/util/hash.h"
 
 namespace rocksdb {
 

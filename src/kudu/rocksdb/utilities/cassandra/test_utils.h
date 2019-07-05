@@ -5,9 +5,9 @@
 
 #pragma once
 #include <memory>
-#include "util/testharness.h"
-#include "utilities/cassandra/format.h"
-#include "utilities/cassandra/serialize.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/cassandra/format.h"
+#include "kudu/rocksdb/utilities/cassandra/serialize.h"
 
 namespace rocksdb {
 namespace cassandra {

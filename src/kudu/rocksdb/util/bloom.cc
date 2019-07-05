@@ -7,14 +7,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
 
-#include "rocksdb/slice.h"
-#include "table/block_based_filter_block.h"
-#include "table/full_filter_bits_builder.h"
-#include "table/full_filter_block.h"
-#include "util/coding.h"
-#include "util/hash.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/table/block_based_filter_block.h"
+#include "kudu/rocksdb/table/full_filter_bits_builder.h"
+#include "kudu/rocksdb/table/full_filter_block.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/hash.h"
 
 namespace rocksdb {
 

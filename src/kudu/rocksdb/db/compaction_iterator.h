@@ -10,14 +10,14 @@
 #include <unordered_set>
 #include <vector>
 
-#include "db/compaction.h"
-#include "db/compaction_iteration_stats.h"
-#include "db/merge_helper.h"
-#include "db/pinned_iterators_manager.h"
-#include "db/range_del_aggregator.h"
-#include "db/snapshot_checker.h"
-#include "options/cf_options.h"
-#include "rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/db/compaction.h"
+#include "kudu/rocksdb/db/compaction_iteration_stats.h"
+#include "kudu/rocksdb/db/merge_helper.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/db/snapshot_checker.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
 
 namespace rocksdb {
 

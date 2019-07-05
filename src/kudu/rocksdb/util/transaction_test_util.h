@@ -7,10 +7,10 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/options.h"
-#include "port/port.h"
-#include "rocksdb/utilities/optimistic_transaction_db.h"
-#include "rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
 
 namespace rocksdb {
 

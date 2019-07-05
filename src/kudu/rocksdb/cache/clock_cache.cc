@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "cache/clock_cache.h"
+#include "kudu/rocksdb/cache/clock_cache.h"
 
 #ifndef SUPPORT_CLOCK_CACHE
 
@@ -32,12 +32,12 @@ std::shared_ptr<Cache> NewClockCache(size_t /*capacity*/, int /*num_shard_bits*/
 #ifndef ROCKSDB_USE_RTTI
 #define TBB_USE_EXCEPTIONS 0
 #endif
-#include "tbb/concurrent_hash_map.h"
+#include "kudu/rocksdb/tbb/concurrent_hash_map.h"
 
-#include "cache/sharded_cache.h"
-#include "port/port.h"
-#include "util/autovector.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/cache/sharded_cache.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

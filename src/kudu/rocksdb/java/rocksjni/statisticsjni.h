@@ -12,8 +12,8 @@
 #include <memory>
 #include <set>
 #include <string>
-#include "rocksdb/statistics.h"
-#include "monitoring/statistics.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
 
 namespace rocksdb {
 

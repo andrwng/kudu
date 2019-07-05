@@ -8,13 +8,13 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #ifndef ROCKSDB_LITE
 
-#include "utilities/persistent_cache/persistent_cache_test.h"
+#include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_test.h"
 
 #include <functional>
 #include <memory>
 #include <thread>
 
-#include "utilities/persistent_cache/block_cache_tier.h"
+#include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier.h"
 
 namespace rocksdb {
 

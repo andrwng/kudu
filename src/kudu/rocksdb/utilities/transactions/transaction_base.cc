@@ -5,7 +5,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "utilities/transactions/transaction_base.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_base.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -13,12 +13,12 @@
 
 #include <inttypes.h>
 
-#include "db/db_impl.h"
-#include "db/column_family.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/db.h"
-#include "rocksdb/status.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

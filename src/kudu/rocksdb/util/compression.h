@@ -20,12 +20,12 @@
 #endif  // ROCKSDB_MALLOC_USABLE_SIZE
 #include <string>
 
-#include "rocksdb/options.h"
-#include "rocksdb/table.h"
-#include "util/coding.h"
-#include "util/compression_context_cache.h"
-#include "util/memory_allocator.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/compression_context_cache.h"
+#include "kudu/rocksdb/util/memory_allocator.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 #ifdef SNAPPY
 #include <snappy.h>
@@ -148,7 +148,7 @@ class ZSTDUncompressCachedData {
 #endif
 
 #if defined(XPRESS)
-#include "port/xpress.h"
+#include "kudu/rocksdb/port/xpress.h"
 #endif
 
 namespace rocksdb {

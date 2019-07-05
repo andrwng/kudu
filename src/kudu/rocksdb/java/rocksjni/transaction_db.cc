@@ -11,13 +11,13 @@
 #include <memory>
 #include <utility>
 
-#include "include/org_rocksdb_TransactionDB.h"
+#include "kudu/rocksdb/include/org_rocksdb_TransactionDB.h"
 
-#include "rocksdb/options.h"
-#include "rocksdb/utilities/transaction.h"
-#include "rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
 
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_TransactionDB

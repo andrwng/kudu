@@ -3,10 +3,10 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "utilities/cassandra/cassandra_compaction_filter.h"
+#include "kudu/rocksdb/utilities/cassandra/cassandra_compaction_filter.h"
 #include <string>
-#include "rocksdb/slice.h"
-#include "utilities/cassandra/format.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/utilities/cassandra/format.h"
 
 
 namespace rocksdb {

@@ -9,18 +9,18 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "db/range_tombstone_fragmenter.h"
-#include "db/table_properties_collector.h"
-#include "options/cf_options.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
-#include "rocksdb/listener.h"
-#include "rocksdb/options.h"
-#include "rocksdb/status.h"
-#include "rocksdb/table_properties.h"
-#include "rocksdb/types.h"
-#include "table/scoped_arena_iterator.h"
-#include "util/event_logger.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/db/table_properties_collector.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/table/scoped_arena_iterator.h"
+#include "kudu/rocksdb/util/event_logger.h"
 
 namespace rocksdb {
 

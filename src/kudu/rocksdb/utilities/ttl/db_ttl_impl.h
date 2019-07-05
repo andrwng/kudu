@@ -9,13 +9,13 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/compaction_filter.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/utilities/utility_db.h"
-#include "rocksdb/utilities/db_ttl.h"
-#include "db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/utilities/utility_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/db/db_impl.h"
 
 #ifdef _WIN32
 // Windows API macro interference

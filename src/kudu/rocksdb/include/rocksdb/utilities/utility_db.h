@@ -7,9 +7,9 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/db.h"
-#include "rocksdb/utilities/db_ttl.h"
-#include "rocksdb/utilities/stackable_db.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/rocksdb/utilities/stackable_db.h"
 
 namespace rocksdb {
 

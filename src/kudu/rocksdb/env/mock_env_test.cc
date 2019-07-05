@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "env/mock_env.h"
+#include "kudu/rocksdb/env/mock_env.h"
 
 #include <memory>
 #include <string>
 
-#include "rocksdb/env.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

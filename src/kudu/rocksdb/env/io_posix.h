@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <atomic>
 #include <string>
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 // For non linux platform, the following macros are used only as place
 // holder.

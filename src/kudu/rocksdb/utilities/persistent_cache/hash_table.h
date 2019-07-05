@@ -15,8 +15,8 @@
 #include <sys/mman.h>
 #endif
 
-#include "include/rocksdb/env.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/include/rocksdb/env.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

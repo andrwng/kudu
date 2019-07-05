@@ -7,10 +7,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "util/concurrent_arena.h"
+#include "kudu/rocksdb/util/concurrent_arena.h"
 #include <thread>
-#include "port/port.h"
-#include "util/random.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/random.h"
 
 namespace rocksdb {
 

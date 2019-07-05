@@ -7,16 +7,16 @@
 #include <map>
 #include <string>
 
-#include "db/column_family.h"
-#include "db/flush_job.h"
-#include "db/version_set.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/write_buffer_manager.h"
-#include "table/mock_table.h"
-#include "util/file_reader_writer.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/flush_job.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/table/mock_table.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

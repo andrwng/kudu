@@ -6,7 +6,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/internal_stats.h"
+#include "kudu/rocksdb/db/internal_stats.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -19,10 +19,10 @@
 #include <utility>
 #include <vector>
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "table/block_based_table_factory.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

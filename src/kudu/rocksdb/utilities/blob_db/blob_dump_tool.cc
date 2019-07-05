@@ -8,19 +8,19 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "utilities/blob_db/blob_dump_tool.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_dump_tool.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <iostream>
 #include <memory>
 #include <string>
-#include "port/port.h"
-#include "rocksdb/convenience.h"
-#include "rocksdb/env.h"
-#include "table/format.h"
-#include "util/coding.h"
-#include "util/file_reader_writer.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 namespace blob_db {

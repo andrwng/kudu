@@ -18,13 +18,13 @@
 #include <thread>
 #include <vector>
 
-#include "db/db_test_util.h"
-#include "rocksdb/cache.h"
-#include "table/block_builder.h"
-#include "port/port.h"
-#include "util/arena.h"
-#include "util/testharness.h"
-#include "utilities/persistent_cache/volatile_tier_impl.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/persistent_cache/volatile_tier_impl.h"
 
 namespace rocksdb {
 

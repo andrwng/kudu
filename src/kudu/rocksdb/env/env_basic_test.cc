@@ -7,10 +7,10 @@
 #include <vector>
 #include <algorithm>
 
-#include "env/mock_env.h"
-#include "rocksdb/env.h"
-#include "rocksdb/utilities/object_registry.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/env/mock_env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/utilities/object_registry.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

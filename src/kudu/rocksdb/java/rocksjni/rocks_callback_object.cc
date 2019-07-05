@@ -8,8 +8,8 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_RocksCallbackObject.h"
-#include "jnicallback.h"
+#include "kudu/rocksdb/include/org_rocksdb_RocksCallbackObject.h"
+#include "kudu/rocksdb/jnicallback.h"
 
 /*
  * Class:     org_rocksdb_RocksCallbackObject

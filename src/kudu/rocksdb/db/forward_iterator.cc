@@ -4,25 +4,25 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #ifndef ROCKSDB_LITE
-#include "db/forward_iterator.h"
+#include "kudu/rocksdb/db/forward_iterator.h"
 
 #include <limits>
 #include <string>
 #include <utility>
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "db/db_iter.h"
-#include "db/dbformat.h"
-#include "db/job_context.h"
-#include "db/range_del_aggregator.h"
-#include "db/range_tombstone_fragmenter.h"
-#include "rocksdb/env.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/slice_transform.h"
-#include "table/merging_iterator.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/db_iter.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/job_context.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/table/merging_iterator.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

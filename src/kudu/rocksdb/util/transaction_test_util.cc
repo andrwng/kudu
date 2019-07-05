@@ -8,7 +8,7 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "util/transaction_test_util.h"
+#include "kudu/rocksdb/util/transaction_test_util.h"
 
 #include <inttypes.h>
 #include <algorithm>
@@ -17,16 +17,16 @@
 #include <string>
 #include <thread>
 
-#include "rocksdb/db.h"
-#include "rocksdb/utilities/optimistic_transaction_db.h"
-#include "rocksdb/utilities/transaction.h"
-#include "rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
 
-#include "db/dbformat.h"
-#include "db/snapshot_impl.h"
-#include "util/logging.h"
-#include "util/random.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/snapshot_impl.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

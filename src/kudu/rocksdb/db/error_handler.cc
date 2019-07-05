@@ -3,10 +3,10 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "db/error_handler.h"
-#include "db/db_impl.h"
-#include "db/event_helpers.h"
-#include "util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/db/error_handler.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/event_helpers.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
 
 namespace rocksdb {
 

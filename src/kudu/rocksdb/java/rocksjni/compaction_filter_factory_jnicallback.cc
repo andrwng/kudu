@@ -6,8 +6,8 @@
 // This file implements the callback "bridge" between Java and C++ for
 // rocksdb::CompactionFilterFactory.
 
-#include "rocksjni/compaction_filter_factory_jnicallback.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksjni/compaction_filter_factory_jnicallback.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 namespace rocksdb {
 CompactionFilterFactoryJniCallback::CompactionFilterFactoryJniCallback(

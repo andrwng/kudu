@@ -4,8 +4,8 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "monitoring/statistics.h"
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 namespace rocksdb {
 // Auto-scoped.

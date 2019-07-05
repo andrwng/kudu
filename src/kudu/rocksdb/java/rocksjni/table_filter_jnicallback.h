@@ -13,8 +13,8 @@
 #include <functional>
 #include <memory>
 
-#include "rocksdb/table_properties.h"
-#include "rocksjni/jnicallback.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/rocksjni/jnicallback.h"
 
 namespace rocksdb {
 

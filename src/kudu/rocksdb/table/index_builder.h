@@ -16,10 +16,10 @@
 #include <string>
 #include <unordered_map>
 
-#include "rocksdb/comparator.h"
-#include "table/block_based_table_factory.h"
-#include "table/block_builder.h"
-#include "table/format.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/table/format.h"
 
 namespace rocksdb {
 // The interface for building index.

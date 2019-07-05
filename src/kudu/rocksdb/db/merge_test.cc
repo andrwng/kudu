@@ -7,18 +7,18 @@
 #include <memory>
 #include <iostream>
 
-#include "port/stack_trace.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/utilities/db_ttl.h"
-#include "db/dbformat.h"
-#include "db/db_impl.h"
-#include "db/write_batch_internal.h"
-#include "utilities/merge_operators.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

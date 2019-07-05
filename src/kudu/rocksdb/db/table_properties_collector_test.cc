@@ -9,19 +9,19 @@
 #include <utility>
 #include <vector>
 
-#include "db/db_impl.h"
-#include "db/dbformat.h"
-#include "db/table_properties_collector.h"
-#include "options/cf_options.h"
-#include "rocksdb/table.h"
-#include "table/block_based_table_factory.h"
-#include "table/meta_blocks.h"
-#include "table/plain_table_factory.h"
-#include "table/table_builder.h"
-#include "util/coding.h"
-#include "util/file_reader_writer.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/table_properties_collector.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/table/plain_table_factory.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

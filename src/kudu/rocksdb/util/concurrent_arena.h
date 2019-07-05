@@ -11,12 +11,12 @@
 #include <atomic>
 #include <memory>
 #include <utility>
-#include "port/likely.h"
-#include "util/allocator.h"
-#include "util/arena.h"
-#include "util/core_local.h"
-#include "util/mutexlock.h"
-#include "util/thread_local.h"
+#include "kudu/rocksdb/port/likely.h"
+#include "kudu/rocksdb/util/allocator.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/core_local.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/thread_local.h"
 
 // Only generate field unused warning for padding array, or build under
 // GCC 4.8.1 will fail.

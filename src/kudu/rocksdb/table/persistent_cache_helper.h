@@ -6,9 +6,9 @@
 
 #include <string>
 
-#include "monitoring/statistics.h"
-#include "table/format.h"
-#include "table/persistent_cache_options.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/table/persistent_cache_options.h"
 
 namespace rocksdb {
 

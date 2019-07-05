@@ -5,12 +5,12 @@
 
 #include <functional>
 
-#include "port/port.h"
-#include "port/stack_trace.h"
-#include "rocksdb/iostats_context.h"
-#include "rocksdb/perf_context.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/iostats_context.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

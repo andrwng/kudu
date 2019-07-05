@@ -5,7 +5,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "options/options_parser.h"
+#include "kudu/rocksdb/options/options_parser.h"
 
 #include <cmath>
 #include <map>
@@ -13,15 +13,15 @@
 #include <utility>
 #include <vector>
 
-#include "options/options_helper.h"
-#include "rocksdb/convenience.h"
-#include "rocksdb/db.h"
-#include "util/cast_util.h"
-#include "util/file_reader_writer.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
-#include "port/port.h"
+#include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {
 

@@ -6,7 +6,7 @@
 #include <map>
 #include <memory>
 #include <string>
-#include "rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/db.h"
 
 #ifdef _WIN32
 // Windows API macro interference

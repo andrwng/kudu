@@ -15,10 +15,10 @@
 # expand differently. Similarly, this type of code causes issues:
 #
 # #ifdef FOO
-#   #include "bar.h"
+#   #include "kudu/rocksdb/bar.h"
 #   // code here
 # #else
-#   #include "bar.h"            // oops, doesn't get expanded
+#   #include "kudu/rocksdb/bar.h"            // oops, doesn't get expanded
 #   // different code here
 # #endif
 #
@@ -103,7 +103,7 @@ def main():
     abs_path = path.abspath(filename)
     with open(filename) as f, open(args.source_out, 'w') as source_out, open(args.header_out, 'w') as header_out:
         print('#line 1 "{}"'.format(filename), file=source_out)
-        print('#include "{}"'.format(header_out.name), file=source_out)
+        print('#include "kudu/rocksdb/{}"'.format(header_out.name), file=source_out)
         process_file(f, abs_path, source_out, header_out, include_paths, public_include_paths)
 
 if __name__ == "__main__":

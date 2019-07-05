@@ -8,10 +8,10 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
-#include "util/file_reader_writer.h"
-#include "utilities/blob_db/blob_log_format.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_format.h"
 
 namespace rocksdb {
 namespace blob_db {

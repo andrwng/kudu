@@ -10,9 +10,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "include/org_rocksdb_RocksIterator.h"
-#include "rocksdb/iterator.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_RocksIterator.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_RocksIterator

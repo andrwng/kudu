@@ -5,10 +5,10 @@
 //
 #include <ratio>
 
-#include "db/write_controller.h"
+#include "kudu/rocksdb/db/write_controller.h"
 
-#include "rocksdb/env.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

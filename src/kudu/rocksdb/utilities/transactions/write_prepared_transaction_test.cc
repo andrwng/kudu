@@ -9,7 +9,7 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "utilities/transactions/transaction_test.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_test.h"
 
 #include <inttypes.h>
 #include <algorithm>
@@ -18,29 +18,29 @@
 #include <string>
 #include <thread>
 
-#include "db/db_impl.h"
-#include "db/dbformat.h"
-#include "rocksdb/db.h"
-#include "rocksdb/options.h"
-#include "rocksdb/types.h"
-#include "rocksdb/utilities/debug.h"
-#include "rocksdb/utilities/transaction.h"
-#include "rocksdb/utilities/transaction_db.h"
-#include "table/mock_table.h"
-#include "util/fault_injection_test_env.h"
-#include "util/mutexlock.h"
-#include "util/random.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "util/transaction_test_util.h"
-#include "utilities/merge_operators.h"
-#include "utilities/merge_operators/string_append/stringappend.h"
-#include "utilities/transactions/pessimistic_transaction_db.h"
-#include "utilities/transactions/write_prepared_txn_db.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/utilities/debug.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/table/mock_table.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/util/transaction_test_util.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
+#include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend.h"
+#include "kudu/rocksdb/utilities/transactions/pessimistic_transaction_db.h"
+#include "kudu/rocksdb/utilities/transactions/write_prepared_txn_db.h"
 
-#include "port/port.h"
+#include "kudu/rocksdb/port/port.h"
 
 using std::string;
 

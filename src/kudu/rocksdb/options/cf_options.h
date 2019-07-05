@@ -8,10 +8,10 @@
 #include <string>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "options/db_options.h"
-#include "rocksdb/options.h"
-#include "util/compression.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/compression.h"
 
 namespace rocksdb {
 

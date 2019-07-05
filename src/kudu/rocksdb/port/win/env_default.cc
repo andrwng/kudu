@@ -10,10 +10,10 @@
 #include <mutex>
 
 #include <rocksdb/env.h>
-#include "port/win/env_win.h"
-#include "util/compression_context_cache.h"
-#include "util/sync_point.h"
-#include "util/thread_local.h"
+#include "kudu/rocksdb/port/win/env_win.h"
+#include "kudu/rocksdb/util/compression_context_cache.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/thread_local.h"
 
 namespace rocksdb {
 namespace port {

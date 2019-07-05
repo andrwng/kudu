@@ -5,10 +5,10 @@
 
 #pragma once
 #include <string>
-#include "db/dbformat.h"
-#include "db/table_properties_collector.h"
-#include "rocksdb/types.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/table_properties_collector.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

@@ -7,10 +7,10 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 //
 
-#include "util/compression_context_cache.h"
+#include "kudu/rocksdb/util/compression_context_cache.h"
 
-#include "util/compression.h"
-#include "util/core_local.h"
+#include "kudu/rocksdb/util/compression.h"
+#include "kudu/rocksdb/util/core_local.h"
 
 #include <atomic>
 

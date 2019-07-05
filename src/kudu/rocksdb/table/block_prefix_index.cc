@@ -3,16 +3,16 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "table/block_prefix_index.h"
+#include "kudu/rocksdb/table/block_prefix_index.h"
 
 #include <vector>
 
-#include "rocksdb/comparator.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/slice_transform.h"
-#include "util/arena.h"
-#include "util/coding.h"
-#include "util/hash.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/hash.h"
 
 namespace rocksdb {
 

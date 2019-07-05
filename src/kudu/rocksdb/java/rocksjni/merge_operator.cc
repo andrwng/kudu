@@ -12,17 +12,17 @@
 #include <memory>
 #include <string>
 
-#include "include/org_rocksdb_StringAppendOperator.h"
-#include "include/org_rocksdb_UInt64AddOperator.h"
-#include "rocksdb/db.h"
-#include "rocksdb/memtablerep.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/table.h"
-#include "rocksjni/portal.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/include/org_rocksdb_StringAppendOperator.h"
+#include "kudu/rocksdb/include/org_rocksdb_UInt64AddOperator.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 /*
  * Class:     org_rocksdb_StringAppendOperator

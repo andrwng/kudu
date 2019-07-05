@@ -3,9 +3,9 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "table/persistent_cache_helper.h"
-#include "table/block_based_table_reader.h"
-#include "table/format.h"
+#include "kudu/rocksdb/table/persistent_cache_helper.h"
+#include "kudu/rocksdb/table/block_based_table_reader.h"
+#include "kudu/rocksdb/table/format.h"
 
 namespace rocksdb {
 

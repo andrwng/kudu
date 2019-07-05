@@ -6,10 +6,10 @@
 #include <atomic>
 #include <memory>
 
-#include "db/db_test_util.h"
-#include "util/repeatable_thread.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/util/repeatable_thread.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 class RepeatableThreadTest : public testing::Test {
  public:

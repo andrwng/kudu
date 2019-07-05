@@ -7,12 +7,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "util/rate_limiter.h"
-#include "monitoring/statistics.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "util/aligned_buffer.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/util/rate_limiter.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/aligned_buffer.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

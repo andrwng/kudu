@@ -9,7 +9,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "utilities/blob_db/blob_dump_tool.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_dump_tool.h"
 
 using namespace rocksdb;
 using namespace rocksdb::blob_db;

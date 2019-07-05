@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <string>
 
-#include "rocksdb/perf_level.h"
+#include "kudu/rocksdb/rocksdb/perf_level.h"
 
 // A thread local context for gathering io-stats efficiently and transparently.
 // Use SetPerfLevel(PerfLevel::kEnableTime) to enable time stats.

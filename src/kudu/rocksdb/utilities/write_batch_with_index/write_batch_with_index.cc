@@ -5,22 +5,22 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
 
 #include <memory>
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "db/merge_context.h"
-#include "db/merge_helper.h"
-#include "memtable/skiplist.h"
-#include "options/db_options.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/iterator.h"
-#include "util/arena.h"
-#include "util/cast_util.h"
-#include "util/string_util.h"
-#include "utilities/write_batch_with_index/write_batch_with_index_internal.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/merge_context.h"
+#include "kudu/rocksdb/db/merge_helper.h"
+#include "kudu/rocksdb/memtable/skiplist.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/utilities/write_batch_with_index/write_batch_with_index_internal.h"
 
 namespace rocksdb {
 

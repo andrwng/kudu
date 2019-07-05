@@ -7,8 +7,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "port/win/env_win.h"
-#include "port/win/win_thread.h"
+#include "kudu/rocksdb/port/win/env_win.h"
+#include "kudu/rocksdb/port/win/win_thread.h"
 #include <algorithm>
 #include <ctime>
 #include <thread>
@@ -20,23 +20,23 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "rocksdb/env.h"
-#include "rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
 
-#include "port/port.h"
-#include "port/port_dirent.h"
-#include "port/win/win_logger.h"
-#include "port/win/io_win.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/port_dirent.h"
+#include "kudu/rocksdb/port/win/win_logger.h"
+#include "kudu/rocksdb/port/win/io_win.h"
 
-#include "monitoring/iostats_context_imp.h"
+#include "kudu/rocksdb/monitoring/iostats_context_imp.h"
 
-#include "monitoring/thread_status_updater.h"
-#include "monitoring/thread_status_util.h"
+#include "kudu/rocksdb/monitoring/thread_status_updater.h"
+#include "kudu/rocksdb/monitoring/thread_status_util.h"
 
 #include <rpc.h>  // for uuid generation
 #include <windows.h>
 #include <shlwapi.h>
-#include "strsafe.h"
+#include "kudu/rocksdb/strsafe.h"
 
 #include <algorithm>
 

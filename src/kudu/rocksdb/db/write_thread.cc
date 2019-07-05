@@ -3,14 +3,14 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/write_thread.h"
+#include "kudu/rocksdb/db/write_thread.h"
 #include <chrono>
 #include <thread>
-#include "db/column_family.h"
-#include "monitoring/perf_context_imp.h"
-#include "port/port.h"
-#include "util/random.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

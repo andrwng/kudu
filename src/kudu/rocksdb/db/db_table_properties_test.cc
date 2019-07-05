@@ -10,12 +10,12 @@
 #include <unordered_set>
 #include <vector>
 
-#include "db/db_test_util.h"
-#include "port/stack_trace.h"
-#include "rocksdb/db.h"
-#include "rocksdb/utilities/table_properties_collectors.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/utilities/table_properties_collectors.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 #ifndef ROCKSDB_LITE
 

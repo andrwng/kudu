@@ -4,8 +4,8 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "monitoring/perf_step_timer.h"
-#include "rocksdb/iostats_context.h"
+#include "kudu/rocksdb/monitoring/perf_step_timer.h"
+#include "kudu/rocksdb/rocksdb/iostats_context.h"
 
 #ifdef ROCKSDB_SUPPORT_THREAD_LOCAL
 namespace rocksdb {

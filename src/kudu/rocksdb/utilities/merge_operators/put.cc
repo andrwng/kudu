@@ -4,9 +4,9 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include <memory>
-#include "rocksdb/slice.h"
-#include "rocksdb/merge_operator.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 using namespace rocksdb;
 

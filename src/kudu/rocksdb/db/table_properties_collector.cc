@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/table_properties_collector.h"
+#include "kudu/rocksdb/db/table_properties_collector.h"
 
-#include "db/dbformat.h"
-#include "util/coding.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

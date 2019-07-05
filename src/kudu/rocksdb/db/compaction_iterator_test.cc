@@ -3,16 +3,16 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/compaction_iterator.h"
+#include "kudu/rocksdb/db/compaction_iterator.h"
 
 #include <string>
 #include <vector>
 
-#include "port/port.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 namespace rocksdb {
 

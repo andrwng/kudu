@@ -10,12 +10,12 @@
 #include <jni.h>
 #include <string>
 
-#include "include/org_rocksdb_SstFileWriter.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "rocksdb/sst_file_writer.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_SstFileWriter.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_SstFileWriter

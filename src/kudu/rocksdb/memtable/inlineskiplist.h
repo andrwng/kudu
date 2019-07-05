@@ -46,12 +46,12 @@
 #include <algorithm>
 #include <atomic>
 #include <type_traits>
-#include "port/likely.h"
-#include "port/port.h"
-#include "rocksdb/slice.h"
-#include "util/allocator.h"
-#include "util/coding.h"
-#include "util/random.h"
+#include "kudu/rocksdb/port/likely.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/allocator.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/random.h"
 
 namespace rocksdb {
 

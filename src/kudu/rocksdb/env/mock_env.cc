@@ -7,14 +7,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "env/mock_env.h"
+#include "kudu/rocksdb/env/mock_env.h"
 #include <algorithm>
 #include <chrono>
-#include "port/sys_time.h"
-#include "util/cast_util.h"
-#include "util/murmurhash.h"
-#include "util/random.h"
-#include "util/rate_limiter.h"
+#include "kudu/rocksdb/port/sys_time.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/murmurhash.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/rate_limiter.h"
 
 namespace rocksdb {
 

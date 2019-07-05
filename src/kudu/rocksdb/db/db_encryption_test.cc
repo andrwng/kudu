@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "db/db_test_util.h"
-#include "port/stack_trace.h"
-#include "rocksdb/perf_context.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
 #if !defined(ROCKSDB_LITE)
-#include "util/sync_point.h"
+#include "kudu/rocksdb/util/sync_point.h"
 #endif
 #include <iostream>
 #include <string>

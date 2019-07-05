@@ -9,12 +9,12 @@
 
 #pragma once
 #include <vector>
-#include "db/write_thread.h"
-#include "rocksdb/types.h"
-#include "rocksdb/write_batch.h"
-#include "rocksdb/db.h"
-#include "rocksdb/options.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/db/write_thread.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

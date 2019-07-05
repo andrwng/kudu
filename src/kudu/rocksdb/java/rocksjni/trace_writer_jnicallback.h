@@ -12,8 +12,8 @@
 #include <jni.h>
 #include <memory>
 
-#include "rocksdb/trace_reader_writer.h"
-#include "rocksjni/jnicallback.h"
+#include "kudu/rocksdb/rocksdb/trace_reader_writer.h"
+#include "kudu/rocksdb/rocksjni/jnicallback.h"
 
 namespace rocksdb {
 

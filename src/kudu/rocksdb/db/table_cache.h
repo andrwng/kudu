@@ -14,15 +14,15 @@
 #include <vector>
 #include <stdint.h>
 
-#include "db/dbformat.h"
-#include "db/range_del_aggregator.h"
-#include "options/cf_options.h"
-#include "port/port.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "rocksdb/table.h"
-#include "table/table_reader.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/table_reader.h"
 
 namespace rocksdb {
 

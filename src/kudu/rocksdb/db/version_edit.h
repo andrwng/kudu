@@ -13,10 +13,10 @@
 #include <utility>
 #include <vector>
 #include <string>
-#include "rocksdb/cache.h"
-#include "db/dbformat.h"
-#include "util/arena.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

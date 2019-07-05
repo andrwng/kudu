@@ -5,12 +5,12 @@
 #include <string>
 #include <vector>
 
-#include "db/db_test_util.h"
-#include "db/forward_iterator.h"
-#include "port/stack_trace.h"
-#include "rocksdb/merge_operator.h"
-#include "utilities/merge_operators.h"
-#include "utilities/merge_operators/string_append/stringappend2.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/db/forward_iterator.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
+#include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend2.h"
 
 namespace rocksdb {
 

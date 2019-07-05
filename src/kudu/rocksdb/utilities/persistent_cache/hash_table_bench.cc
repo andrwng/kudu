@@ -18,12 +18,12 @@ int main() { fprintf(stderr, "Please install gflags to run tools\n"); }
 #include <unistd.h>
 #include <sys/time.h>
 
-#include "port/port_posix.h"
-#include "rocksdb/env.h"
-#include "util/gflags_compat.h"
-#include "util/mutexlock.h"
-#include "util/random.h"
-#include "utilities/persistent_cache/hash_table.h"
+#include "kudu/rocksdb/port/port_posix.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/utilities/persistent_cache/hash_table.h"
 
 using std::string;
 

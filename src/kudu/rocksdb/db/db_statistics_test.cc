@@ -5,10 +5,10 @@
 
 #include <string>
 
-#include "db/db_test_util.h"
-#include "monitoring/thread_status_util.h"
-#include "port/stack_trace.h"
-#include "rocksdb/statistics.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/monitoring/thread_status_util.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
 
 namespace rocksdb {
 

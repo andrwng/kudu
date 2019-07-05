@@ -58,9 +58,9 @@
 #include <chrono>
 #include <vector>
 #include <memory>
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/slice.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 namespace cassandra {

@@ -9,7 +9,7 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "utilities/transactions/transaction_lock_mgr.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_lock_mgr.h"
 
 #include <inttypes.h>
 
@@ -20,14 +20,14 @@
 #include <string>
 #include <vector>
 
-#include "monitoring/perf_context_imp.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/utilities/transaction_db_mutex.h"
-#include "util/cast_util.h"
-#include "util/hash.h"
-#include "util/sync_point.h"
-#include "util/thread_local.h"
-#include "utilities/transactions/pessimistic_transaction_db.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db_mutex.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/hash.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/thread_local.h"
+#include "kudu/rocksdb/utilities/transactions/pessimistic_transaction_db.h"
 
 namespace rocksdb {
 

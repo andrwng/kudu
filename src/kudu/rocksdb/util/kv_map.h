@@ -7,9 +7,9 @@
 #include <map>
 #include <string>
 
-#include "rocksdb/comparator.h"
-#include "rocksdb/slice.h"
-#include "util/coding.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/coding.h"
 
 namespace rocksdb {
 namespace stl_wrappers {

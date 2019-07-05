@@ -12,8 +12,8 @@
 #include <jni.h>
 #include <memory>
 
-#include "rocksdb/compaction_filter.h"
-#include "rocksjni/jnicallback.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/rocksjni/jnicallback.h"
 
 namespace rocksdb {
 

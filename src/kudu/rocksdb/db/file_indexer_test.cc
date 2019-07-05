@@ -8,13 +8,13 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include <string>
-#include "db/file_indexer.h"
-#include "db/dbformat.h"
-#include "db/version_edit.h"
-#include "port/stack_trace.h"
-#include "rocksdb/comparator.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/file_indexer.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

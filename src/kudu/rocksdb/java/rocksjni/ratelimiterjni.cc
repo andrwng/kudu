@@ -5,9 +5,9 @@
 //
 // This file implements the "bridge" between Java and C++ for RateLimiter.
 
-#include "include/org_rocksdb_RateLimiter.h"
-#include "rocksdb/rate_limiter.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_RateLimiter.h"
+#include "kudu/rocksdb/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_RateLimiter

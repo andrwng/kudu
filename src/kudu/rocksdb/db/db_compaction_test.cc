@@ -7,15 +7,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/db_test_util.h"
-#include "port/port.h"
-#include "port/stack_trace.h"
-#include "rocksdb/concurrent_task_limiter.h"
-#include "rocksdb/experimental.h"
-#include "rocksdb/utilities/convenience.h"
-#include "util/concurrent_task_limiter_impl.h"
-#include "util/fault_injection_test_env.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/concurrent_task_limiter.h"
+#include "kudu/rocksdb/rocksdb/experimental.h"
+#include "kudu/rocksdb/rocksdb/utilities/convenience.h"
+#include "kudu/rocksdb/util/concurrent_task_limiter_impl.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

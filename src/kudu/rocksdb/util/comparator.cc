@@ -10,10 +10,10 @@
 #include <algorithm>
 #include <memory>
 #include <stdint.h>
-#include "rocksdb/comparator.h"
-#include "rocksdb/slice.h"
-#include "port/port.h"
-#include "util/logging.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/logging.h"
 
 namespace rocksdb {
 

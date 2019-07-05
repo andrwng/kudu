@@ -14,7 +14,7 @@
 
 #include <atomic>
 #include <cstddef>
-#include "rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
 
 namespace rocksdb {
 

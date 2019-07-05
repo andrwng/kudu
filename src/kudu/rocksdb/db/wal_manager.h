@@ -17,13 +17,13 @@
 #include <string>
 #include <memory>
 
-#include "db/version_set.h"
-#include "options/db_options.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/status.h"
-#include "rocksdb/transaction_log.h"
-#include "rocksdb/types.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/rocksdb/types.h"
 
 namespace rocksdb {
 

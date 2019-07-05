@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 #ifndef ROCKSDB_LITE
 
-#include "utilities/persistent_cache/block_cache_tier_metadata.h"
+#include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_metadata.h"
 
 #include <functional>
 

@@ -8,7 +8,7 @@
 
 #include <string>
 
-#include "rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/db.h"
 
 namespace rocksdb {
 

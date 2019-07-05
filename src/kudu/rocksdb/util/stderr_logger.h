@@ -8,7 +8,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 namespace rocksdb {
 

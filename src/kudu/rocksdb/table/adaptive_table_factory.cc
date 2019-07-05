@@ -3,11 +3,11 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #ifndef ROCKSDB_LITE
-#include "table/adaptive_table_factory.h"
+#include "kudu/rocksdb/table/adaptive_table_factory.h"
 
-#include "table/table_builder.h"
-#include "table/format.h"
-#include "port/port.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {
 

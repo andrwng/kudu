@@ -14,16 +14,16 @@
 #include <stdint.h>
 #include <algorithm>
 #include <string>
-#include "db/db_impl.h"
-#include "db/job_context.h"
-#include "db/version_set.h"
-#include "port/port.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "util/file_util.h"
-#include "util/filename.h"
-#include "util/mutexlock.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/job_context.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/file_util.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

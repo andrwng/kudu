@@ -15,16 +15,16 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "rocksdb/iterator.h"
-#include "rocksdb/listener.h"
-#include "rocksdb/metadata.h"
-#include "rocksdb/options.h"
-#include "rocksdb/snapshot.h"
-#include "rocksdb/sst_file_writer.h"
-#include "rocksdb/thread_status.h"
-#include "rocksdb/transaction_log.h"
-#include "rocksdb/types.h"
-#include "rocksdb/version.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/rocksdb/metadata.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/snapshot.h"
+#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/rocksdb/thread_status.h"
+#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/version.h"
 
 #ifdef _WIN32
 // Windows API macro interference

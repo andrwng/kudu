@@ -8,7 +8,7 @@
 
 #include <memory>
 
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

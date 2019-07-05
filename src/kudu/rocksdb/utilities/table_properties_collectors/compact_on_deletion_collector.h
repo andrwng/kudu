@@ -6,7 +6,7 @@
 #pragma once
 
 #ifndef ROCKSDB_LITE
-#include "rocksdb/utilities/table_properties_collectors.h"
+#include "kudu/rocksdb/rocksdb/utilities/table_properties_collectors.h"
 namespace rocksdb {
 
 class CompactOnDeletionCollector : public TablePropertiesCollector {

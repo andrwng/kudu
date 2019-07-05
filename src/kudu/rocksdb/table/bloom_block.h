@@ -6,7 +6,7 @@
 
 #include <vector>
 #include <string>
-#include "util/dynamic_bloom.h"
+#include "kudu/rocksdb/util/dynamic_bloom.h"
 
 namespace rocksdb {
 class Logger;

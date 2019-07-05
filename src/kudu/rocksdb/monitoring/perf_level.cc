@@ -5,7 +5,7 @@
 //
 
 #include <assert.h>
-#include "monitoring/perf_level_imp.h"
+#include "kudu/rocksdb/monitoring/perf_level_imp.h"
 
 namespace rocksdb {
 

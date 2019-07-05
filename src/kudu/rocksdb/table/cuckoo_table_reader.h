@@ -14,12 +14,12 @@
 #include <utility>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "options/cf_options.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "table/table_reader.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/table/table_reader.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 

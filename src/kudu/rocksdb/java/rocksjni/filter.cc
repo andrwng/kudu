@@ -11,10 +11,10 @@
 #include <stdlib.h>
 #include <string>
 
-#include "include/org_rocksdb_BloomFilter.h"
-#include "include/org_rocksdb_Filter.h"
-#include "rocksdb/filter_policy.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_BloomFilter.h"
+#include "kudu/rocksdb/include/org_rocksdb_Filter.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_BloomFilter

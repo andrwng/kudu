@@ -4,10 +4,10 @@
 #include <string>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/slice.h"
-#include "table/internal_iterator.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
 
 namespace rocksdb {
 

@@ -5,10 +5,10 @@
 //
 #ifndef ROCKSDB_LITE
 
-#include "utilities/blob_db/blob_log_format.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_format.h"
 
-#include "util/coding.h"
-#include "util/crc32c.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/crc32c.h"
 
 namespace rocksdb {
 namespace blob_db {

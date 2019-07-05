@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "table/bloom_block.h"
+#include "kudu/rocksdb/table/bloom_block.h"
 
 #include <string>
-#include "rocksdb/slice.h"
-#include "util/dynamic_bloom.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/dynamic_bloom.h"
 
 namespace rocksdb {
 

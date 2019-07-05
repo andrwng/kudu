@@ -7,17 +7,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 #include <algorithm>
 #include <mutex>
 
-#include "monitoring/histogram.h"
-#include "monitoring/iostats_context_imp.h"
-#include "port/port.h"
-#include "util/random.h"
-#include "util/rate_limiter.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/monitoring/iostats_context_imp.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/rate_limiter.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

@@ -11,15 +11,15 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "monitoring/histogram.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
 
 #include <inttypes.h>
 #include <cassert>
 #include <math.h>
 #include <stdio.h>
 
-#include "port/port.h"
-#include "util/cast_util.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/cast_util.h"
 
 namespace rocksdb {
 

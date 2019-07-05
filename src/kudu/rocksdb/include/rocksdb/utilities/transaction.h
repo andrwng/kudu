@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/comparator.h"
-#include "rocksdb/db.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

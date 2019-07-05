@@ -7,7 +7,7 @@
 #include <limits>
 #include <list>
 
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

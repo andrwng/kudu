@@ -5,7 +5,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "db/external_sst_file_ingestion_job.h"
+#include "kudu/rocksdb/db/external_sst_file_ingestion_job.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -16,15 +16,15 @@
 #include <string>
 #include <vector>
 
-#include "db/version_edit.h"
-#include "table/merging_iterator.h"
-#include "table/scoped_arena_iterator.h"
-#include "table/sst_file_writer_collectors.h"
-#include "table/table_builder.h"
-#include "util/file_reader_writer.h"
-#include "util/file_util.h"
-#include "util/stop_watch.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/table/merging_iterator.h"
+#include "kudu/rocksdb/table/scoped_arena_iterator.h"
+#include "kudu/rocksdb/table/sst_file_writer_collectors.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/file_util.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

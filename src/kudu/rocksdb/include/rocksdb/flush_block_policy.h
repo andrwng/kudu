@@ -6,7 +6,7 @@
 #pragma once
 
 #include <string>
-#include "rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/table.h"
 
 namespace rocksdb {
 

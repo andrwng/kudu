@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -12,12 +12,12 @@
 #include <inttypes.h>
 #include <vector>
 
-#include "db/db_impl.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/sst_file_manager.h"
-#include "util/mutexlock.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/sst_file_manager.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

@@ -10,18 +10,18 @@
 #include <string>
 #include <unordered_map>
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "db/db_test_util.h"
-#include "options/options_helper.h"
-#include "port/stack_trace.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/convenience.h"
-#include "rocksdb/rate_limiter.h"
-#include "rocksdb/stats_history.h"
-#include "util/random.h"
-#include "util/sync_point.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/rocksdb/stats_history.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

@@ -5,7 +5,7 @@
 #ifndef ROCKSDB_LITE
 #pragma once
 
-#include "rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/options.h"
 
 namespace rocksdb {
 

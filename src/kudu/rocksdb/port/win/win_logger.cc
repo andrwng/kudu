@@ -10,8 +10,8 @@
 // Logger implementation that can be shared by all environments
 // where enough posix functionality is available.
 
-#include "port/win/win_logger.h"
-#include "port/win/io_win.h"
+#include "kudu/rocksdb/port/win/win_logger.h"
+#include "kudu/rocksdb/port/win/io_win.h"
 
 #include <algorithm>
 #include <stdio.h>
@@ -19,10 +19,10 @@
 #include <fcntl.h>
 #include <atomic>
 
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
-#include "monitoring/iostats_context_imp.h"
-#include "port/sys_time.h"
+#include "kudu/rocksdb/monitoring/iostats_context_imp.h"
+#include "kudu/rocksdb/port/sys_time.h"
 
 namespace rocksdb {
 

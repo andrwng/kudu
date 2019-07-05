@@ -8,10 +8,10 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "db/transaction_log_impl.h"
+#include "kudu/rocksdb/db/transaction_log_impl.h"
 #include <inttypes.h>
-#include "db/write_batch_internal.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 

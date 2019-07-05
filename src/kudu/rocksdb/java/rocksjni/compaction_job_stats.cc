@@ -8,9 +8,9 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_CompactionJobStats.h"
-#include "rocksdb/compaction_job_stats.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_CompactionJobStats.h"
+#include "kudu/rocksdb/rocksdb/compaction_job_stats.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_CompactionJobStats

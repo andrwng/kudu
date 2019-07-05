@@ -11,11 +11,11 @@
 #error Windows Specific Code
 #endif
 
-#include "port/win/port_win.h"
+#include "kudu/rocksdb/port/win/port_win.h"
 
 #include <io.h>
-#include "port/port_dirent.h"
-#include "port/sys_time.h"
+#include "kudu/rocksdb/port/port_dirent.h"
+#include "kudu/rocksdb/port/sys_time.h"
 
 #include <cstdlib>
 #include <stdio.h>
@@ -33,7 +33,7 @@
 #include <codecvt>
 #endif
 
-#include "util/logging.h"
+#include "kudu/rocksdb/util/logging.h"
 
 namespace rocksdb {
 

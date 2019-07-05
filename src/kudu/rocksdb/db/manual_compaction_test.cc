@@ -8,12 +8,12 @@
 #include <sstream>
 #include <cstdlib>
 
-#include "rocksdb/db.h"
-#include "rocksdb/compaction_filter.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/write_batch.h"
-#include "util/testharness.h"
-#include "port/port.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/port/port.h"
 
 using namespace rocksdb;
 

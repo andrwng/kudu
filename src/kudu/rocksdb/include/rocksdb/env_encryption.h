@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "env.h"
+#include "kudu/rocksdb/env.h"
 
 namespace rocksdb {
 

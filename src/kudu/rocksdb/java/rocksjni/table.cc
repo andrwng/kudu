@@ -5,13 +5,13 @@
 //
 // This file implements the "bridge" between Java and C++ for rocksdb::Options.
 
-#include "rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/table.h"
 #include <jni.h>
-#include "include/org_rocksdb_BlockBasedTableConfig.h"
-#include "include/org_rocksdb_PlainTableConfig.h"
-#include "portal.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/filter_policy.h"
+#include "kudu/rocksdb/include/org_rocksdb_BlockBasedTableConfig.h"
+#include "kudu/rocksdb/include/org_rocksdb_PlainTableConfig.h"
+#include "kudu/rocksdb/portal.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
 
 /*
  * Class:     org_rocksdb_PlainTableConfig

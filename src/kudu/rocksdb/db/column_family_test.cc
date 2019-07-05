@@ -12,21 +12,21 @@
 #include <string>
 #include <thread>
 
-#include "db/db_impl.h"
-#include "db/db_test_util.h"
-#include "memtable/hash_skiplist_rep.h"
-#include "options/options_parser.h"
-#include "port/port.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "util/coding.h"
-#include "util/fault_injection_test_env.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/memtable/hash_skiplist_rep.h"
+#include "kudu/rocksdb/options/options_parser.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 namespace rocksdb {
 

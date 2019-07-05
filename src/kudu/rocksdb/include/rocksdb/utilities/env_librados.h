@@ -8,8 +8,8 @@
 #include <memory>
 #include <string>
 
-#include "rocksdb/status.h"
-#include "rocksdb/utilities/env_mirror.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/utilities/env_mirror.h"
 
 #include <rados/librados.hpp>
 

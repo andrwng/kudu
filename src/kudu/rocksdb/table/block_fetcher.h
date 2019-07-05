@@ -8,9 +8,9 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #pragma once
-#include "table/block.h"
-#include "table/format.h"
-#include "util/memory_allocator.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/util/memory_allocator.h"
 
 namespace rocksdb {
 class BlockFetcher {

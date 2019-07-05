@@ -9,9 +9,9 @@
 #include <jni.h>
 #include <vector>
 
-#include "include/org_rocksdb_BackupEngine.h"
-#include "rocksdb/utilities/backupable_db.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_BackupEngine.h"
+#include "kudu/rocksdb/rocksdb/utilities/backupable_db.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_BackupEngine

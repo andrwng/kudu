@@ -18,13 +18,13 @@ int main() {
 #include <sys/types.h>
 #include <stdio.h>
 
-#include "port/port.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "util/gflags_compat.h"
-#include "util/mutexlock.h"
-#include "util/random.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/random.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 

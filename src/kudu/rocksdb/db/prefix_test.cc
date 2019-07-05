@@ -17,22 +17,22 @@ int main() {
 #include <iostream>
 #include <vector>
 
-#include "db/db_impl.h"
-#include "monitoring/histogram.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/db.h"
-#include "rocksdb/filter_policy.h"
-#include "rocksdb/memtablerep.h"
-#include "rocksdb/perf_context.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/table.h"
-#include "util/coding.h"
-#include "util/gflags_compat.h"
-#include "util/random.h"
-#include "util/stop_watch.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 

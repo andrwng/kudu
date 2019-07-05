@@ -9,9 +9,9 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "rocksdb/compaction_job_stats.h"
-#include "rocksdb/status.h"
-#include "rocksdb/table_properties.h"
+#include "kudu/rocksdb/rocksdb/compaction_job_stats.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
 
 namespace rocksdb {
 

@@ -9,15 +9,15 @@
 #include <string>
 #include <vector>
 
-#include "db/builder.h"
-#include "db/table_properties_collector.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/memory_allocator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "table/block_builder.h"
-#include "table/format.h"
-#include "util/kv_map.h"
+#include "kudu/rocksdb/db/builder.h"
+#include "kudu/rocksdb/db/table_properties_collector.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/memory_allocator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/util/kv_map.h"
 
 namespace rocksdb {
 

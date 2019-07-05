@@ -9,12 +9,12 @@
 #include <jni.h>
 #include <string>
 
-#include "include/org_rocksdb_OptionsUtil.h"
+#include "kudu/rocksdb/include/org_rocksdb_OptionsUtil.h"
 
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/utilities/options_util.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 void build_column_family_descriptor_list(
     JNIEnv* env, jobject jcfds,

@@ -3,13 +3,13 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "rocksdb/status.h"
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 #include <vector>
 #include <fcntl.h>
-#include "util/coding.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

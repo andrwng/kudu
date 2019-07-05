@@ -8,9 +8,9 @@
 #include <memory>
 #include <string>
 
-#include "include/rocksdb/comparator.h"
-#include "util/arena.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/include/rocksdb/comparator.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

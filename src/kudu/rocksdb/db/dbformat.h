@@ -11,17 +11,17 @@
 #include <stdio.h>
 #include <string>
 #include <utility>
-#include "monitoring/perf_context_imp.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/db.h"
-#include "rocksdb/filter_policy.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/table.h"
-#include "rocksdb/types.h"
-#include "util/coding.h"
-#include "util/logging.h"
-#include "util/user_comparator_wrapper.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/user_comparator_wrapper.h"
 
 namespace rocksdb {
 

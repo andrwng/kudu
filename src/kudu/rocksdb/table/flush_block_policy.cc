@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "rocksdb/flush_block_policy.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "table/block_builder.h"
-#include "table/format.h"
+#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/table/format.h"
 
 #include <cassert>
 

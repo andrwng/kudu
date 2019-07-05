@@ -11,21 +11,21 @@ int main() {
 }
 #else
 
-#include "db/db_impl.h"
-#include "db/dbformat.h"
-#include "monitoring/histogram.h"
-#include "rocksdb/db.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/table.h"
-#include "table/block_based_table_factory.h"
-#include "table/get_context.h"
-#include "table/internal_iterator.h"
-#include "table/plain_table_factory.h"
-#include "table/table_builder.h"
-#include "util/file_reader_writer.h"
-#include "util/gflags_compat.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/get_context.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/plain_table_factory.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 using GFLAGS_NAMESPACE::SetUsageMessage;

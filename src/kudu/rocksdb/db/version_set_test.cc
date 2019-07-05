@@ -7,13 +7,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/version_set.h"
-#include "db/log_writer.h"
-#include "table/mock_table.h"
-#include "util/logging.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/db/log_writer.h"
+#include "kudu/rocksdb/table/mock_table.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

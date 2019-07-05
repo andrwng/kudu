@@ -11,20 +11,20 @@
 #include <utility>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "db/memtable.h"
-#include "db/write_batch_internal.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/table.h"
-#include "table/block.h"
-#include "table/block_builder.h"
-#include "table/format.h"
-#include "util/random.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

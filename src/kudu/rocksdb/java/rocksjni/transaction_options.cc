@@ -8,9 +8,9 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_TransactionOptions.h"
+#include "kudu/rocksdb/include/org_rocksdb_TransactionOptions.h"
 
-#include "rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
 
 /*
  * Class:     org_rocksdb_TransactionOptions

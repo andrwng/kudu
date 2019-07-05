@@ -4,10 +4,10 @@
 //  (found in the LICENSE.Apache file in the root directory).
 #pragma once
 
-#include "monitoring/instrumented_mutex.h"
-#include "options/db_options.h"
-#include "rocksdb/listener.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

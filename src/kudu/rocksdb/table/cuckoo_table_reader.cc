@@ -8,21 +8,21 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #ifndef ROCKSDB_LITE
-#include "table/cuckoo_table_reader.h"
+#include "kudu/rocksdb/table/cuckoo_table_reader.h"
 
 #include <algorithm>
 #include <limits>
 #include <string>
 #include <utility>
 #include <vector>
-#include "rocksdb/iterator.h"
-#include "rocksdb/table.h"
-#include "table/internal_iterator.h"
-#include "table/meta_blocks.h"
-#include "table/cuckoo_table_factory.h"
-#include "table/get_context.h"
-#include "util/arena.h"
-#include "util/coding.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/table/cuckoo_table_factory.h"
+#include "kudu/rocksdb/table/get_context.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/coding.h"
 
 namespace rocksdb {
 namespace {

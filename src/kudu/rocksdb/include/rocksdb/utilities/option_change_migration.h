@@ -6,8 +6,8 @@
 #pragma once
 
 #include <string>
-#include "rocksdb/options.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 // Try to migrate DB created with old_opts to be use new_opts.

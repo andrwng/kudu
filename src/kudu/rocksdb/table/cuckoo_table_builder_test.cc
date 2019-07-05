@@ -10,11 +10,11 @@
 #include <map>
 #include <utility>
 
-#include "table/meta_blocks.h"
-#include "table/cuckoo_table_builder.h"
-#include "util/file_reader_writer.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/table/cuckoo_table_builder.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 extern const uint64_t kCuckooTableMagicNumber;

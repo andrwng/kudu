@@ -10,9 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include "port/likely.h"
-#include "port/port.h"
-#include "util/random.h"
+#include "kudu/rocksdb/port/likely.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/random.h"
 
 namespace rocksdb {
 

@@ -6,8 +6,8 @@
 // This file implements the callback "bridge" between Java and C++ for
 // rocksdb::WalFilter.
 
-#include "rocksjni/wal_filter_jnicallback.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksjni/wal_filter_jnicallback.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 namespace rocksdb {
 WalFilterJniCallback::WalFilterJniCallback(

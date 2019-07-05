@@ -10,10 +10,10 @@
 
 #include <string>
 
-#include "cache/sharded_cache.h"
+#include "kudu/rocksdb/cache/sharded_cache.h"
 
-#include "port/port.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

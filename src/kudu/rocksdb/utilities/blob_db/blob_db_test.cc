@@ -13,20 +13,20 @@
 #include <string>
 #include <vector>
 
-#include "db/db_test_util.h"
-#include "port/port.h"
-#include "rocksdb/utilities/debug.h"
-#include "util/cast_util.h"
-#include "util/fault_injection_test_env.h"
-#include "util/file_util.h"
-#include "util/random.h"
-#include "util/sst_file_manager_impl.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "utilities/blob_db/blob_db.h"
-#include "utilities/blob_db/blob_db_impl.h"
-#include "utilities/blob_db/blob_index.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/utilities/debug.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/file_util.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_db.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_db_impl.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_index.h"
 
 namespace rocksdb {
 namespace blob_db {

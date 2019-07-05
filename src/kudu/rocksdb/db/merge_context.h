@@ -6,8 +6,8 @@
 #pragma once
 #include <string>
 #include <vector>
-#include "db/dbformat.h"
-#include "rocksdb/slice.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
 
 namespace rocksdb {
 

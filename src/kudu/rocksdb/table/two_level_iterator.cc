@@ -7,13 +7,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "table/two_level_iterator.h"
-#include "db/pinned_iterators_manager.h"
-#include "rocksdb/options.h"
-#include "rocksdb/table.h"
-#include "table/block.h"
-#include "table/format.h"
-#include "util/arena.h"
+#include "kudu/rocksdb/table/two_level_iterator.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/util/arena.h"
 
 namespace rocksdb {
 

@@ -6,7 +6,7 @@
 #pragma once
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/utilities/transaction_db_mutex.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db_mutex.h"
 
 namespace rocksdb {
 

@@ -3,12 +3,12 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 #include <algorithm>
 #include <vector>
-#include "util/random.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

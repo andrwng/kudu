@@ -12,10 +12,10 @@
 #include <inttypes.h>
 #include <iostream>
 
-#include "rocksdb/db.h"
-#include "rocksdb/db_dump_tool.h"
-#include "rocksdb/env.h"
-#include "util/coding.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/db_dump_tool.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/coding.h"
 
 namespace rocksdb {
 

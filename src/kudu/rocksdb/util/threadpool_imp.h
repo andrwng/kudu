@@ -8,8 +8,8 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #pragma once
 
-#include "rocksdb/threadpool.h"
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/threadpool.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 #include <memory>
 #include <functional>

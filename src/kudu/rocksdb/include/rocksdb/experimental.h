@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "rocksdb/db.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 namespace experimental {

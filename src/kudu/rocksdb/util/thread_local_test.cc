@@ -7,13 +7,13 @@
 #include <atomic>
 #include <string>
 
-#include "rocksdb/env.h"
-#include "port/port.h"
-#include "util/autovector.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "util/thread_local.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/util/thread_local.h"
 
 namespace rocksdb {
 

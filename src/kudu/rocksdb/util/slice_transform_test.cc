@@ -7,14 +7,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
 
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/filter_policy.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/table.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

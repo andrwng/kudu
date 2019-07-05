@@ -11,12 +11,12 @@ int main() {
 }
 #else
 
-#include "monitoring/histogram.h"
-#include "rocksdb/env.h"
-#include "util/file_reader_writer.h"
-#include "util/gflags_compat.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 using GFLAGS_NAMESPACE::SetUsageMessage;

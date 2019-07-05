@@ -4,40 +4,40 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "table/plain_table_reader.h"
+#include "kudu/rocksdb/table/plain_table_reader.h"
 
 #include <string>
 #include <vector>
 
-#include "db/dbformat.h"
+#include "kudu/rocksdb/db/dbformat.h"
 
-#include "rocksdb/cache.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
-#include "rocksdb/filter_policy.h"
-#include "rocksdb/options.h"
-#include "rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
 
-#include "table/block.h"
-#include "table/bloom_block.h"
-#include "table/filter_block.h"
-#include "table/format.h"
-#include "table/internal_iterator.h"
-#include "table/meta_blocks.h"
-#include "table/two_level_iterator.h"
-#include "table/plain_table_factory.h"
-#include "table/plain_table_key_coding.h"
-#include "table/get_context.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/bloom_block.h"
+#include "kudu/rocksdb/table/filter_block.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/table/two_level_iterator.h"
+#include "kudu/rocksdb/table/plain_table_factory.h"
+#include "kudu/rocksdb/table/plain_table_key_coding.h"
+#include "kudu/rocksdb/table/get_context.h"
 
-#include "monitoring/histogram.h"
-#include "monitoring/perf_context_imp.h"
-#include "util/arena.h"
-#include "util/coding.h"
-#include "util/dynamic_bloom.h"
-#include "util/hash.h"
-#include "util/murmurhash.h"
-#include "util/stop_watch.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/dynamic_bloom.h"
+#include "kudu/rocksdb/util/hash.h"
+#include "kudu/rocksdb/util/murmurhash.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

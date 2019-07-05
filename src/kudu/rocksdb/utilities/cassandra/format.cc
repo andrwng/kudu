@@ -3,13 +3,13 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "format.h"
+#include "kudu/rocksdb/format.h"
 
 #include <algorithm>
 #include <map>
 #include <memory>
 
-#include "utilities/cassandra/serialize.h"
+#include "kudu/rocksdb/utilities/cassandra/serialize.h"
 
 namespace rocksdb {
 namespace cassandra {

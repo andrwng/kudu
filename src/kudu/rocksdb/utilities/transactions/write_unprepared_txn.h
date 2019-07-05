@@ -9,8 +9,8 @@
 
 #include <set>
 
-#include "utilities/transactions/write_prepared_txn.h"
-#include "utilities/transactions/write_unprepared_txn_db.h"
+#include "kudu/rocksdb/utilities/transactions/write_prepared_txn.h"
+#include "kudu/rocksdb/utilities/transactions/write_unprepared_txn_db.h"
 
 namespace rocksdb {
 

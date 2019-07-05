@@ -15,11 +15,11 @@ int main() {
 #include <atomic>
 #include <cstdio>
 
-#include "db/write_batch_internal.h"
-#include "rocksdb/db.h"
-#include "rocksdb/types.h"
-#include "util/gflags_compat.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 // Run a thread to perform Put's.
 // Another thread uses GetUpdatesSince API to keep getting the updates.

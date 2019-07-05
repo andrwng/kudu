@@ -10,8 +10,8 @@
 
 #include <memory>
 
-#include "rocksdb/memtablerep.h"
-#include "rocksdb/universal_compaction.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksdb/universal_compaction.h"
 
 namespace rocksdb {
 

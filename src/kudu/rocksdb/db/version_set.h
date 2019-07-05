@@ -28,22 +28,22 @@
 #include <utility>
 #include <vector>
 
-#include "db/column_family.h"
-#include "db/compaction.h"
-#include "db/compaction_picker.h"
-#include "db/dbformat.h"
-#include "db/file_indexer.h"
-#include "db/log_reader.h"
-#include "db/range_del_aggregator.h"
-#include "db/read_callback.h"
-#include "db/table_cache.h"
-#include "db/version_builder.h"
-#include "db/version_edit.h"
-#include "db/write_controller.h"
-#include "monitoring/instrumented_mutex.h"
-#include "options/db_options.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/compaction.h"
+#include "kudu/rocksdb/db/compaction_picker.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/file_indexer.h"
+#include "kudu/rocksdb/db/log_reader.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/db/read_callback.h"
+#include "kudu/rocksdb/db/table_cache.h"
+#include "kudu/rocksdb/db/version_builder.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/db/write_controller.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 namespace rocksdb {
 

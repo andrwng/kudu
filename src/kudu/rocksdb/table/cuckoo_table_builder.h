@@ -10,12 +10,12 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "port/port.h"
-#include "rocksdb/status.h"
-#include "table/table_builder.h"
-#include "rocksdb/table.h"
-#include "rocksdb/table_properties.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

@@ -12,14 +12,14 @@
 #include <thread>
 #include <vector>
 
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "util/delete_scheduler.h"
-#include "util/sst_file_manager_impl.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/delete_scheduler.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 #ifndef ROCKSDB_LITE
 

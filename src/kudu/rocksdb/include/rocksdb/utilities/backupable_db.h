@@ -20,10 +20,10 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/utilities/stackable_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/stackable_db.h"
 
-#include "rocksdb/env.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

@@ -18,9 +18,9 @@ int main() {
 
 #else
 
-#include "rocksdb/convenience.h"
-#include "rocksdb/db_dump_tool.h"
-#include "util/gflags_compat.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/rocksdb/db_dump_tool.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
 
 DEFINE_string(db_path, "", "Path to the db that will be dumped");
 DEFINE_string(dump_location, "", "Path to where the dump file location");

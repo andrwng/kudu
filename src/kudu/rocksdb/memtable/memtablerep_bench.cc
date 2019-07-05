@@ -26,20 +26,20 @@ int main() {
 #include <type_traits>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "db/memtable.h"
-#include "port/port.h"
-#include "port/stack_trace.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/memtablerep.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/write_buffer_manager.h"
-#include "util/arena.h"
-#include "util/gflags_compat.h"
-#include "util/mutexlock.h"
-#include "util/stop_watch.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 using GFLAGS_NAMESPACE::RegisterFlagValidator;

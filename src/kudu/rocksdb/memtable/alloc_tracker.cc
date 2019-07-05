@@ -8,9 +8,9 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include <assert.h>
-#include "rocksdb/write_buffer_manager.h"
-#include "util/allocator.h"
-#include "util/arena.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/util/allocator.h"
+#include "kudu/rocksdb/util/arena.h"
 
 namespace rocksdb {
 

@@ -12,15 +12,15 @@
 #include <utility>
 #include <vector>
 
-#include "db/column_family.h"
-#include "db/db_iter.h"
-#include "db/db_test_util.h"
-#include "db/dbformat.h"
-#include "db/write_batch_internal.h"
-#include "port/port.h"
-#include "port/stack_trace.h"
-#include "util/string_util.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_iter.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 namespace rocksdb {
 

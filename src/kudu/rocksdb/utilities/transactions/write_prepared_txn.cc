@@ -5,7 +5,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "utilities/transactions/write_prepared_txn.h"
+#include "kudu/rocksdb/utilities/transactions/write_prepared_txn.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -15,14 +15,14 @@
 #include <map>
 #include <set>
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "rocksdb/db.h"
-#include "rocksdb/status.h"
-#include "rocksdb/utilities/transaction_db.h"
-#include "util/cast_util.h"
-#include "utilities/transactions/pessimistic_transaction.h"
-#include "utilities/transactions/write_prepared_txn_db.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/utilities/transactions/pessimistic_transaction.h"
+#include "kudu/rocksdb/utilities/transactions/write_prepared_txn_db.h"
 
 namespace rocksdb {
 

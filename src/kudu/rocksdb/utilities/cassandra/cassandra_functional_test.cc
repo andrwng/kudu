@@ -4,16 +4,16 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include <iostream>
-#include "rocksdb/db.h"
-#include "db/db_impl.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/utilities/db_ttl.h"
-#include "util/testharness.h"
-#include "util/random.h"
-#include "utilities/merge_operators.h"
-#include "utilities/cassandra/cassandra_compaction_filter.h"
-#include "utilities/cassandra/merge_operator.h"
-#include "utilities/cassandra/test_utils.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
+#include "kudu/rocksdb/utilities/cassandra/cassandra_compaction_filter.h"
+#include "kudu/rocksdb/utilities/cassandra/merge_operator.h"
+#include "kudu/rocksdb/utilities/cassandra/test_utils.h"
 
 using namespace rocksdb;
 

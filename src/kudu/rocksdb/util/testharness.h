@@ -10,13 +10,13 @@
 #pragma once
 
 #ifdef OS_AIX
-#include "gtest/gtest.h"
+#include "kudu/rocksdb/gtest/gtest.h"
 #else
 #include <gtest/gtest.h>
 #endif
 
 #include <string>
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 namespace rocksdb {
 namespace test {

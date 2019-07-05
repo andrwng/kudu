@@ -5,10 +5,10 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/slice.h"
-#include "table/data_block_hash_index.h"
-#include "util/coding.h"
-#include "util/hash.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/table/data_block_hash_index.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/hash.h"
 
 namespace rocksdb {
 

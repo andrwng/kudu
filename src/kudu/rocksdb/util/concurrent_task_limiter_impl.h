@@ -11,8 +11,8 @@
 #include <atomic>
 #include <memory>
 
-#include "rocksdb/env.h"
-#include "rocksdb/concurrent_task_limiter.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/concurrent_task_limiter.h"
 
 namespace rocksdb {
 

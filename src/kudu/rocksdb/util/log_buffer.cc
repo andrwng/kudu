@@ -3,10 +3,10 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "util/log_buffer.h"
+#include "kudu/rocksdb/util/log_buffer.h"
 
-#include "port/sys_time.h"
-#include "port/port.h"
+#include "kudu/rocksdb/port/sys_time.h"
+#include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {
 

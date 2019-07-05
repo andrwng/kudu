@@ -9,13 +9,13 @@
 #include <jni.h>
 #include <vector>
 
-#include "portal.h"
-#include "rocksdb/env.h"
-#include "include/org_rocksdb_Env.h"
-#include "include/org_rocksdb_HdfsEnv.h"
-#include "include/org_rocksdb_RocksEnv.h"
-#include "include/org_rocksdb_RocksMemEnv.h"
-#include "include/org_rocksdb_TimedEnv.h"
+#include "kudu/rocksdb/portal.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/include/org_rocksdb_Env.h"
+#include "kudu/rocksdb/include/org_rocksdb_HdfsEnv.h"
+#include "kudu/rocksdb/include/org_rocksdb_RocksEnv.h"
+#include "kudu/rocksdb/include/org_rocksdb_RocksMemEnv.h"
+#include "kudu/rocksdb/include/org_rocksdb_TimedEnv.h"
 
 /*
  * Class:     org_rocksdb_Env

@@ -24,7 +24,7 @@
 // below.
 //
 
-#include "util/timer_queue.h"
+#include "kudu/rocksdb/util/timer_queue.h"
 #include <future>
 
 namespace Timing {

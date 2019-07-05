@@ -4,10 +4,10 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #ifndef ROCKSDB_LITE
-#include "db/compacted_db_impl.h"
-#include "db/db_impl.h"
-#include "db/version_set.h"
-#include "table/get_context.h"
+#include "kudu/rocksdb/db/compacted_db_impl.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/table/get_context.h"
 
 namespace rocksdb {
 

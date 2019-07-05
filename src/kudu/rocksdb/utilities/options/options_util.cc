@@ -5,11 +5,11 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
 
-#include "options/options_parser.h"
-#include "rocksdb/options.h"
-#include "util/filename.h"
+#include "kudu/rocksdb/options/options_parser.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/filename.h"
 
 namespace rocksdb {
 Status LoadOptionsFromFile(const std::string& file_name, Env* env,

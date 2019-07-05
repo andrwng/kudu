@@ -6,12 +6,12 @@
 #include <memory>
 #include <string>
 
-#include "db/db_test_util.h"
-#include "db/memtable.h"
-#include "db/range_del_aggregator.h"
-#include "port/stack_trace.h"
-#include "rocksdb/memtablerep.h"
-#include "rocksdb/slice_transform.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
 
 namespace rocksdb {
 

@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/compaction.h"
+#include "kudu/rocksdb/db/compaction.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -16,10 +16,10 @@
 #include <inttypes.h>
 #include <vector>
 
-#include "db/column_family.h"
-#include "rocksdb/compaction_filter.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

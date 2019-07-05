@@ -31,9 +31,9 @@
 
 #include <stdint.h>
 
-#include "port/win/win_thread.h"
+#include "kudu/rocksdb/port/win/win_thread.h"
 
-#include "rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/options.h"
 
 #undef min
 #undef max

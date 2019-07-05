@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 #include <memory>
 

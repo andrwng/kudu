@@ -5,12 +5,12 @@
 //
 // This file implements the "bridge" between Java and C++ for MemTables.
 
-#include "include/org_rocksdb_HashLinkedListMemTableConfig.h"
-#include "include/org_rocksdb_HashSkipListMemTableConfig.h"
-#include "include/org_rocksdb_SkipListMemTableConfig.h"
-#include "include/org_rocksdb_VectorMemTableConfig.h"
-#include "rocksdb/memtablerep.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_HashLinkedListMemTableConfig.h"
+#include "kudu/rocksdb/include/org_rocksdb_HashSkipListMemTableConfig.h"
+#include "kudu/rocksdb/include/org_rocksdb_SkipListMemTableConfig.h"
+#include "kudu/rocksdb/include/org_rocksdb_VectorMemTableConfig.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_HashSkipListMemTableConfig

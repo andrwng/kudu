@@ -7,11 +7,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/db_test_util.h"
-#include "port/stack_trace.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/stack_trace.h"
 #if !defined(ROCKSDB_LITE)
-#include "rocksdb/utilities/table_properties_collectors.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/rocksdb/utilities/table_properties_collectors.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

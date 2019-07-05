@@ -11,10 +11,10 @@
 #include <memory>
 #include <stdint.h>
 
-#include "db/log_format.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
-#include "rocksdb/options.h"
+#include "kudu/rocksdb/db/log_format.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/options.h"
 
 namespace rocksdb {
 

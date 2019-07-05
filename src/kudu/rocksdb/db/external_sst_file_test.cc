@@ -6,13 +6,13 @@
 #ifndef ROCKSDB_LITE
 
 #include <functional>
-#include "db/db_test_util.h"
-#include "port/port.h"
-#include "port/stack_trace.h"
-#include "rocksdb/sst_file_writer.h"
-#include "util/fault_injection_test_env.h"
-#include "util/filename.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

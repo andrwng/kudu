@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "table/partitioned_filter_block.h"
+#include "kudu/rocksdb/table/partitioned_filter_block.h"
 
 #ifdef ROCKSDB_MALLOC_USABLE_SIZE
 #ifdef OS_FREEBSD
@@ -14,12 +14,12 @@
 #endif
 #include <utility>
 
-#include "monitoring/perf_context_imp.h"
-#include "port/port.h"
-#include "rocksdb/filter_policy.h"
-#include "table/block.h"
-#include "table/block_based_table_reader.h"
-#include "util/coding.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/block_based_table_reader.h"
+#include "kudu/rocksdb/util/coding.h"
 
 namespace rocksdb {
 

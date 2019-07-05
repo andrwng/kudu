@@ -3,8 +3,8 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "rocksdb/iostats_context.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/rocksdb/iostats_context.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

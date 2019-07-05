@@ -5,14 +5,14 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "utilities/transactions/transaction_db_mutex_impl.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_db_mutex_impl.h"
 
 #include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <mutex>
 
-#include "rocksdb/utilities/transaction_db_mutex.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db_mutex.h"
 
 namespace rocksdb {
 

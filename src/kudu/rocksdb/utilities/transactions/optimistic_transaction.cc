@@ -5,19 +5,19 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "utilities/transactions/optimistic_transaction.h"
+#include "kudu/rocksdb/utilities/transactions/optimistic_transaction.h"
 
 #include <string>
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/db.h"
-#include "rocksdb/status.h"
-#include "rocksdb/utilities/optimistic_transaction_db.h"
-#include "util/cast_util.h"
-#include "util/string_util.h"
-#include "utilities/transactions/transaction_util.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_util.h"
 
 namespace rocksdb {
 

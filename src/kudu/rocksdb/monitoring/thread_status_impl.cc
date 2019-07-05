@@ -6,10 +6,10 @@
 
 #include <sstream>
 
-#include "rocksdb/env.h"
-#include "rocksdb/thread_status.h"
-#include "util/string_util.h"
-#include "util/thread_operation.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/thread_status.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/thread_operation.h"
 
 namespace rocksdb {
 

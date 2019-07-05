@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "util/sync_point.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 #include <assert.h>
 #include <atomic>
@@ -15,8 +15,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "port/port.h"
-#include "util/random.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/random.h"
 
 #pragma once
 

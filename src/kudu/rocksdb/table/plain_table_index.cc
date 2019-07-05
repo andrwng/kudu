@@ -11,9 +11,9 @@
 
 #include <inttypes.h>
 
-#include "table/plain_table_index.h"
-#include "util/coding.h"
-#include "util/hash.h"
+#include "kudu/rocksdb/table/plain_table_index.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/hash.h"
 
 namespace rocksdb {
 

@@ -8,10 +8,10 @@
 #include <functional>
 #include <string>
 
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "util/mock_time_env.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/mock_time_env.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

@@ -9,9 +9,9 @@
 
 #ifndef NDEBUG
 
-#include "db/db_impl.h"
-#include "db/error_handler.h"
-#include "monitoring/thread_status_updater.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/error_handler.h"
+#include "kudu/rocksdb/monitoring/thread_status_updater.h"
 
 namespace rocksdb {
 

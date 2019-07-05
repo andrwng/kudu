@@ -12,18 +12,18 @@
 #include <string>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "db/logs_with_prep_tracker.h"
-#include "db/memtable.h"
-#include "db/range_del_aggregator.h"
-#include "monitoring/instrumented_mutex.h"
-#include "rocksdb/db.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/types.h"
-#include "util/autovector.h"
-#include "util/filename.h"
-#include "util/log_buffer.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/logs_with_prep_tracker.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/log_buffer.h"
 
 namespace rocksdb {
 

@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/version_builder.h"
+#include "kudu/rocksdb/db/version_builder.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -25,12 +25,12 @@
 #include <utility>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "db/internal_stats.h"
-#include "db/table_cache.h"
-#include "db/version_set.h"
-#include "port/port.h"
-#include "table/table_reader.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/internal_stats.h"
+#include "kudu/rocksdb/db/table_cache.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/table/table_reader.h"
 
 namespace rocksdb {
 

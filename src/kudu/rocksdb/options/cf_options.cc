@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "options/cf_options.h"
+#include "kudu/rocksdb/options/cf_options.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -13,11 +13,11 @@
 #include <cassert>
 #include <limits>
 #include <string>
-#include "options/db_options.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "rocksdb/concurrent_task_limiter.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/concurrent_task_limiter.h"
 
 namespace rocksdb {
 

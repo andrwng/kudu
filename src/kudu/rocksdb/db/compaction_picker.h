@@ -15,12 +15,12 @@
 #include <unordered_set>
 #include <vector>
 
-#include "db/compaction.h"
-#include "db/version_set.h"
-#include "options/cf_options.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/db/compaction.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

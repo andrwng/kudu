@@ -22,15 +22,15 @@ int main() {
 #include <sstream>
 #include <thread>
 
-#include "db/db_test_util.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/status.h"
-#include "rocksdb/trace_reader_writer.h"
-#include "tools/trace_analyzer_tool.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "util/trace_replay.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/trace_reader_writer.h"
+#include "kudu/rocksdb/tools/trace_analyzer_tool.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/util/trace_replay.h"
 
 namespace rocksdb {
 

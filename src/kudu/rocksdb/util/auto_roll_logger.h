@@ -10,11 +10,11 @@
 #include <list>
 #include <string>
 
-#include "port/port.h"
-#include "port/util_logger.h"
-#include "util/filename.h"
-#include "util/mutexlock.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/util_logger.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

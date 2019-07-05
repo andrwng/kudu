@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/compaction_picker_fifo.h"
+#include "kudu/rocksdb/db/compaction_picker_fifo.h"
 #ifndef ROCKSDB_LITE
 
 #ifndef __STDC_FORMAT_MACROS
@@ -17,9 +17,9 @@
 #include <inttypes.h>
 #include <string>
 #include <vector>
-#include "db/column_family.h"
-#include "util/log_buffer.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/util/log_buffer.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 namespace {

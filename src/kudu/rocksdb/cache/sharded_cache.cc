@@ -11,11 +11,11 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "cache/sharded_cache.h"
+#include "kudu/rocksdb/cache/sharded_cache.h"
 
 #include <string>
 
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

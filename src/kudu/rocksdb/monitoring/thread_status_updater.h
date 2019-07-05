@@ -36,10 +36,10 @@
 #include <unordered_set>
 #include <vector>
 
-#include "rocksdb/status.h"
-#include "rocksdb/thread_status.h"
-#include "port/port.h"
-#include "util/thread_operation.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/thread_status.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/thread_operation.h"
 
 namespace rocksdb {
 

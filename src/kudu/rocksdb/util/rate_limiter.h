@@ -13,11 +13,11 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/rate_limiter.h"
-#include "util/mutexlock.h"
-#include "util/random.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/random.h"
 
 namespace rocksdb {
 

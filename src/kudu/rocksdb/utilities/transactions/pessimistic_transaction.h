@@ -15,18 +15,18 @@
 #include <unordered_map>
 #include <vector>
 
-#include "db/write_callback.h"
-#include "rocksdb/db.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/snapshot.h"
-#include "rocksdb/status.h"
-#include "rocksdb/types.h"
-#include "rocksdb/utilities/transaction.h"
-#include "rocksdb/utilities/transaction_db.h"
-#include "rocksdb/utilities/write_batch_with_index.h"
-#include "util/autovector.h"
-#include "utilities/transactions/transaction_base.h"
-#include "utilities/transactions/transaction_util.h"
+#include "kudu/rocksdb/db/write_callback.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/snapshot.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_base.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_util.h"
 
 namespace rocksdb {
 

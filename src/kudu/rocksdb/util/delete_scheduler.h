@@ -12,10 +12,10 @@
 #include <string>
 #include <thread>
 
-#include "monitoring/instrumented_mutex.h"
-#include "port/port.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/port/port.h"
 
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

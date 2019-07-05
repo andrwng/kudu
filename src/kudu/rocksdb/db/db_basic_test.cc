@@ -7,12 +7,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 // #include <iostream>
-#include "db/db_test_util.h"
-#include "port/stack_trace.h"
-#include "rocksdb/perf_context.h"
-#include "util/fault_injection_test_env.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
 #if !defined(ROCKSDB_LITE)
-#include "util/sync_point.h"
+#include "kudu/rocksdb/util/sync_point.h"
 #endif
 
 namespace rocksdb {

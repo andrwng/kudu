@@ -8,10 +8,10 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #pragma once
-#include "db/version_set.h"
-#include "options/cf_options.h"
-#include "util/arena.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

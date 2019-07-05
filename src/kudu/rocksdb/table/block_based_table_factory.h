@@ -13,11 +13,11 @@
 #include <memory>
 #include <string>
 
-#include "db/dbformat.h"
-#include "options/options_helper.h"
-#include "options/options_parser.h"
-#include "rocksdb/flush_block_policy.h"
-#include "rocksdb/table.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/options/options_parser.h"
+#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/rocksdb/table.h"
 
 namespace rocksdb {
 

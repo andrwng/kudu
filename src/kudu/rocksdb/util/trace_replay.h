@@ -9,9 +9,9 @@
 #include <unordered_map>
 #include <utility>
 
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "rocksdb/trace_reader_writer.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/trace_reader_writer.h"
 
 namespace rocksdb {
 

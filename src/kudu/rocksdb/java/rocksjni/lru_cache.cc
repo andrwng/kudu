@@ -8,8 +8,8 @@
 
 #include <jni.h>
 
-#include "cache/lru_cache.h"
-#include "include/org_rocksdb_LRUCache.h"
+#include "kudu/rocksdb/cache/lru_cache.h"
+#include "kudu/rocksdb/include/org_rocksdb_LRUCache.h"
 
 /*
  * Class:     org_rocksdb_LRUCache

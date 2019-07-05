@@ -12,8 +12,8 @@
 #endif
 
 #include <stdexcept>
-#include "jemalloc/jemalloc.h"
-#include "port/win/port_win.h"
+#include "kudu/rocksdb/jemalloc/jemalloc.h"
+#include "kudu/rocksdb/port/win/port_win.h"
 
 #if defined(ZSTD) && defined(ZSTD_STATIC_LINKING_ONLY)
 #include <zstd.h>

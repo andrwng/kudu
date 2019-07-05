@@ -9,8 +9,8 @@
   All code is released to the public domain. For business purposes, Murmurhash
   is under the MIT license.
 */
-#include "murmurhash.h"
-#include "util/util.h"
+#include "kudu/rocksdb/murmurhash.h"
+#include "kudu/rocksdb/util/util.h"
 
 #if defined(__x86_64__)
 

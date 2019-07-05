@@ -9,14 +9,14 @@
 #include <iostream>
 #include <map>
 
-#include "rocksdb/db.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/utilities/db_ttl.h"
-#include "utilities/merge_operators.h"
-#include "utilities/merge_operators/string_append/stringappend.h"
-#include "utilities/merge_operators/string_append/stringappend2.h"
-#include "util/testharness.h"
-#include "util/random.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
+#include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend.h"
+#include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend2.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/random.h"
 
 using namespace rocksdb;
 

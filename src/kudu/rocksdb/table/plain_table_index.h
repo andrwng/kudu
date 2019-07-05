@@ -10,13 +10,13 @@
 #include <string>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "monitoring/histogram.h"
-#include "options/cf_options.h"
-#include "rocksdb/options.h"
-#include "util/arena.h"
-#include "util/hash.h"
-#include "util/murmurhash.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/hash.h"
+#include "kudu/rocksdb/util/murmurhash.h"
 
 namespace rocksdb {
 

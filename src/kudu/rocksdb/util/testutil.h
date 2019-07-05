@@ -13,18 +13,18 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/compaction_filter.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/table.h"
-#include "table/block_based_table_factory.h"
-#include "table/internal_iterator.h"
-#include "table/plain_table_factory.h"
-#include "util/mutexlock.h"
-#include "util/random.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/plain_table_factory.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/random.h"
 
 namespace rocksdb {
 class SequentialFile;

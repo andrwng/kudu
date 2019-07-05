@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/flush_scheduler.h"
+#include "kudu/rocksdb/db/flush_scheduler.h"
 
 #include <cassert>
 
-#include "db/column_family.h"
+#include "kudu/rocksdb/db/column_family.h"
 
 namespace rocksdb {
 

@@ -9,8 +9,8 @@
 #include <jni.h>
 #include <memory>
 
-#include "include/org_rocksdb_AbstractTableFilter.h"
-#include "rocksjni/table_filter_jnicallback.h"
+#include "kudu/rocksdb/include/org_rocksdb_AbstractTableFilter.h"
+#include "kudu/rocksdb/rocksjni/table_filter_jnicallback.h"
 
 /*
  * Class:     org_rocksdb_AbstractTableFilter

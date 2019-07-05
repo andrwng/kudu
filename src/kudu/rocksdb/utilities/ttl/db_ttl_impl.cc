@@ -3,15 +3,15 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #ifndef ROCKSDB_LITE
 
-#include "utilities/ttl/db_ttl_impl.h"
+#include "kudu/rocksdb/utilities/ttl/db_ttl_impl.h"
 
-#include "db/write_batch_internal.h"
-#include "rocksdb/convenience.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/utilities/db_ttl.h"
-#include "util/coding.h"
-#include "util/filename.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/utilities/db_ttl.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/filename.h"
 
 namespace rocksdb {
 

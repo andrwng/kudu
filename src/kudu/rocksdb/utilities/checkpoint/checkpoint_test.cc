@@ -16,16 +16,16 @@
 #include <iostream>
 #include <thread>
 #include <utility>
-#include "db/db_impl.h"
-#include "port/port.h"
-#include "port/stack_trace.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/utilities/checkpoint.h"
-#include "rocksdb/utilities/transaction_db.h"
-#include "util/fault_injection_test_env.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/utilities/checkpoint.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 class CheckpointTest : public testing::Test {

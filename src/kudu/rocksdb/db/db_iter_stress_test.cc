@@ -3,19 +3,19 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/db_iter.h"
-#include "db/dbformat.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "util/random.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/db/db_iter.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 #ifdef GFLAGS
 
-#include "util/gflags_compat.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 

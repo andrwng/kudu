@@ -9,7 +9,7 @@
 #pragma once
 
 #include <algorithm>
-#include "port/port.h"
+#include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {
 

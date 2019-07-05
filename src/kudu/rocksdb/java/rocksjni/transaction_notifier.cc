@@ -8,8 +8,8 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_AbstractTransactionNotifier.h"
-#include "rocksjni/transaction_notifier_jnicallback.h"
+#include "kudu/rocksdb/include/org_rocksdb_AbstractTransactionNotifier.h"
+#include "kudu/rocksdb/rocksjni/transaction_notifier_jnicallback.h"
 
 /*
  * Class:     org_rocksdb_AbstractTransactionNotifier

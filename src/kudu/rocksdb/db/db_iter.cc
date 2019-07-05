@@ -7,28 +7,28 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/db_iter.h"
+#include "kudu/rocksdb/db/db_iter.h"
 #include <string>
 #include <iostream>
 #include <limits>
 
-#include "db/dbformat.h"
-#include "db/merge_context.h"
-#include "db/merge_helper.h"
-#include "db/pinned_iterators_manager.h"
-#include "monitoring/perf_context_imp.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/options.h"
-#include "table/internal_iterator.h"
-#include "util/arena.h"
-#include "util/filename.h"
-#include "util/logging.h"
-#include "util/mutexlock.h"
-#include "util/string_util.h"
-#include "util/trace_replay.h"
-#include "util/user_comparator_wrapper.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/merge_context.h"
+#include "kudu/rocksdb/db/merge_helper.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/trace_replay.h"
+#include "kudu/rocksdb/util/user_comparator_wrapper.h"
 
 namespace rocksdb {
 

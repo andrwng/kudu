@@ -9,7 +9,7 @@
 
 #include <string>
 #include <vector>
-#include "db/db_impl.h"
+#include "kudu/rocksdb/db/db_impl.h"
 
 namespace rocksdb {
 

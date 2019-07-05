@@ -7,36 +7,36 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/memtable.h"
+#include "kudu/rocksdb/db/memtable.h"
 
 #include <algorithm>
 #include <limits>
 #include <memory>
 
-#include "db/dbformat.h"
-#include "db/merge_context.h"
-#include "db/merge_helper.h"
-#include "db/pinned_iterators_manager.h"
-#include "db/range_tombstone_fragmenter.h"
-#include "db/read_callback.h"
-#include "monitoring/perf_context_imp.h"
-#include "monitoring/statistics.h"
-#include "port/port.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/write_buffer_manager.h"
-#include "table/internal_iterator.h"
-#include "table/iterator_wrapper.h"
-#include "table/merging_iterator.h"
-#include "util/arena.h"
-#include "util/autovector.h"
-#include "util/coding.h"
-#include "util/memory_usage.h"
-#include "util/mutexlock.h"
-#include "util/util.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/merge_context.h"
+#include "kudu/rocksdb/db/merge_helper.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/db/read_callback.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/iterator_wrapper.h"
+#include "kudu/rocksdb/table/merging_iterator.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/memory_usage.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/util.h"
 
 namespace rocksdb {
 

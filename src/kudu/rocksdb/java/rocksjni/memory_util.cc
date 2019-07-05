@@ -9,11 +9,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include "include/org_rocksdb_MemoryUtil.h"
+#include "kudu/rocksdb/include/org_rocksdb_MemoryUtil.h"
 
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
-#include "rocksdb/utilities/memory_util.h"
+#include "kudu/rocksdb/rocksdb/utilities/memory_util.h"
 
 
 /*

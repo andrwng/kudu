@@ -9,9 +9,9 @@
 
 #include <atomic>
 
-#include "rocksdb/listener.h"
-#include "util/mutexlock.h"
-#include "utilities/blob_db/blob_db_impl.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_db_impl.h"
 
 namespace rocksdb {
 namespace blob_db {

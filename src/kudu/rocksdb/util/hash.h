@@ -13,8 +13,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "rocksdb/slice.h"
-#include "util/murmurhash.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/murmurhash.h"
 
 namespace rocksdb {
 

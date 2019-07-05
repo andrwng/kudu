@@ -10,13 +10,13 @@
 #include <thread>
 #include <vector>
 
-#include "db/db_impl.h"
-#include "port/port.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

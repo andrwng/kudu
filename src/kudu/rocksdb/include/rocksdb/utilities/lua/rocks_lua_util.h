@@ -15,7 +15,7 @@ extern "C" {
 #include <string>
 #include <vector>
 
-#include "rocksdb/utilities/lua/rocks_lua_custom_library.h"
+#include "kudu/rocksdb/rocksdb/utilities/lua/rocks_lua_custom_library.h"
 
 namespace rocksdb {
 namespace lua {

@@ -5,9 +5,9 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/env.h"
-#include "rocksdb/perf_context.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

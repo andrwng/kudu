@@ -8,8 +8,8 @@
 
 #include <jni.h>
 
-#include "cache/clock_cache.h"
-#include "include/org_rocksdb_ClockCache.h"
+#include "kudu/rocksdb/cache/clock_cache.h"
+#include "kudu/rocksdb/include/org_rocksdb_ClockCache.h"
 
 /*
  * Class:     org_rocksdb_ClockCache

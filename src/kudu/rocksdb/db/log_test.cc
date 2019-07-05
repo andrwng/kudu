@@ -7,15 +7,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/log_reader.h"
-#include "db/log_writer.h"
-#include "rocksdb/env.h"
-#include "util/coding.h"
-#include "util/crc32c.h"
-#include "util/file_reader_writer.h"
-#include "util/random.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/log_reader.h"
+#include "kudu/rocksdb/db/log_writer.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/crc32c.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 namespace log {

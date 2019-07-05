@@ -11,10 +11,10 @@
 #include <stdlib.h>
 #include <string>
 
-#include "include/org_rocksdb_Checkpoint.h"
-#include "rocksdb/db.h"
-#include "rocksdb/utilities/checkpoint.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_Checkpoint.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/utilities/checkpoint.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 /*
  * Class:     org_rocksdb_Checkpoint
  * Method:    newCheckpoint

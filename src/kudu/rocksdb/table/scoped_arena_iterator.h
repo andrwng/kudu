@@ -7,8 +7,8 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #pragma once
 
-#include "table/internal_iterator.h"
-#include "port/port.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {
 class ScopedArenaIterator {

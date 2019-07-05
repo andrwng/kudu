@@ -8,12 +8,12 @@
 #include <set>
 #include <string>
 
-#include "db/db_test_util.h"
-#include "util/arena.h"
-#include "util/random.h"
-#include "util/testharness.h"
-#include "utilities/persistent_cache/hash_table.h"
-#include "utilities/persistent_cache/hash_table_evictable.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/persistent_cache/hash_table.h"
+#include "kudu/rocksdb/utilities/persistent_cache/hash_table_evictable.h"
 
 #ifndef ROCKSDB_LITE
 

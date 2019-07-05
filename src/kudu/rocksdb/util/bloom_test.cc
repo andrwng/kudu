@@ -17,13 +17,13 @@ int main() {
 
 #include <vector>
 
-#include "rocksdb/filter_policy.h"
-#include "table/full_filter_bits_builder.h"
-#include "util/arena.h"
-#include "util/gflags_compat.h"
-#include "util/logging.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/table/full_filter_bits_builder.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 

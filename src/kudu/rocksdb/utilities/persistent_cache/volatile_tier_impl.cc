@@ -5,7 +5,7 @@
 //
 #ifndef ROCKSDB_LITE
 
-#include "utilities/persistent_cache/volatile_tier_impl.h"
+#include "kudu/rocksdb/utilities/persistent_cache/volatile_tier_impl.h"
 
 #include <string>
 

@@ -9,9 +9,9 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "utilities/persistent_cache/persistent_cache_tier.h"
+#include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_tier.h"
 
-#include "inttypes.h"
+#include "kudu/rocksdb/inttypes.h"
 
 #include <string>
 #include <sstream>

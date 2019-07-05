@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #ifndef ROCKSDB_LITE
-#include "table/cuckoo_table_builder.h"
+#include "kudu/rocksdb/table/cuckoo_table_builder.h"
 
 #include <assert.h>
 #include <algorithm>
@@ -12,17 +12,17 @@
 #include <string>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "rocksdb/env.h"
-#include "rocksdb/table.h"
-#include "table/block_builder.h"
-#include "table/cuckoo_table_factory.h"
-#include "table/format.h"
-#include "table/meta_blocks.h"
-#include "util/autovector.h"
-#include "util/file_reader_writer.h"
-#include "util/random.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/table/cuckoo_table_factory.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 const std::string CuckooTablePropertyNames::kEmptyKey =

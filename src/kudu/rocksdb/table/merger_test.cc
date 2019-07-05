@@ -6,9 +6,9 @@
 #include <vector>
 #include <string>
 
-#include "table/merging_iterator.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/table/merging_iterator.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

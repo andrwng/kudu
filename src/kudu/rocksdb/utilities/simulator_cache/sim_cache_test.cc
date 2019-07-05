@@ -3,10 +3,10 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "rocksdb/utilities/sim_cache.h"
+#include "kudu/rocksdb/rocksdb/utilities/sim_cache.h"
 #include <cstdlib>
-#include "db/db_test_util.h"
-#include "port/stack_trace.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/port/stack_trace.h"
 
 namespace rocksdb {
 

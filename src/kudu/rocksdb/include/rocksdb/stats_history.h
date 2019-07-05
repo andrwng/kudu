@@ -11,9 +11,9 @@
 #include <map>
 #include <string>
 
-// #include "db/db_impl.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/status.h"
+// #include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

@@ -17,16 +17,16 @@
 #include <malloc.h>
 #endif
 #endif
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
-#include "rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/table.h"
 
-#include "options/cf_options.h"
-#include "port/port.h"  // noexcept
-#include "table/persistent_cache_options.h"
-#include "util/file_reader_writer.h"
-#include "util/memory_allocator.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/port/port.h"  // noexcept
+#include "kudu/rocksdb/table/persistent_cache_options.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/memory_allocator.h"
 
 namespace rocksdb {
 

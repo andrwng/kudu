@@ -11,9 +11,9 @@
 #include <vector>
 
 #include <stdint.h>
-#include "rocksdb/slice.h"
-#include "rocksdb/table.h"
-#include "table/data_block_hash_index.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/data_block_hash_index.h"
 
 namespace rocksdb {
 

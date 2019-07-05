@@ -12,12 +12,12 @@
 #include <utility>
 #include <vector>
 
-#include "monitoring/instrumented_mutex.h"
-#include "rocksdb/utilities/transaction.h"
-#include "util/autovector.h"
-#include "util/hash_map.h"
-#include "util/thread_local.h"
-#include "utilities/transactions/pessimistic_transaction.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/hash_map.h"
+#include "kudu/rocksdb/util/thread_local.h"
+#include "kudu/rocksdb/utilities/transactions/pessimistic_transaction.h"
 
 namespace rocksdb {
 

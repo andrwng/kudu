@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 #ifndef ROCKSDB_LITE
-#include "utilities/blob_db/blob_file.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_file.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -16,12 +16,12 @@
 #include <limits>
 #include <memory>
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "db/dbformat.h"
-#include "util/filename.h"
-#include "util/logging.h"
-#include "utilities/blob_db/blob_db_impl.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_db_impl.h"
 
 namespace rocksdb {
 

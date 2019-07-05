@@ -9,9 +9,9 @@
 #include <string>
 #include <stdint.h>
 
-#include "options/options_helper.h"
-#include "rocksdb/options.h"
-#include "rocksdb/table.h"
+#include "kudu/rocksdb/options/options_helper.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/table.h"
 
 namespace rocksdb {
 

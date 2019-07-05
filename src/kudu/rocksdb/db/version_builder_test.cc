@@ -4,12 +4,12 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include <string>
-#include "db/version_edit.h"
-#include "db/version_set.h"
-#include "util/logging.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

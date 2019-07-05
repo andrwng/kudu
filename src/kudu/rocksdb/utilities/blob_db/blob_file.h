@@ -8,13 +8,13 @@
 #include <atomic>
 #include <memory>
 
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "util/file_reader_writer.h"
-#include "utilities/blob_db/blob_log_format.h"
-#include "utilities/blob_db/blob_log_reader.h"
-#include "utilities/blob_db/blob_log_writer.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_format.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_reader.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_writer.h"
 
 namespace rocksdb {
 namespace blob_db {

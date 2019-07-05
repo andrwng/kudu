@@ -5,18 +5,18 @@
 //
 
 #ifndef ROCKSDB_LITE
-#include "memtable/hash_skiplist_rep.h"
+#include "kudu/rocksdb/memtable/hash_skiplist_rep.h"
 
 #include <atomic>
 
-#include "rocksdb/memtablerep.h"
-#include "util/arena.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/slice_transform.h"
-#include "port/port.h"
-#include "util/murmurhash.h"
-#include "db/memtable.h"
-#include "memtable/skiplist.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/murmurhash.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/memtable/skiplist.h"
 
 namespace rocksdb {
 namespace {

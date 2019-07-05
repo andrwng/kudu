@@ -7,13 +7,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/malloc_stats.h"
+#include "kudu/rocksdb/db/malloc_stats.h"
 
 #ifndef ROCKSDB_LITE
 #include <memory>
 #include <string.h>
 
-#include "port/jemalloc_helper.h"
+#include "kudu/rocksdb/port/jemalloc_helper.h"
 
 
 namespace rocksdb {

@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/compaction_picker_universal.h"
+#include "kudu/rocksdb/db/compaction_picker_universal.h"
 #ifndef ROCKSDB_LITE
 
 #ifndef __STDC_FORMAT_MACROS
@@ -19,13 +19,13 @@
 #include <queue>
 #include <string>
 #include <utility>
-#include "db/column_family.h"
-#include "monitoring/statistics.h"
-#include "util/filename.h"
-#include "util/log_buffer.h"
-#include "util/random.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/log_buffer.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 namespace {

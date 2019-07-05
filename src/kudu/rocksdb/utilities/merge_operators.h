@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
 
 #include <stdio.h>
 

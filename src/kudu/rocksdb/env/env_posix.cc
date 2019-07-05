@@ -42,21 +42,21 @@
 #include <set>
 #include <vector>
 
-#include "env/io_posix.h"
-#include "env/posix_logger.h"
-#include "monitoring/iostats_context_imp.h"
-#include "monitoring/thread_status_updater.h"
-#include "port/port.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "util/coding.h"
-#include "util/compression_context_cache.h"
-#include "util/logging.h"
-#include "util/random.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/thread_local.h"
-#include "util/threadpool_imp.h"
+#include "kudu/rocksdb/env/io_posix.h"
+#include "kudu/rocksdb/env/posix_logger.h"
+#include "kudu/rocksdb/monitoring/iostats_context_imp.h"
+#include "kudu/rocksdb/monitoring/thread_status_updater.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/compression_context_cache.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/thread_local.h"
+#include "kudu/rocksdb/util/threadpool_imp.h"
 
 #if !defined(TMPFS_MAGIC)
 #define TMPFS_MAGIC 0x01021994

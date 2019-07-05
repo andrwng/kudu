@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "db/memtable_list.h"
+#include "kudu/rocksdb/db/memtable_list.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -13,18 +13,18 @@
 #include <limits>
 #include <queue>
 #include <string>
-#include "db/db_impl.h"
-#include "db/memtable.h"
-#include "db/range_tombstone_fragmenter.h"
-#include "db/version_set.h"
-#include "monitoring/thread_status_util.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "table/merging_iterator.h"
-#include "util/coding.h"
-#include "util/log_buffer.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/monitoring/thread_status_util.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/table/merging_iterator.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/log_buffer.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

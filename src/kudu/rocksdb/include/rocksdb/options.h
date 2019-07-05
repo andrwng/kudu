@@ -16,13 +16,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "rocksdb/advanced_options.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
-#include "rocksdb/listener.h"
-#include "rocksdb/universal_compaction.h"
-#include "rocksdb/version.h"
-#include "rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/rocksdb/advanced_options.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/rocksdb/universal_compaction.h"
+#include "kudu/rocksdb/rocksdb/version.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
 
 #ifdef max
 #undef max

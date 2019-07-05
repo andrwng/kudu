@@ -13,7 +13,7 @@
 #pragma once
 #include <algorithm>
 #include <stdio.h>
-#include "port/sys_time.h"
+#include "kudu/rocksdb/port/sys_time.h"
 #include <time.h>
 #include <fcntl.h>
 
@@ -24,10 +24,10 @@
 #endif
 
 #include <atomic>
-#include "env/io_posix.h"
-#include "monitoring/iostats_context_imp.h"
-#include "rocksdb/env.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/env/io_posix.h"
+#include "kudu/rocksdb/monitoring/iostats_context_imp.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

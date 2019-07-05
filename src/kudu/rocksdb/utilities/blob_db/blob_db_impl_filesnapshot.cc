@@ -5,11 +5,11 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "utilities/blob_db/blob_db_impl.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_db_impl.h"
 
-#include "util/filename.h"
-#include "util/logging.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 // BlobDBImpl methods to get snapshot of files, e.g. for replication.
 

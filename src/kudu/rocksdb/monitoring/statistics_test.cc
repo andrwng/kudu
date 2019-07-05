@@ -4,11 +4,11 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 
-#include "port/stack_trace.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
-#include "rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
 
 namespace rocksdb {
 

@@ -4,8 +4,8 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "db/version_edit.h"
-#include "util/random.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/util/random.h"
 
 namespace rocksdb {
 static const uint32_t kFileReadSampleRate = 1024;

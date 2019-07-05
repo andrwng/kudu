@@ -5,9 +5,9 @@
 
 #include <memory>
 
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/slice.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 using rocksdb::Slice;
 using rocksdb::Logger;

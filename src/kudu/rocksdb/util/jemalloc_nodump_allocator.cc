@@ -3,14 +3,14 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "util/jemalloc_nodump_allocator.h"
+#include "kudu/rocksdb/util/jemalloc_nodump_allocator.h"
 
 #include <string>
 #include <thread>
 
-#include "port/likely.h"
-#include "port/port.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/port/likely.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

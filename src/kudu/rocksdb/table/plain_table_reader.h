@@ -11,18 +11,18 @@
 #include <string>
 #include <stdint.h>
 
-#include "db/dbformat.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/table.h"
-#include "rocksdb/table_properties.h"
-#include "table/table_reader.h"
-#include "table/plain_table_factory.h"
-#include "table/plain_table_index.h"
-#include "util/arena.h"
-#include "util/dynamic_bloom.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/table/table_reader.h"
+#include "kudu/rocksdb/table/plain_table_factory.h"
+#include "kudu/rocksdb/table/plain_table_index.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/dynamic_bloom.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 

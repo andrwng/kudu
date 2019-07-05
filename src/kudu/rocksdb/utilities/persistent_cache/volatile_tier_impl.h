@@ -13,10 +13,10 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/cache.h"
-#include "utilities/persistent_cache/hash_table.h"
-#include "utilities/persistent_cache/hash_table_evictable.h"
-#include "utilities/persistent_cache/persistent_cache_tier.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/utilities/persistent_cache/hash_table.h"
+#include "kudu/rocksdb/utilities/persistent_cache/hash_table_evictable.h"
+#include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_tier.h"
 
 // VolatileCacheTier
 //

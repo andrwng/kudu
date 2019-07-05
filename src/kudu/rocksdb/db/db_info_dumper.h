@@ -6,7 +6,7 @@
 
 #include <string>
 
-#include "options/db_options.h"
+#include "kudu/rocksdb/options/db_options.h"
 
 namespace rocksdb {
 void DumpDBFileSummary(const ImmutableDBOptions& options,

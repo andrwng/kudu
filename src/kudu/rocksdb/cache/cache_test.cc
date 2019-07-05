@@ -7,18 +7,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
 
 #include <forward_list>
 #include <functional>
 #include <iostream>
 #include <string>
 #include <vector>
-#include "cache/clock_cache.h"
-#include "cache/lru_cache.h"
-#include "util/coding.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/cache/clock_cache.h"
+#include "kudu/rocksdb/cache/lru_cache.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

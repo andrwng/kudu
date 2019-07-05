@@ -10,10 +10,10 @@
 #include <iostream>
 #include <cassert>
 
-#include "rocksdb/env_encryption.h"
-#include "util/aligned_buffer.h"
-#include "util/coding.h"
-#include "util/random.h"
+#include "kudu/rocksdb/rocksdb/env_encryption.h"
+#include "kudu/rocksdb/util/aligned_buffer.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/random.h"
 
 #endif
 

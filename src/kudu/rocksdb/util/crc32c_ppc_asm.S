@@ -8,7 +8,7 @@
 //  COPYING file in the root directory of this source tree.
 
 #include <ppc-asm.h>
-#include "ppc-opcode.h"
+#include "kudu/rocksdb/ppc-opcode.h"
 
 #undef toc
 
@@ -28,7 +28,7 @@
 	.octa 0x0F0E0D0C0B0A09080706050403020100
 
 #define __ASSEMBLY__
-#include "crc32c_ppc_constants.h"
+#include "kudu/rocksdb/crc32c_ppc_constants.h"
 
 	.text
 

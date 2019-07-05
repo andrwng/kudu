@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
 
 namespace rocksdb {
 

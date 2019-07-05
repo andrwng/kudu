@@ -7,7 +7,7 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "db/db_info_dumper.h"
+#include "kudu/rocksdb/db/db_info_dumper.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -15,8 +15,8 @@
 #include <algorithm>
 #include <vector>
 
-#include "rocksdb/env.h"
-#include "util/filename.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/filename.h"
 
 namespace rocksdb {
 

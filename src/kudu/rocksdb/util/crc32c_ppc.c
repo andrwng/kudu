@@ -10,7 +10,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <strings.h>
-#include "util/crc32c_ppc_constants.h"
+#include "kudu/rocksdb/util/crc32c_ppc_constants.h"
 
 #define VMX_ALIGN 16
 #define VMX_ALIGN_MASK (VMX_ALIGN - 1)

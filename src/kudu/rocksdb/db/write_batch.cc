@@ -33,7 +33,7 @@
 //    len: varint32
 //    data: uint8[len]
 
-#include "rocksdb/write_batch.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
 
 #include <map>
 #include <stack>
@@ -41,21 +41,21 @@
 #include <type_traits>
 #include <vector>
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "db/dbformat.h"
-#include "db/flush_scheduler.h"
-#include "db/memtable.h"
-#include "db/merge_context.h"
-#include "db/snapshot_impl.h"
-#include "db/write_batch_internal.h"
-#include "monitoring/perf_context_imp.h"
-#include "monitoring/statistics.h"
-#include "rocksdb/merge_operator.h"
-#include "util/coding.h"
-#include "util/duplicate_detector.h"
-#include "util/string_util.h"
-#include "util/util.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/flush_scheduler.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/db/merge_context.h"
+#include "kudu/rocksdb/db/snapshot_impl.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/duplicate_detector.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/util.h"
 
 namespace rocksdb {
 

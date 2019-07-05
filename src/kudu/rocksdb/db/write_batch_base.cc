@@ -3,12 +3,12 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "rocksdb/write_batch_base.h"
+#include "kudu/rocksdb/rocksdb/write_batch_base.h"
 
 #include <string>
 
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

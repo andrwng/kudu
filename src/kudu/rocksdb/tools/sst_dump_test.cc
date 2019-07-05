@@ -10,14 +10,14 @@
 #ifndef ROCKSDB_LITE
 
 #include <stdint.h>
-#include "rocksdb/sst_dump_tool.h"
+#include "kudu/rocksdb/rocksdb/sst_dump_tool.h"
 
-#include "rocksdb/filter_policy.h"
-#include "table/block_based_table_factory.h"
-#include "table/table_builder.h"
-#include "util/file_reader_writer.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

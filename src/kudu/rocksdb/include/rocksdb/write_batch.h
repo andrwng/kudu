@@ -28,8 +28,8 @@
 #include <atomic>
 #include <stack>
 #include <string>
-#include "rocksdb/status.h"
-#include "rocksdb/write_batch_base.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/write_batch_base.h"
 
 namespace rocksdb {
 

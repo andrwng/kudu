@@ -3,12 +3,12 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/write_controller.h"
+#include "kudu/rocksdb/db/write_controller.h"
 
 #include <atomic>
 #include <cassert>
 #include <ratio>
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 namespace rocksdb {
 

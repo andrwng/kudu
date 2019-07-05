@@ -7,34 +7,34 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/builder.h"
+#include "kudu/rocksdb/db/builder.h"
 
 #include <algorithm>
 #include <deque>
 #include <vector>
 
-#include "db/compaction_iterator.h"
-#include "db/dbformat.h"
-#include "db/event_helpers.h"
-#include "db/internal_stats.h"
-#include "db/merge_helper.h"
-#include "db/range_del_aggregator.h"
-#include "db/table_cache.h"
-#include "db/version_edit.h"
-#include "monitoring/iostats_context_imp.h"
-#include "monitoring/thread_status_util.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/table.h"
-#include "table/block_based_table_builder.h"
-#include "table/format.h"
-#include "table/internal_iterator.h"
-#include "util/file_reader_writer.h"
-#include "util/filename.h"
-#include "util/stop_watch.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/compaction_iterator.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/event_helpers.h"
+#include "kudu/rocksdb/db/internal_stats.h"
+#include "kudu/rocksdb/db/merge_helper.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/db/table_cache.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/monitoring/iostats_context_imp.h"
+#include "kudu/rocksdb/monitoring/thread_status_util.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/block_based_table_builder.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

@@ -11,22 +11,22 @@
 // the last "sync". It then checks for data loss errors by purposely dropping
 // file data (or entire files) not protected by a "sync".
 
-#include "db/db_impl.h"
-#include "db/log_format.h"
-#include "db/version_set.h"
-#include "env/mock_env.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/table.h"
-#include "rocksdb/write_batch.h"
-#include "util/fault_injection_test_env.h"
-#include "util/filename.h"
-#include "util/logging.h"
-#include "util/mutexlock.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/log_format.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/env/mock_env.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

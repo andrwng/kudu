@@ -8,8 +8,8 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_CompactionOptionsFIFO.h"
-#include "rocksdb/advanced_options.h"
+#include "kudu/rocksdb/include/org_rocksdb_CompactionOptionsFIFO.h"
+#include "kudu/rocksdb/rocksdb/advanced_options.h"
 
 /*
  * Class:     org_rocksdb_CompactionOptionsFIFO

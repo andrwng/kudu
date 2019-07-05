@@ -6,8 +6,8 @@
 #include <stdint.h>
 #include <map>
 #include <string>
-#include "rocksdb/status.h"
-#include "rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/types.h"
 
 namespace rocksdb {
 

@@ -23,14 +23,14 @@ int main() {
 #include <thread>
 #include <vector>
 
-#include "dynamic_bloom.h"
-#include "port/port.h"
-#include "util/arena.h"
-#include "util/gflags_compat.h"
-#include "util/logging.h"
-#include "util/stop_watch.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/dynamic_bloom.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 

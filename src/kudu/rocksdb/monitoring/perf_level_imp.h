@@ -4,8 +4,8 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "rocksdb/perf_level.h"
-#include "port/port.h"
+#include "kudu/rocksdb/rocksdb/perf_level.h"
+#include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {
 

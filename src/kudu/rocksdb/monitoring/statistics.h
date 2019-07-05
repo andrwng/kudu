@@ -4,18 +4,18 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
 
 #include <atomic>
 #include <map>
 #include <string>
 #include <vector>
 
-#include "monitoring/histogram.h"
-#include "port/likely.h"
-#include "port/port.h"
-#include "util/core_local.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/port/likely.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/core_local.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 #ifdef __clang__
 #define ROCKSDB_FIELD_UNUSED __attribute__((__unused__))

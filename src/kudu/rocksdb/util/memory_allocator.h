@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "rocksdb/memory_allocator.h"
+#include "kudu/rocksdb/rocksdb/memory_allocator.h"
 
 namespace rocksdb {
 

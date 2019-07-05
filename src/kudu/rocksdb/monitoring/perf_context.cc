@@ -5,7 +5,7 @@
 //
 
 #include <sstream>
-#include "monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
 
 namespace rocksdb {
 

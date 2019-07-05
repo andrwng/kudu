@@ -7,14 +7,14 @@
 #include <memory>
 #include <thread>
 #include <vector>
-#include "db/db_test_util.h"
-#include "db/write_batch_internal.h"
-#include "db/write_thread.h"
-#include "port/port.h"
-#include "port/stack_trace.h"
-#include "util/fault_injection_test_env.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/db/write_thread.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

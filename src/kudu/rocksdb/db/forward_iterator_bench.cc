@@ -29,13 +29,13 @@ int main() { return 0; }
 #include <random>
 #include <thread>
 
-#include "port/port.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/db.h"
-#include "rocksdb/status.h"
-#include "rocksdb/table.h"
-#include "util/gflags_compat.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 const int MAX_SHARDS = 100000;
 

@@ -8,14 +8,14 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include "rocksdb/options.h"
-#include "rocksdb/status.h"
-#include "rocksdb/table.h"
-#include "rocksdb/table_properties.h"
-#include "table/bloom_block.h"
-#include "table/plain_table_index.h"
-#include "table/plain_table_key_coding.h"
-#include "table/table_builder.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/table/bloom_block.h"
+#include "kudu/rocksdb/table/plain_table_index.h"
+#include "kudu/rocksdb/table/plain_table_key_coding.h"
+#include "kudu/rocksdb/table/table_builder.h"
 
 namespace rocksdb {
 

@@ -10,9 +10,9 @@
 #include <jni.h>
 #include <memory>
 
-#include "include/org_rocksdb_SstFileManager.h"
-#include "rocksdb/sst_file_manager.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_SstFileManager.h"
+#include "kudu/rocksdb/rocksdb/sst_file_manager.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_SstFileManager

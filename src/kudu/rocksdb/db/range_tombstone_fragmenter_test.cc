@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
 
-#include "db/db_test_util.h"
-#include "rocksdb/comparator.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

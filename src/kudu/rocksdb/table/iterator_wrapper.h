@@ -11,7 +11,7 @@
 
 #include <set>
 
-#include "table/internal_iterator.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
 
 namespace rocksdb {
 

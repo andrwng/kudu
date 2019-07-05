@@ -7,10 +7,10 @@
 
 #include <string>
 
-#include "rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
 
-#include "port/port.h"
-#include "util/hash.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/hash.h"
 
 #include <atomic>
 #include <memory>

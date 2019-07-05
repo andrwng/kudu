@@ -5,9 +5,9 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/utilities/memory_util.h"
+#include "kudu/rocksdb/rocksdb/utilities/memory_util.h"
 
-#include "db/db_impl.h"
+#include "kudu/rocksdb/db/db_impl.h"
 
 namespace rocksdb {
 

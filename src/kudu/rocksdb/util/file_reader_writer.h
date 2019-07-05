@@ -10,12 +10,12 @@
 #include <atomic>
 #include <sstream>
 #include <string>
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/listener.h"
-#include "rocksdb/rate_limiter.h"
-#include "util/aligned_buffer.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/util/aligned_buffer.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

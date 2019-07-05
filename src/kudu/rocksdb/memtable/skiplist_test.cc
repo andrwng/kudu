@@ -7,13 +7,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "memtable/skiplist.h"
+#include "kudu/rocksdb/memtable/skiplist.h"
 #include <set>
-#include "rocksdb/env.h"
-#include "util/arena.h"
-#include "util/hash.h"
-#include "util/random.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/hash.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

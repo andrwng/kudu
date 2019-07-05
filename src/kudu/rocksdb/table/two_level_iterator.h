@@ -8,9 +8,9 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #pragma once
-#include "rocksdb/iterator.h"
-#include "rocksdb/env.h"
-#include "table/iterator_wrapper.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/table/iterator_wrapper.h"
 
 namespace rocksdb {
 

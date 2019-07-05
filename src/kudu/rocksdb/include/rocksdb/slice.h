@@ -28,7 +28,7 @@
 #include <string_view>
 #endif
 
-#include "rocksdb/cleanable.h"
+#include "kudu/rocksdb/rocksdb/cleanable.h"
 
 namespace rocksdb {
 

@@ -9,7 +9,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "utilities/checkpoint/checkpoint_impl.h"
+#include "kudu/rocksdb/utilities/checkpoint/checkpoint_impl.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -20,15 +20,15 @@
 #include <string>
 #include <vector>
 
-#include "db/wal_manager.h"
-#include "port/port.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/transaction_log.h"
-#include "rocksdb/utilities/checkpoint.h"
-#include "util/file_util.h"
-#include "util/filename.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/wal_manager.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/rocksdb/utilities/checkpoint.h"
+#include "kudu/rocksdb/util/file_util.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

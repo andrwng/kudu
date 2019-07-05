@@ -6,15 +6,15 @@
 #include <map>
 #include <string>
 
-#include "memtable/stl_wrappers.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "util/hash.h"
-#include "util/kv_map.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/memtable/stl_wrappers.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/hash.h"
+#include "kudu/rocksdb/util/kv_map.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 using std::unique_ptr;
 

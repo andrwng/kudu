@@ -20,8 +20,8 @@
 #include <vector>
 #include <assert.h>
 #include <stdint.h>
-#include "util/allocator.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/util/allocator.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

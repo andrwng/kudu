@@ -9,8 +9,8 @@
 
 #include <string>
 
-#include "rocksdb/compaction_filter.h"
-#include "rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
 
 namespace rocksdb {
 

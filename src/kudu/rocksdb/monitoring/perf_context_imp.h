@@ -4,9 +4,9 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #pragma once
-#include "monitoring/perf_step_timer.h"
-#include "rocksdb/perf_context.h"
-#include "util/stop_watch.h"
+#include "kudu/rocksdb/monitoring/perf_step_timer.h"
+#include "kudu/rocksdb/rocksdb/perf_context.h"
+#include "kudu/rocksdb/util/stop_watch.h"
 
 namespace rocksdb {
 #if defined(NPERF_CONTEXT) || !defined(ROCKSDB_SUPPORT_THREAD_LOCAL)

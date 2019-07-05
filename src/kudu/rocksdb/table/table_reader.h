@@ -9,9 +9,9 @@
 
 #pragma once
 #include <memory>
-#include "db/range_tombstone_fragmenter.h"
-#include "rocksdb/slice_transform.h"
-#include "table/internal_iterator.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
 
 namespace rocksdb {
 

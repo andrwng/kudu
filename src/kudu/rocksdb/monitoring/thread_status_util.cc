@@ -3,10 +3,10 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "monitoring/thread_status_util.h"
+#include "kudu/rocksdb/monitoring/thread_status_util.h"
 
-#include "monitoring/thread_status_updater.h"
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/monitoring/thread_status_updater.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 namespace rocksdb {
 

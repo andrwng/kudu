@@ -7,23 +7,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "table/merging_iterator.h"
+#include "kudu/rocksdb/table/merging_iterator.h"
 #include <string>
 #include <vector>
-#include "db/dbformat.h"
-#include "db/pinned_iterators_manager.h"
-#include "monitoring/perf_context_imp.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/options.h"
-#include "table/internal_iterator.h"
-#include "table/iter_heap.h"
-#include "table/iterator_wrapper.h"
-#include "util/arena.h"
-#include "util/autovector.h"
-#include "util/heap.h"
-#include "util/stop_watch.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/iter_heap.h"
+#include "kudu/rocksdb/table/iterator_wrapper.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/heap.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 // Without anonymous namespace here, we fail the warning -Wmissing-prototypes

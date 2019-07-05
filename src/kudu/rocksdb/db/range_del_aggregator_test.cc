@@ -3,16 +3,16 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/range_del_aggregator.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
 
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "db/db_test_util.h"
-#include "db/dbformat.h"
-#include "db/range_tombstone_fragmenter.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

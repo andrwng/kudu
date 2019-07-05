@@ -13,5 +13,5 @@
 #if defined(ROCKSDB_PLATFORM_POSIX)
 #error "Xpress compression not implemented"
 #elif defined(OS_WIN)
-#include "port/win/xpress_win.h"
+#include "kudu/rocksdb/port/win/xpress_win.h"
 #endif

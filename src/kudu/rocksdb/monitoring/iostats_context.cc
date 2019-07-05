@@ -4,8 +4,8 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include <sstream>
-#include "monitoring/iostats_context_imp.h"
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/monitoring/iostats_context_imp.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 namespace rocksdb {
 

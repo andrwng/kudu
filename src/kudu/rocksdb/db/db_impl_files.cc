@@ -6,7 +6,7 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-#include "db/db_impl.h"
+#include "kudu/rocksdb/db/db_impl.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -14,10 +14,10 @@
 #include <inttypes.h>
 #include <set>
 #include <unordered_set>
-#include "db/event_helpers.h"
-#include "db/memtable_list.h"
-#include "util/file_util.h"
-#include "util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/db/event_helpers.h"
+#include "kudu/rocksdb/db/memtable_list.h"
+#include "kudu/rocksdb/util/file_util.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
 
 namespace rocksdb {
 

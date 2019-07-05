@@ -7,12 +7,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "port/win/io_win.h"
+#include "kudu/rocksdb/port/win/io_win.h"
 
-#include "monitoring/iostats_context_imp.h"
-#include "util/aligned_buffer.h"
-#include "util/coding.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/monitoring/iostats_context_imp.h"
+#include "kudu/rocksdb/util/aligned_buffer.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 namespace port {

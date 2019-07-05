@@ -9,15 +9,15 @@
 #include <string>
 #include <thread>
 
-#include "rocksdb/db.h"
-#include "rocksdb/utilities/optimistic_transaction_db.h"
-#include "rocksdb/utilities/transaction.h"
-#include "util/crc32c.h"
-#include "util/logging.h"
-#include "util/random.h"
-#include "util/testharness.h"
-#include "util/transaction_test_util.h"
-#include "port/port.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/util/crc32c.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/transaction_test_util.h"
+#include "kudu/rocksdb/port/port.h"
 
 using std::string;
 

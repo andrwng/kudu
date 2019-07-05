@@ -5,8 +5,8 @@
 
 #include <mutex>
 
-#include "db/column_family.h"
-#include "monitoring/thread_status_updater.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/monitoring/thread_status_updater.h"
 
 namespace rocksdb {
 

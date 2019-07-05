@@ -12,9 +12,9 @@
 #include <functional>
 #include <limits>
 #include <vector>
-#include "port/port.h"
-#include "util/arena.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

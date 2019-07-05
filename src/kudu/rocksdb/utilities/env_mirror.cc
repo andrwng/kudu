@@ -8,7 +8,7 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/utilities/env_mirror.h"
+#include "kudu/rocksdb/rocksdb/utilities/env_mirror.h"
 
 namespace rocksdb {
 

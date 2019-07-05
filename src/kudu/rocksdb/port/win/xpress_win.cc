@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "port/win/xpress_win.h"
+#include "kudu/rocksdb/port/win/xpress_win.h"
 #include <windows.h>
 
 #include <cassert>

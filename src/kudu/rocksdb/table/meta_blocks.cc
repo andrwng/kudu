@@ -2,22 +2,22 @@
 //  This source code is licensed under both the GPLv2 (found in the
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
-#include "table/meta_blocks.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
 
 #include <map>
 #include <string>
 
-#include "db/table_properties_collector.h"
-#include "rocksdb/table.h"
-#include "rocksdb/table_properties.h"
-#include "table/block.h"
-#include "table/block_fetcher.h"
-#include "table/format.h"
-#include "table/internal_iterator.h"
-#include "table/persistent_cache_helper.h"
-#include "table/table_properties_internal.h"
-#include "util/coding.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/db/table_properties_collector.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/block_fetcher.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/persistent_cache_helper.h"
+#include "kudu/rocksdb/table/table_properties_internal.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 

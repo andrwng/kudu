@@ -13,18 +13,18 @@
 #include <cctype>
 #include <unordered_map>
 
-#include "options/options_parser.h"
-#include "rocksdb/db.h"
-#include "rocksdb/table.h"
-#include "rocksdb/utilities/options_util.h"
-#include "util/random.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/options/options_parser.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 #ifndef GFLAGS
 bool FLAGS_enable_print = false;
 #else
-#include "util/gflags_compat.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 DEFINE_bool(enable_print, false, "Print options generated to console.");
 #endif  // GFLAGS

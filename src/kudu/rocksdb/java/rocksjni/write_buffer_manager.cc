@@ -5,10 +5,10 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_WriteBufferManager.h"
+#include "kudu/rocksdb/include/org_rocksdb_WriteBufferManager.h"
 
-#include "rocksdb/cache.h"
-#include "rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
 
 /*
  * Class:     org_rocksdb_WriteBufferManager

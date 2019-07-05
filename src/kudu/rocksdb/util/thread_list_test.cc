@@ -6,9 +6,9 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "monitoring/thread_status_updater.h"
-#include "rocksdb/db.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/monitoring/thread_status_updater.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 #ifdef ROCKSDB_USING_THREAD_STATUS
 

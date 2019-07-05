@@ -3,10 +3,10 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "monitoring/instrumented_mutex.h"
-#include "monitoring/perf_context_imp.h"
-#include "monitoring/thread_status_util.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/monitoring/thread_status_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 namespace {

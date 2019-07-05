@@ -9,24 +9,24 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "utilities/transactions/pessimistic_transaction_db.h"
+#include "kudu/rocksdb/utilities/transactions/pessimistic_transaction_db.h"
 
 #include <inttypes.h>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
-#include "db/db_impl.h"
-#include "rocksdb/db.h"
-#include "rocksdb/options.h"
-#include "rocksdb/utilities/transaction_db.h"
-#include "util/cast_util.h"
-#include "util/mutexlock.h"
-#include "util/sync_point.h"
-#include "utilities/transactions/pessimistic_transaction.h"
-#include "utilities/transactions/transaction_db_mutex_impl.h"
-#include "utilities/transactions/write_prepared_txn_db.h"
-#include "utilities/transactions/write_unprepared_txn_db.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/utilities/transactions/pessimistic_transaction.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_db_mutex_impl.h"
+#include "kudu/rocksdb/utilities/transactions/write_prepared_txn_db.h"
+#include "kudu/rocksdb/utilities/transactions/write_unprepared_txn_db.h"
 
 namespace rocksdb {
 

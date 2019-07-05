@@ -6,8 +6,8 @@
 #ifndef ROCKSDB_LITE
 #include <string>
 #include <vector>
-#include "rocksdb/db.h"
-#include "rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
 
 namespace rocksdb {
 

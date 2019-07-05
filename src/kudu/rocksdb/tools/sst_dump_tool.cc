@@ -5,7 +5,7 @@
 //
 #ifndef ROCKSDB_LITE
 
-#include "tools/sst_dump_tool_imp.h"
+#include "kudu/rocksdb/tools/sst_dump_tool_imp.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -18,28 +18,28 @@
 #include <sstream>
 #include <vector>
 
-#include "db/memtable.h"
-#include "db/write_batch_internal.h"
-#include "options/cf_options.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/slice_transform.h"
-#include "rocksdb/status.h"
-#include "rocksdb/table_properties.h"
-#include "rocksdb/utilities/ldb_cmd.h"
-#include "table/block.h"
-#include "table/block_based_table_builder.h"
-#include "table/block_based_table_factory.h"
-#include "table/block_builder.h"
-#include "table/format.h"
-#include "table/meta_blocks.h"
-#include "table/plain_table_factory.h"
-#include "table/table_reader.h"
-#include "util/compression.h"
-#include "util/random.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/rocksdb/utilities/ldb_cmd.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/block_based_table_builder.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/table/plain_table_factory.h"
+#include "kudu/rocksdb/table/table_reader.h"
+#include "kudu/rocksdb/util/compression.h"
+#include "kudu/rocksdb/util/random.h"
 
-#include "port/port.h"
+#include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {
 

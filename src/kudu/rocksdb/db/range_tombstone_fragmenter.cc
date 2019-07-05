@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
 
 #include <algorithm>
 #include <functional>
@@ -12,9 +12,9 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#include "util/autovector.h"
-#include "util/kv_map.h"
-#include "util/vector_iterator.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/kv_map.h"
+#include "kudu/rocksdb/util/vector_iterator.h"
 
 namespace rocksdb {
 

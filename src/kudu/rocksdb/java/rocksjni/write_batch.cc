@@ -7,20 +7,20 @@
 // calling c++ rocksdb::WriteBatch methods from Java side.
 #include <memory>
 
-#include "db/memtable.h"
-#include "db/write_batch_internal.h"
-#include "include/org_rocksdb_WriteBatch.h"
-#include "include/org_rocksdb_WriteBatch_Handler.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/memtablerep.h"
-#include "rocksdb/status.h"
-#include "rocksdb/write_batch.h"
-#include "rocksdb/write_buffer_manager.h"
-#include "rocksjni/portal.h"
-#include "rocksjni/writebatchhandlerjnicallback.h"
-#include "table/scoped_arena_iterator.h"
-#include "util/logging.h"
+#include "kudu/rocksdb/db/memtable.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/include/org_rocksdb_WriteBatch.h"
+#include "kudu/rocksdb/include/org_rocksdb_WriteBatch_Handler.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
+#include "kudu/rocksdb/rocksjni/writebatchhandlerjnicallback.h"
+#include "kudu/rocksdb/table/scoped_arena_iterator.h"
+#include "kudu/rocksdb/util/logging.h"
 
 /*
  * Class:     org_rocksdb_WriteBatch

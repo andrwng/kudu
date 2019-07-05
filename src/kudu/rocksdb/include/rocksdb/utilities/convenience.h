@@ -7,4 +7,4 @@
 
 // This file was moved to rocksdb/convenience.h"
 
-#include "rocksdb/convenience.h"
+#include "kudu/rocksdb/rocksdb/convenience.h"

@@ -3,19 +3,19 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "db/compaction_picker.h"
+#include "kudu/rocksdb/db/compaction_picker.h"
 
 #include <limits>
 #include <string>
 #include <utility>
-#include "db/compaction.h"
-#include "db/compaction_picker_fifo.h"
-#include "db/compaction_picker_universal.h"
+#include "kudu/rocksdb/db/compaction.h"
+#include "kudu/rocksdb/db/compaction_picker_fifo.h"
+#include "kudu/rocksdb/db/compaction_picker_universal.h"
 
-#include "util/logging.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

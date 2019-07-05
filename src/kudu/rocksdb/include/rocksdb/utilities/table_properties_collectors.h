@@ -8,7 +8,7 @@
 #include <atomic>
 #include <memory>
 
-#include "rocksdb/table_properties.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
 
 namespace rocksdb {
 

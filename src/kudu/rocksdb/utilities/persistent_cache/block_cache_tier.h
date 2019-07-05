@@ -19,21 +19,21 @@
 #include <string>
 #include <thread>
 
-#include "rocksdb/cache.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/persistent_cache.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/persistent_cache.h"
 
-#include "utilities/persistent_cache/block_cache_tier_file.h"
-#include "utilities/persistent_cache/block_cache_tier_metadata.h"
-#include "utilities/persistent_cache/persistent_cache_util.h"
+#include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_file.h"
+#include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_metadata.h"
+#include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_util.h"
 
-#include "memtable/skiplist.h"
-#include "monitoring/histogram.h"
-#include "port/port.h"
-#include "util/arena.h"
-#include "util/coding.h"
-#include "util/crc32c.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/memtable/skiplist.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/crc32c.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

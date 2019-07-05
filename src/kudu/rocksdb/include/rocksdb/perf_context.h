@@ -9,7 +9,7 @@
 #include <map>
 #include <string>
 
-#include "rocksdb/perf_level.h"
+#include "kudu/rocksdb/rocksdb/perf_level.h"
 
 namespace rocksdb {
 

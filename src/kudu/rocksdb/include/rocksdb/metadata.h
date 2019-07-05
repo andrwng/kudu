@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-#include "rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/types.h"
 
 namespace rocksdb {
 struct ColumnFamilyMetaData;

@@ -8,8 +8,8 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_AbstractTraceWriter.h"
-#include "rocksjni/trace_writer_jnicallback.h"
+#include "kudu/rocksdb/include/org_rocksdb_AbstractTraceWriter.h"
+#include "kudu/rocksdb/rocksjni/trace_writer_jnicallback.h"
 
 /*
  * Class:     org_rocksdb_AbstractTraceWriter

@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <string>
 
-#include "utilities/merge_operators/bytesxor.h"
+#include "kudu/rocksdb/utilities/merge_operators/bytesxor.h"
 
 namespace rocksdb {
 

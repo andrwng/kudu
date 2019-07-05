@@ -10,14 +10,14 @@
 #pragma once
 #include <stdint.h>
 #include <string>
-#include "db/db_impl.h"
-#include "db/dbformat.h"
-#include "db/range_del_aggregator.h"
-#include "options/cf_options.h"
-#include "rocksdb/db.h"
-#include "rocksdb/iterator.h"
-#include "util/arena.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/range_del_aggregator.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

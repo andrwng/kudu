@@ -5,8 +5,8 @@
 //
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/utilities/ldb_cmd.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/rocksdb/utilities/ldb_cmd.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 using std::string;
 using std::vector;

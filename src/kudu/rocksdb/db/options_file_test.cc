@@ -6,11 +6,11 @@
 #ifndef ROCKSDB_LITE
 #include <string>
 
-#include "db/db_impl.h"
-#include "db/db_test_util.h"
-#include "rocksdb/options.h"
-#include "rocksdb/table.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 class OptionsFileTest : public testing::Test {

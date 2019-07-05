@@ -3,15 +3,15 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "monitoring/statistics.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
 
 #include <inttypes.h>
-#include "rocksdb/statistics.h"
-#include "port/likely.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/port/likely.h"
 #include <algorithm>
 #include <cstdio>
 

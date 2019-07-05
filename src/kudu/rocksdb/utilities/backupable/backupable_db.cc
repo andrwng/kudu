@@ -9,19 +9,19 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/utilities/backupable_db.h"
-#include "port/port.h"
-#include "rocksdb/rate_limiter.h"
-#include "rocksdb/transaction_log.h"
-#include "util/channel.h"
-#include "util/coding.h"
-#include "util/crc32c.h"
-#include "util/file_reader_writer.h"
-#include "util/filename.h"
-#include "util/logging.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "utilities/checkpoint/checkpoint_impl.h"
+#include "kudu/rocksdb/rocksdb/utilities/backupable_db.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/rate_limiter.h"
+#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/util/channel.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/crc32c.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/utilities/checkpoint/checkpoint_impl.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS

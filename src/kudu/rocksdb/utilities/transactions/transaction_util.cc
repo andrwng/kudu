@@ -9,16 +9,16 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "utilities/transactions/transaction_util.h"
+#include "kudu/rocksdb/utilities/transactions/transaction_util.h"
 
 #include <inttypes.h>
 #include <string>
 #include <vector>
 
-#include "db/db_impl.h"
-#include "rocksdb/status.h"
-#include "rocksdb/utilities/write_batch_with_index.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

@@ -5,13 +5,13 @@
 //
 #ifndef ROCKSDB_LITE
 
-#include "utilities/blob_db/blob_log_reader.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_reader.h"
 
 #include <algorithm>
 
-#include "monitoring/statistics.h"
-#include "util/file_reader_writer.h"
-#include "util/stop_watch.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/stop_watch.h"
 
 namespace rocksdb {
 namespace blob_db {

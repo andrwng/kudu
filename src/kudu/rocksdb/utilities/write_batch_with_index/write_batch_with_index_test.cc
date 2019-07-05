@@ -11,14 +11,14 @@
 
 #include <memory>
 #include <map>
-#include "db/column_family.h"
-#include "port/stack_trace.h"
-#include "rocksdb/utilities/write_batch_with_index.h"
-#include "util/random.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "utilities/merge_operators.h"
-#include "utilities/merge_operators/string_append/stringappend.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/port/stack_trace.h"
+#include "kudu/rocksdb/rocksdb/utilities/write_batch_with_index.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
+#include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend.h"
 
 namespace rocksdb {
 

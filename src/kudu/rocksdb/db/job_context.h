@@ -12,8 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "db/log_writer.h"
-#include "db/column_family.h"
+#include "kudu/rocksdb/db/log_writer.h"
+#include "kudu/rocksdb/db/column_family.h"
 
 namespace rocksdb {
 

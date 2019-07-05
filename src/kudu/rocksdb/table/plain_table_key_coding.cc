@@ -4,14 +4,14 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #ifndef ROCKSDB_LITE
-#include "table/plain_table_key_coding.h"
+#include "kudu/rocksdb/table/plain_table_key_coding.h"
 
 #include <algorithm>
 #include <string>
-#include "db/dbformat.h"
-#include "table/plain_table_reader.h"
-#include "table/plain_table_factory.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/table/plain_table_reader.h"
+#include "kudu/rocksdb/table/plain_table_factory.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 

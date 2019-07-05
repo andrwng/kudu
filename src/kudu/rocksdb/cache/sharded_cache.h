@@ -12,9 +12,9 @@
 #include <atomic>
 #include <string>
 
-#include "port/port.h"
-#include "rocksdb/cache.h"
-#include "util/hash.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/util/hash.h"
 
 namespace rocksdb {
 

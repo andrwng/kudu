@@ -14,13 +14,13 @@
 #include <utility>
 #include <vector>
 
-#include "rocksdb/flush_block_policy.h"
-#include "rocksdb/listener.h"
-#include "rocksdb/options.h"
-#include "rocksdb/status.h"
-#include "table/meta_blocks.h"
-#include "table/table_builder.h"
-#include "util/compression.h"
+#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/table/table_builder.h"
+#include "kudu/rocksdb/util/compression.h"
 
 namespace rocksdb {
 

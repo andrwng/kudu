@@ -3,9 +3,9 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "rocksdb/snapshot.h"
+#include "kudu/rocksdb/rocksdb/snapshot.h"
 
-#include "rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/db.h"
 
 namespace rocksdb {
 

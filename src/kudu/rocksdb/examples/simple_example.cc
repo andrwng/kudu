@@ -6,9 +6,9 @@
 #include <cstdio>
 #include <string>
 
-#include "rocksdb/db.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/options.h"
 
 using namespace rocksdb;
 

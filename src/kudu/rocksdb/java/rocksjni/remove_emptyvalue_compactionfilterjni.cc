@@ -5,8 +5,8 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_RemoveEmptyValueCompactionFilter.h"
-#include "utilities/compaction_filters/remove_emptyvalue_compactionfilter.h"
+#include "kudu/rocksdb/include/org_rocksdb_RemoveEmptyValueCompactionFilter.h"
+#include "kudu/rocksdb/utilities/compaction_filters/remove_emptyvalue_compactionfilter.h"
 
 /*
  * Class:     org_rocksdb_RemoveEmptyValueCompactionFilter

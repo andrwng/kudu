@@ -5,9 +5,9 @@
 #pragma once
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/options.h"
-#include "util/coding.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 namespace blob_db {

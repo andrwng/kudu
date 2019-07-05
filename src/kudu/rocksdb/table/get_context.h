@@ -5,12 +5,12 @@
 
 #pragma once
 #include <string>
-#include "db/merge_context.h"
-#include "db/read_callback.h"
-#include "rocksdb/env.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/types.h"
-#include "table/block.h"
+#include "kudu/rocksdb/db/merge_context.h"
+#include "kudu/rocksdb/db/read_callback.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/table/block.h"
 
 namespace rocksdb {
 class MergeContext;

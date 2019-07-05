@@ -8,13 +8,13 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_OptimisticTransactionDB.h"
+#include "kudu/rocksdb/include/org_rocksdb_OptimisticTransactionDB.h"
 
-#include "rocksdb/options.h"
-#include "rocksdb/utilities/optimistic_transaction_db.h"
-#include "rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/utilities/optimistic_transaction_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
 
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_OptimisticTransactionDB

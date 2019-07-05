@@ -6,7 +6,7 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-#include "db/dbformat.h"
+#include "kudu/rocksdb/db/dbformat.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -14,10 +14,10 @@
 
 #include <inttypes.h>
 #include <stdio.h>
-#include "monitoring/perf_context_imp.h"
-#include "port/port.h"
-#include "util/coding.h"
-#include "util/string_util.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 namespace rocksdb {
 

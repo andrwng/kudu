@@ -8,15 +8,15 @@
 #include <unordered_set>
 #include <vector>
 
-#include "db/column_family.h"
-#include "db/dbformat.h"
-#include "db/internal_stats.h"
-#include "db/snapshot_impl.h"
-#include "options/db_options.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/sst_file_writer.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/internal_stats.h"
+#include "kudu/rocksdb/db/snapshot_impl.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/sst_file_writer.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

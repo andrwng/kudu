@@ -7,15 +7,15 @@
 #ifndef ROCKSDB_LITE
 #include <vector>
 
-#include "db/log_reader.h"
-#include "db/version_set.h"
-#include "options/db_options.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "rocksdb/transaction_log.h"
-#include "rocksdb/types.h"
-#include "util/filename.h"
+#include "kudu/rocksdb/db/log_reader.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/options/db_options.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/transaction_log.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/util/filename.h"
 
 namespace rocksdb {
 

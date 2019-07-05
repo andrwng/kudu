@@ -15,19 +15,19 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "db/dbformat.h"
-#include "db/range_tombstone_fragmenter.h"
-#include "db/read_callback.h"
-#include "db/version_edit.h"
-#include "monitoring/instrumented_mutex.h"
-#include "options/cf_options.h"
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-#include "rocksdb/memtablerep.h"
-#include "util/allocator.h"
-#include "util/concurrent_arena.h"
-#include "util/dynamic_bloom.h"
-#include "util/hash.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/range_tombstone_fragmenter.h"
+#include "kudu/rocksdb/db/read_callback.h"
+#include "kudu/rocksdb/db/version_edit.h"
+#include "kudu/rocksdb/monitoring/instrumented_mutex.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/memtablerep.h"
+#include "kudu/rocksdb/util/allocator.h"
+#include "kudu/rocksdb/util/concurrent_arena.h"
+#include "kudu/rocksdb/util/dynamic_bloom.h"
+#include "kudu/rocksdb/util/hash.h"
 
 namespace rocksdb {
 

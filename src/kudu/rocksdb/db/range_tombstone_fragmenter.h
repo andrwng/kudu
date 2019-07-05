@@ -11,10 +11,10 @@
 #include <string>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "db/pinned_iterators_manager.h"
-#include "rocksdb/status.h"
-#include "table/internal_iterator.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
 
 namespace rocksdb {
 

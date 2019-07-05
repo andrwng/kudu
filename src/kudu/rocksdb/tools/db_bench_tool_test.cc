@@ -7,15 +7,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "rocksdb/db_bench_tool.h"
-#include "options/options_parser.h"
-#include "rocksdb/utilities/options_util.h"
-#include "util/random.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/rocksdb/db_bench_tool.h"
+#include "kudu/rocksdb/options/options_parser.h"
+#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 #ifdef GFLAGS
-#include "util/gflags_compat.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
 
 namespace rocksdb {
 namespace {

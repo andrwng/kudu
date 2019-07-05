@@ -7,9 +7,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "monitoring/histogram_windowing.h"
-#include "monitoring/histogram.h"
-#include "util/cast_util.h"
+#include "kudu/rocksdb/monitoring/histogram_windowing.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/util/cast_util.h"
 
 #include <algorithm>
 

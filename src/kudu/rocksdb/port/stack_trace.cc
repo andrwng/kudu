@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "port/stack_trace.h"
+#include "kudu/rocksdb/port/stack_trace.h"
 
 #if defined(ROCKSDB_LITE) || !(defined(ROCKSDB_BACKTRACE) || defined(OS_MACOSX)) || \
     defined(CYGWIN) || defined(OS_FREEBSD) || defined(OS_SOLARIS)

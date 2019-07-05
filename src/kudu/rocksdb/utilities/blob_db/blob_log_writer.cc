@@ -4,17 +4,17 @@
 //  (found in the LICENSE.Apache file in the root directory).
 #ifndef ROCKSDB_LITE
 
-#include "utilities/blob_db/blob_log_writer.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_writer.h"
 
 #include <cstdint>
 #include <string>
 
-#include "monitoring/statistics.h"
-#include "rocksdb/env.h"
-#include "util/coding.h"
-#include "util/file_reader_writer.h"
-#include "util/stop_watch.h"
-#include "utilities/blob_db/blob_log_format.h"
+#include "kudu/rocksdb/monitoring/statistics.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_format.h"
 
 namespace rocksdb {
 namespace blob_db {

@@ -19,20 +19,20 @@
 #include <utility>
 #include <vector>
 
-#include "db/db_iter.h"
-#include "rocksdb/compaction_filter.h"
-#include "rocksdb/db.h"
-#include "rocksdb/listener.h"
-#include "rocksdb/options.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/wal_filter.h"
-#include "util/mutexlock.h"
-#include "util/timer_queue.h"
-#include "utilities/blob_db/blob_db.h"
-#include "utilities/blob_db/blob_file.h"
-#include "utilities/blob_db/blob_log_format.h"
-#include "utilities/blob_db/blob_log_reader.h"
-#include "utilities/blob_db/blob_log_writer.h"
+#include "kudu/rocksdb/db/db_iter.h"
+#include "kudu/rocksdb/rocksdb/compaction_filter.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/listener.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/wal_filter.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/timer_queue.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_db.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_file.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_format.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_reader.h"
+#include "kudu/rocksdb/utilities/blob_db/blob_log_writer.h"
 
 namespace rocksdb {
 

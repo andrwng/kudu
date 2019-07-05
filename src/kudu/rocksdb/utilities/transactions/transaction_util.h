@@ -10,13 +10,13 @@
 #include <string>
 #include <unordered_map>
 
-#include "db/dbformat.h"
-#include "db/read_callback.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/read_callback.h"
 
-#include "rocksdb/db.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
-#include "rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/types.h"
 
 namespace rocksdb {
 

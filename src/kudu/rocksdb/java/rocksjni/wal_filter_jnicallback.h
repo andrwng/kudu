@@ -14,8 +14,8 @@
 #include <memory>
 #include <string>
 
-#include "rocksdb/wal_filter.h"
-#include "rocksjni/jnicallback.h"
+#include "kudu/rocksdb/rocksdb/wal_filter.h"
+#include "kudu/rocksdb/rocksjni/jnicallback.h"
 
 namespace rocksdb {
 

@@ -31,8 +31,8 @@
 #include <utility>
 #include <vector>
 
-#include "port/port.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 // Allows execution of handlers at a specified time in the future
 // Guarantees:

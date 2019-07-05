@@ -6,7 +6,7 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
-#include "table/block_based_table_reader.h"
+#include "kudu/rocksdb/table/block_based_table_reader.h"
 
 #include <algorithm>
 #include <array>
@@ -15,43 +15,43 @@
 #include <utility>
 #include <vector>
 
-#include "db/dbformat.h"
-#include "db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
 
-#include "rocksdb/cache.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
-#include "rocksdb/filter_policy.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/table.h"
-#include "rocksdb/table_properties.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
 
-#include "table/block.h"
-#include "table/block_based_filter_block.h"
-#include "table/block_based_table_factory.h"
-#include "table/block_fetcher.h"
-#include "table/block_prefix_index.h"
-#include "table/filter_block.h"
-#include "table/format.h"
-#include "table/full_filter_block.h"
-#include "table/get_context.h"
-#include "table/internal_iterator.h"
-#include "table/meta_blocks.h"
-#include "table/partitioned_filter_block.h"
-#include "table/persistent_cache_helper.h"
-#include "table/sst_file_writer_collectors.h"
-#include "table/two_level_iterator.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/block_based_filter_block.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/block_fetcher.h"
+#include "kudu/rocksdb/table/block_prefix_index.h"
+#include "kudu/rocksdb/table/filter_block.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/table/full_filter_block.h"
+#include "kudu/rocksdb/table/get_context.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/table/partitioned_filter_block.h"
+#include "kudu/rocksdb/table/persistent_cache_helper.h"
+#include "kudu/rocksdb/table/sst_file_writer_collectors.h"
+#include "kudu/rocksdb/table/two_level_iterator.h"
 
-#include "monitoring/perf_context_imp.h"
-#include "util/coding.h"
-#include "util/crc32c.h"
-#include "util/file_reader_writer.h"
-#include "util/stop_watch.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/xxhash.h"
+#include "kudu/rocksdb/monitoring/perf_context_imp.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/crc32c.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/xxhash.h"
 
 namespace rocksdb {
 

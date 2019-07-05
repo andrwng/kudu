@@ -11,17 +11,17 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include "util/rate_limiter.h"
+#include "kudu/rocksdb/util/rate_limiter.h"
 
 #include <inttypes.h>
 #include <chrono>
 #include <limits>
 
-#include "db/db_test_util.h"
-#include "rocksdb/env.h"
-#include "util/random.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
+#include "kudu/rocksdb/db/db_test_util.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
 
 namespace rocksdb {
 

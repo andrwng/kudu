@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "util/string_util.h"
+#include "kudu/rocksdb/util/string_util.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -20,9 +20,9 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "rocksdb/env.h"
-#include "port/port.h"
-#include "rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
 
 namespace rocksdb {
 

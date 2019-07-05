@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 //
 #ifndef ROCKSDB_LITE
-#include "rocksdb/utilities/ldb_cmd.h"
+#include "kudu/rocksdb/rocksdb/utilities/ldb_cmd.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -12,29 +12,29 @@
 
 #include <inttypes.h>
 
-#include "db/db_impl.h"
-#include "db/dbformat.h"
-#include "db/log_reader.h"
-#include "db/write_batch_internal.h"
-#include "port/port_dirent.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/table_properties.h"
-#include "rocksdb/utilities/backupable_db.h"
-#include "rocksdb/utilities/checkpoint.h"
-#include "rocksdb/utilities/debug.h"
-#include "rocksdb/utilities/object_registry.h"
-#include "rocksdb/utilities/options_util.h"
-#include "rocksdb/write_batch.h"
-#include "rocksdb/write_buffer_manager.h"
-#include "table/scoped_arena_iterator.h"
-#include "tools/ldb_cmd_impl.h"
-#include "tools/sst_dump_tool_imp.h"
-#include "util/cast_util.h"
-#include "util/coding.h"
-#include "util/filename.h"
-#include "util/stderr_logger.h"
-#include "util/string_util.h"
-#include "utilities/ttl/db_ttl_impl.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/log_reader.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/port/port_dirent.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/rocksdb/utilities/backupable_db.h"
+#include "kudu/rocksdb/rocksdb/utilities/checkpoint.h"
+#include "kudu/rocksdb/rocksdb/utilities/debug.h"
+#include "kudu/rocksdb/rocksdb/utilities/object_registry.h"
+#include "kudu/rocksdb/rocksdb/utilities/options_util.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/table/scoped_arena_iterator.h"
+#include "kudu/rocksdb/tools/ldb_cmd_impl.h"
+#include "kudu/rocksdb/tools/sst_dump_tool_imp.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/stderr_logger.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/utilities/ttl/db_ttl_impl.h"
 
 #include <cstdlib>
 #include <ctime>

@@ -5,7 +5,7 @@
 
 #pragma once
 #ifndef ROCKSDB_LITE
-#include "db/db_impl.h"
+#include "kudu/rocksdb/db/db_impl.h"
 #include <vector>
 #include <string>
 

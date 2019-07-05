@@ -6,7 +6,7 @@
 // This file implements the callback "bridge" between Java and C++ for
 // rocksdb::Statistics
 
-#include "rocksjni/statisticsjni.h"
+#include "kudu/rocksdb/rocksjni/statisticsjni.h"
 
 namespace rocksdb {
 

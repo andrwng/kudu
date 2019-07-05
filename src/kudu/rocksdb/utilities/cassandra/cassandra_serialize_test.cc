@@ -3,8 +3,8 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "util/testharness.h"
-#include "utilities/cassandra/serialize.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/utilities/cassandra/serialize.h"
 
 using namespace rocksdb::cassandra;
 

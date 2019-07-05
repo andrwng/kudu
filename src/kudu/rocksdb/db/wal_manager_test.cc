@@ -8,21 +8,21 @@
 #include <map>
 #include <string>
 
-#include "rocksdb/cache.h"
-#include "rocksdb/write_batch.h"
-#include "rocksdb/write_buffer_manager.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/rocksdb/write_buffer_manager.h"
 
-#include "db/column_family.h"
-#include "db/db_impl.h"
-#include "db/log_writer.h"
-#include "db/version_set.h"
-#include "db/wal_manager.h"
-#include "env/mock_env.h"
-#include "table/mock_table.h"
-#include "util/file_reader_writer.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/db/column_family.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/db/log_writer.h"
+#include "kudu/rocksdb/db/version_set.h"
+#include "kudu/rocksdb/db/wal_manager.h"
+#include "kudu/rocksdb/env/mock_env.h"
+#include "kudu/rocksdb/table/mock_table.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 namespace rocksdb {
 

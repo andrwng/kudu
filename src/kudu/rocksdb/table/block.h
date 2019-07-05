@@ -20,18 +20,18 @@
 #endif
 #endif
 
-#include "db/dbformat.h"
-#include "db/pinned_iterators_manager.h"
-#include "format.h"
-#include "rocksdb/iterator.h"
-#include "rocksdb/options.h"
-#include "rocksdb/statistics.h"
-#include "rocksdb/table.h"
-#include "table/block_prefix_index.h"
-#include "table/data_block_hash_index.h"
-#include "table/internal_iterator.h"
-#include "util/random.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/db/pinned_iterators_manager.h"
+#include "kudu/rocksdb/format.h"
+#include "kudu/rocksdb/rocksdb/iterator.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/statistics.h"
+#include "kudu/rocksdb/rocksdb/table.h"
+#include "kudu/rocksdb/table/block_prefix_index.h"
+#include "kudu/rocksdb/table/data_block_hash_index.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

@@ -8,11 +8,11 @@
 #include <string>
 #include <utility>
 
-#include "rocksdb/env.h"
-#include "util/autovector.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 using std::cout;
 using std::endl;

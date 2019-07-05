@@ -5,10 +5,10 @@
 
 #ifndef ROCKSDB_LITE
 
-#include "utilities/transactions/write_unprepared_txn.h"
-#include "db/db_impl.h"
-#include "util/cast_util.h"
-#include "utilities/transactions/write_unprepared_txn_db.h"
+#include "kudu/rocksdb/utilities/transactions/write_unprepared_txn.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/utilities/transactions/write_unprepared_txn_db.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS

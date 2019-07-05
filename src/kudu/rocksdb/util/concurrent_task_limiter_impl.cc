@@ -7,8 +7,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "util/concurrent_task_limiter_impl.h"
-#include "rocksdb/concurrent_task_limiter.h"
+#include "kudu/rocksdb/util/concurrent_task_limiter_impl.h"
+#include "kudu/rocksdb/rocksdb/concurrent_task_limiter.h"
 
 namespace rocksdb {
 

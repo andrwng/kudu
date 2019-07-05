@@ -3,14 +3,14 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "util/file_util.h"
+#include "kudu/rocksdb/util/file_util.h"
 
 #include <string>
 #include <algorithm>
 
-#include "rocksdb/env.h"
-#include "util/sst_file_manager_impl.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/sst_file_manager_impl.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 

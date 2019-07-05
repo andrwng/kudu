@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "db/wal_manager.h"
+#include "kudu/rocksdb/db/wal_manager.h"
 
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
@@ -18,23 +18,23 @@
 #include <vector>
 #include <memory>
 
-#include "db/log_reader.h"
-#include "db/log_writer.h"
-#include "db/transaction_log_impl.h"
-#include "db/write_batch_internal.h"
-#include "port/port.h"
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "rocksdb/write_batch.h"
-#include "util/cast_util.h"
-#include "util/coding.h"
-#include "util/file_reader_writer.h"
-#include "util/file_util.h"
-#include "util/filename.h"
-#include "util/logging.h"
-#include "util/mutexlock.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
+#include "kudu/rocksdb/db/log_reader.h"
+#include "kudu/rocksdb/db/log_writer.h"
+#include "kudu/rocksdb/db/transaction_log_impl.h"
+#include "kudu/rocksdb/db/write_batch_internal.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/write_batch.h"
+#include "kudu/rocksdb/util/cast_util.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/file_util.h"
+#include "kudu/rocksdb/util/filename.h"
+#include "kudu/rocksdb/util/logging.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
 
 namespace rocksdb {
 

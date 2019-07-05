@@ -15,18 +15,18 @@ int main() { fprintf(stderr, "Please install gflags to run tools\n"); }
 #include <sstream>
 #include <unordered_map>
 
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
-#include "utilities/persistent_cache/block_cache_tier.h"
-#include "utilities/persistent_cache/persistent_cache_tier.h"
-#include "utilities/persistent_cache/volatile_tier_impl.h"
+#include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier.h"
+#include "kudu/rocksdb/utilities/persistent_cache/persistent_cache_tier.h"
+#include "kudu/rocksdb/utilities/persistent_cache/volatile_tier_impl.h"
 
-#include "monitoring/histogram.h"
-#include "port/port.h"
-#include "table/block_builder.h"
-#include "util/gflags_compat.h"
-#include "util/mutexlock.h"
-#include "util/stop_watch.h"
+#include "kudu/rocksdb/monitoring/histogram.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/mutexlock.h"
+#include "kudu/rocksdb/util/stop_watch.h"
 
 DEFINE_int32(nsec, 10, "nsec");
 DEFINE_int32(nthread_write, 1, "Insert threads");

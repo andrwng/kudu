@@ -12,10 +12,10 @@
 #include <map>
 #include <string>
 #include <vector>
-#include "rocksdb/env.h"
-#include "rocksdb/status.h"
-#include "port/port.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

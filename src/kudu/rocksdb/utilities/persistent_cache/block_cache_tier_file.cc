@@ -4,7 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 #ifndef ROCKSDB_LITE
 
-#include "utilities/persistent_cache/block_cache_tier_file.h"
+#include "kudu/rocksdb/utilities/persistent_cache/block_cache_tier_file.h"
 
 #ifndef OS_WIN
 #include <unistd.h>
@@ -13,9 +13,9 @@
 #include <memory>
 #include <vector>
 
-#include "port/port.h"
-#include "util/crc32c.h"
-#include "util/logging.h"
+#include "kudu/rocksdb/port/port.h"
+#include "kudu/rocksdb/util/crc32c.h"
+#include "kudu/rocksdb/util/logging.h"
 
 namespace rocksdb {
 

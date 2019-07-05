@@ -9,9 +9,9 @@
 
 #include <functional>
 
-#include "util/random.h"
-#include "utilities/persistent_cache/hash_table.h"
-#include "utilities/persistent_cache/lrulist.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/utilities/persistent_cache/hash_table.h"
+#include "kudu/rocksdb/utilities/persistent_cache/lrulist.h"
 
 namespace rocksdb {
 

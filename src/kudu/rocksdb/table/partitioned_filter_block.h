@@ -8,16 +8,16 @@
 #include <list>
 #include <string>
 #include <unordered_map>
-#include "db/dbformat.h"
-#include "rocksdb/options.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/slice_transform.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
 
-#include "table/block.h"
-#include "table/block_based_table_reader.h"
-#include "table/full_filter_block.h"
-#include "table/index_builder.h"
-#include "util/autovector.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/block_based_table_reader.h"
+#include "kudu/rocksdb/table/full_filter_block.h"
+#include "kudu/rocksdb/table/index_builder.h"
+#include "kudu/rocksdb/util/autovector.h"
 
 namespace rocksdb {
 

@@ -15,24 +15,24 @@
 #include <string>
 #include <thread>
 
-#include "db/db_impl.h"
-#include "rocksdb/db.h"
-#include "rocksdb/options.h"
-#include "rocksdb/utilities/transaction.h"
-#include "rocksdb/utilities/transaction_db.h"
-#include "table/mock_table.h"
-#include "util/fault_injection_test_env.h"
-#include "util/random.h"
-#include "util/string_util.h"
-#include "util/sync_point.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
-#include "util/transaction_test_util.h"
-#include "utilities/merge_operators.h"
-#include "utilities/merge_operators/string_append/stringappend.h"
-#include "utilities/transactions/pessimistic_transaction_db.h"
+#include "kudu/rocksdb/db/db_impl.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction.h"
+#include "kudu/rocksdb/rocksdb/utilities/transaction_db.h"
+#include "kudu/rocksdb/table/mock_table.h"
+#include "kudu/rocksdb/util/fault_injection_test_env.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/sync_point.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
+#include "kudu/rocksdb/util/transaction_test_util.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
+#include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend.h"
+#include "kudu/rocksdb/utilities/transactions/pessimistic_transaction_db.h"
 
-#include "port/port.h"
+#include "kudu/rocksdb/port/port.h"
 
 namespace rocksdb {
 

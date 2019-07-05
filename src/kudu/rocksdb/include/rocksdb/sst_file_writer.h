@@ -10,10 +10,10 @@
 #include <memory>
 #include <string>
 
-#include "rocksdb/env.h"
-#include "rocksdb/options.h"
-#include "rocksdb/table_properties.h"
-#include "rocksdb/types.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/table_properties.h"
+#include "kudu/rocksdb/rocksdb/types.h"
 
 #if defined(__GNUC__) || defined(__clang__)
 #define ROCKSDB_DEPRECATED_FUNC __attribute__((__deprecated__))

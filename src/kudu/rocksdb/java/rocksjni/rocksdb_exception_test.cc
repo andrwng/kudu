@@ -5,11 +5,11 @@
 
 #include <jni.h>
 
-#include "include/org_rocksdb_RocksDBExceptionTest.h"
+#include "kudu/rocksdb/include/org_rocksdb_RocksDBExceptionTest.h"
 
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 /*
  * Class:     org_rocksdb_RocksDBExceptionTest

@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#include "table/block_based_table_builder.h"
+#include "kudu/rocksdb/table/block_based_table_builder.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -19,36 +19,36 @@
 #include <unordered_map>
 #include <utility>
 
-#include "db/dbformat.h"
+#include "kudu/rocksdb/db/dbformat.h"
 
-#include "rocksdb/cache.h"
-#include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
-#include "rocksdb/filter_policy.h"
-#include "rocksdb/flush_block_policy.h"
-#include "rocksdb/merge_operator.h"
-#include "rocksdb/table.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/comparator.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/filter_policy.h"
+#include "kudu/rocksdb/rocksdb/flush_block_policy.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/rocksdb/table.h"
 
-#include "table/block.h"
-#include "table/block_based_filter_block.h"
-#include "table/block_based_table_factory.h"
-#include "table/block_based_table_reader.h"
-#include "table/block_builder.h"
-#include "table/filter_block.h"
-#include "table/format.h"
-#include "table/full_filter_block.h"
-#include "table/table_builder.h"
+#include "kudu/rocksdb/table/block.h"
+#include "kudu/rocksdb/table/block_based_filter_block.h"
+#include "kudu/rocksdb/table/block_based_table_factory.h"
+#include "kudu/rocksdb/table/block_based_table_reader.h"
+#include "kudu/rocksdb/table/block_builder.h"
+#include "kudu/rocksdb/table/filter_block.h"
+#include "kudu/rocksdb/table/format.h"
+#include "kudu/rocksdb/table/full_filter_block.h"
+#include "kudu/rocksdb/table/table_builder.h"
 
-#include "util/coding.h"
-#include "util/compression.h"
-#include "util/crc32c.h"
-#include "util/memory_allocator.h"
-#include "util/stop_watch.h"
-#include "util/string_util.h"
-#include "util/xxhash.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/compression.h"
+#include "kudu/rocksdb/util/crc32c.h"
+#include "kudu/rocksdb/util/memory_allocator.h"
+#include "kudu/rocksdb/util/stop_watch.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/xxhash.h"
 
-#include "table/index_builder.h"
-#include "table/partitioned_filter_block.h"
+#include "kudu/rocksdb/table/index_builder.h"
+#include "kudu/rocksdb/table/partitioned_filter_block.h"
 
 namespace rocksdb {
 

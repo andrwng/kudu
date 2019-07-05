@@ -5,10 +5,10 @@
 
 #pragma once
 
-#include "rocksdb/env.h"
-#include "util/arena.h"
-#include "util/autovector.h"
-#include "port/sys_time.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/autovector.h"
+#include "kudu/rocksdb/port/sys_time.h"
 #include <ctime>
 
 namespace rocksdb {

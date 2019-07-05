@@ -5,13 +5,13 @@
 #pragma once
 #ifndef ROCKSDB_LITE
 
-#include "rocksdb/sst_dump_tool.h"
+#include "kudu/rocksdb/rocksdb/sst_dump_tool.h"
 
 #include <memory>
 #include <string>
-#include "db/dbformat.h"
-#include "options/cf_options.h"
-#include "util/file_reader_writer.h"
+#include "kudu/rocksdb/db/dbformat.h"
+#include "kudu/rocksdb/options/cf_options.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
 
 namespace rocksdb {
 

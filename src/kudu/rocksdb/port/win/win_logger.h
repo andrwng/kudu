@@ -14,7 +14,7 @@
 
 #include <atomic>
 
-#include "rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/env.h"
 
 #include <stdint.h>
 #include <windows.h>

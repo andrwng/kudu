@@ -8,8 +8,8 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 //
 #pragma once
-#include "rocksdb/env.h"
-#include "rocksdb/slice_transform.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/rocksdb/slice_transform.h"
 
 namespace rocksdb {
 

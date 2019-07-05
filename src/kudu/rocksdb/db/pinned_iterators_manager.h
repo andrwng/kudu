@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-#include "table/internal_iterator.h"
+#include "kudu/rocksdb/table/internal_iterator.h"
 
 namespace rocksdb {
 

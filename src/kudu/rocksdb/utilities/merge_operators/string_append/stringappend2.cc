@@ -3,15 +3,15 @@
  * Copyright 2013 Facebook
  */
 
-#include "stringappend2.h"
+#include "kudu/rocksdb/stringappend2.h"
 
 #include <memory>
 #include <string>
 #include <assert.h>
 
-#include "rocksdb/slice.h"
-#include "rocksdb/merge_operator.h"
-#include "utilities/merge_operators.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/merge_operator.h"
+#include "kudu/rocksdb/utilities/merge_operators.h"
 
 namespace rocksdb {
 

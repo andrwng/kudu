@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "monitoring/thread_status_updater.h"
+#include "kudu/rocksdb/monitoring/thread_status_updater.h"
 #include <memory>
-#include "port/likely.h"
-#include "rocksdb/env.h"
-#include "util/mutexlock.h"
+#include "kudu/rocksdb/port/likely.h"
+#include "kudu/rocksdb/rocksdb/env.h"
+#include "kudu/rocksdb/util/mutexlock.h"
 
 namespace rocksdb {
 

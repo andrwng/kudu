@@ -19,9 +19,9 @@
 #pragma once
 
 #include <string>
-#include "rocksdb/cleanable.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
+#include "kudu/rocksdb/rocksdb/cleanable.h"
+#include "kudu/rocksdb/rocksdb/slice.h"
+#include "kudu/rocksdb/rocksdb/status.h"
 
 namespace rocksdb {
 

@@ -16,12 +16,12 @@
 #include <tuple>
 #include <vector>
 
-#include "include/org_rocksdb_RocksDB.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/db.h"
-#include "rocksdb/options.h"
-#include "rocksdb/types.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/include/org_rocksdb_RocksDB.h"
+#include "kudu/rocksdb/rocksdb/cache.h"
+#include "kudu/rocksdb/rocksdb/db.h"
+#include "kudu/rocksdb/rocksdb/options.h"
+#include "kudu/rocksdb/rocksdb/types.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 #ifdef min
 #undef min

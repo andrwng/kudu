@@ -22,17 +22,17 @@ int main() {
 #include <string>
 #include <map>
 
-#include "table/cuckoo_table_builder.h"
-#include "table/cuckoo_table_factory.h"
-#include "table/cuckoo_table_reader.h"
-#include "table/get_context.h"
-#include "table/meta_blocks.h"
-#include "util/arena.h"
-#include "util/gflags_compat.h"
-#include "util/random.h"
-#include "util/string_util.h"
-#include "util/testharness.h"
-#include "util/testutil.h"
+#include "kudu/rocksdb/table/cuckoo_table_builder.h"
+#include "kudu/rocksdb/table/cuckoo_table_factory.h"
+#include "kudu/rocksdb/table/cuckoo_table_reader.h"
+#include "kudu/rocksdb/table/get_context.h"
+#include "kudu/rocksdb/table/meta_blocks.h"
+#include "kudu/rocksdb/util/arena.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
+#include "kudu/rocksdb/util/random.h"
+#include "kudu/rocksdb/util/string_util.h"
+#include "kudu/rocksdb/util/testharness.h"
+#include "kudu/rocksdb/util/testutil.h"
 
 using GFLAGS_NAMESPACE::ParseCommandLineFlags;
 using GFLAGS_NAMESPACE::SetUsageMessage;

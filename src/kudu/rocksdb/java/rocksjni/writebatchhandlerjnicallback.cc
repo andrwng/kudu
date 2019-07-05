@@ -6,8 +6,8 @@
 // This file implements the callback "bridge" between Java and C++ for
 // rocksdb::Comparator.
 
-#include "rocksjni/writebatchhandlerjnicallback.h"
-#include "rocksjni/portal.h"
+#include "kudu/rocksdb/rocksjni/writebatchhandlerjnicallback.h"
+#include "kudu/rocksdb/rocksjni/portal.h"
 
 namespace rocksdb {
 WriteBatchHandlerJniCallback::WriteBatchHandlerJniCallback(

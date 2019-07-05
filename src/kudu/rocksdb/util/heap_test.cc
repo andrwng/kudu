@@ -11,12 +11,12 @@
 #include <random>
 #include <utility>
 
-#include "util/heap.h"
+#include "kudu/rocksdb/util/heap.h"
 
 #ifndef GFLAGS
 const int64_t FLAGS_iters = 100000;
 #else
-#include "util/gflags_compat.h"
+#include "kudu/rocksdb/util/gflags_compat.h"
 DEFINE_int64(iters, 100000, "number of pseudo-random operations in each test");
 #endif  // GFLAGS
 

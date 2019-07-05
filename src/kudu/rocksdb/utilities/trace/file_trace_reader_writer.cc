@@ -3,11 +3,11 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#include "utilities/trace/file_trace_reader_writer.h"
+#include "kudu/rocksdb/utilities/trace/file_trace_reader_writer.h"
 
-#include "util/coding.h"
-#include "util/file_reader_writer.h"
-#include "util/trace_replay.h"
+#include "kudu/rocksdb/util/coding.h"
+#include "kudu/rocksdb/util/file_reader_writer.h"
+#include "kudu/rocksdb/util/trace_replay.h"
 
 namespace rocksdb {
 

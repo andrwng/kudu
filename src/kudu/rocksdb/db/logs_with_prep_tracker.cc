@@ -3,9 +3,9 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 //
-#include "db/logs_with_prep_tracker.h"
+#include "kudu/rocksdb/db/logs_with_prep_tracker.h"
 
-#include "port/likely.h"
+#include "kudu/rocksdb/port/likely.h"
 
 namespace rocksdb {
 void LogsWithPrepTracker::MarkLogAsHavingPrepSectionFlushed(uint64_t log) {

@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "db/version_set.h"
+#include "kudu/rocksdb/db/version_set.h"
 
 class ColumnFamilyData;
 
