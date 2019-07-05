@@ -4,7 +4,7 @@
  * Copyright 2013 Facebook
  */
 
-#include "kudu/rocksdb/stringappend.h"
+#include "kudu/rocksdb/utilities/merge_operators/string_append/stringappend.h"
 
 #include <memory>
 #include <assert.h>

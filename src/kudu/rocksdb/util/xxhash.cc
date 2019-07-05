@@ -130,7 +130,7 @@ You can contact the author at :
 //**************************************
 // Includes & Memory related functions
 //**************************************
-#include "kudu/rocksdb/xxhash.h"
+#include "kudu/rocksdb/util/xxhash.h"
 // Modify the local functions below should you wish to use some other memory related routines
 // for malloc(), free()
 #include <stdlib.h>

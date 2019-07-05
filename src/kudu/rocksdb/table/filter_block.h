@@ -28,7 +28,7 @@
 #include "kudu/rocksdb/slice_transform.h"
 #include "kudu/rocksdb/table.h"
 #include "kudu/rocksdb/util/hash.h"
-#include "kudu/rocksdb/format.h"
+#include "kudu/rocksdb/table/format.h"
 
 namespace rocksdb {
 
