@@ -20,12 +20,15 @@ apply from: "$rootDir/gradle/shadow.gradle"
 
 dependencies {
   compile project(path: ":kudu-client", configuration: "shadow")
+  compile group: 'io.circe', name: 'circe-core_2.11', version: '0.11.1'
+  compile group: 'io.circe', name: 'circe-parser_2.11', version: '0.11.1'
   compile libs.hdrhistogram
   // TODO(KUDU-2500): Spark uses reflection which requires the annotations at runtime.
   compile libs.yetusAnnotations
 
   provided libs.scalaLibrary
   provided libs.sparkCore
+  provided libs.sparkStreaming
   provided libs.sparkSql
   provided libs.slf4jApi
 
