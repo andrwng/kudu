@@ -43,6 +43,8 @@
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/stringpiece.h"
 #include "kudu/master/master.pb.h"
+#include "kudu/master/ts_descriptor.h"
+#include "kudu/master/ts_state.h"
 #include "kudu/tablet/metadata.pb.h"
 #include "kudu/tserver/tablet_replica_lookup.h"
 #include "kudu/tserver/tserver.pb.h"
@@ -641,6 +643,9 @@ class CatalogManager : public tserver::TabletReplicaLookupIf {
                            GetTableLocationsResponsePB* resp,
                            boost::optional<const std::string&> user);
 
+  // Sets the tserver state based on the given request.
+  Status SetTServerState(const std::string& tserver_uuid, TServerState state);
+
   struct TSInfosDict {
     std::vector<std::unique_ptr<TSInfoPB>> ts_info_pbs;
     google::dense_hash_map<StringPiece, int, GoodFastHash<StringPiece>> uuid_to_idx;
@@ -848,6 +853,9 @@ class CatalogManager : public tserver::TabletReplicaLookupIf {
   Status VisitTablesAndTabletsUnlocked();
   // This is called by tests only.
   Status VisitTablesAndTablets();
+
+  // Clears out existing tserver state, loading from disk into memory.
+  Status VisitTServerStatesUnlocked();
 
   // Helper for initializing 'sys_catalog_'. After calling this
   // method, the caller should call WaitUntilRunning() on sys_catalog_

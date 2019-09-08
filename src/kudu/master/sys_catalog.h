@@ -59,6 +59,7 @@ namespace master {
 
 class Master;
 class SysCertAuthorityEntryPB;
+class SysTServerStateEntryPB;
 class SysTablesEntryPB;
 class SysTabletsEntryPB;
 class SysTskEntryPB;
@@ -92,6 +93,13 @@ class TskEntryVisitor {
                        const SysTskEntryPB& metadata) = 0;
 };
 
+class TServerStateVisitor {
+ public:
+  virtual ~TServerStateVisitor() = default;
+  virtual Status Visit(const std::string& tserver_id,
+                       const SysTServerStateEntryPB& metadata) = 0;
+};
+
 // SysCatalogTable is a Kudu table that keeps track of the following
 // system information:
 //   * table metadata
@@ -100,6 +108,7 @@ class TskEntryVisitor {
 //   * Kudu IPKI root CA cert's private key
 //   * TSK (Token Signing Key) entries
 //   * Latest handled Hive Metastore notification log event ID
+//   * tserver state (e.g. maintenance mode)
 //
 // The essential properties of the SysCatalogTable are:
 //   * SysCatalogTable has only one tablet.
@@ -125,6 +134,7 @@ class SysCatalogTable {
     CERT_AUTHORITY_INFO = 3,  // Kudu's root certificate authority entry.
     TSK_ENTRY = 4,            // Token Signing Key entry.
     HMS_NOTIFICATION_LOG = 5, // HMS notification log latest event ID.
+    TSERVER_STATE = 6,        // TServer state.
   };
 
   // 'leader_cb_' is invoked whenever this node is elected as a leader
@@ -172,6 +182,9 @@ class SysCatalogTable {
   // Scan for TSK-related entries in the system table.
   Status VisitTskEntries(TskEntryVisitor* visitor);
 
+  // Scan for tserver state entries in the system table.
+  Status VisitTServerStates(TServerStateVisitor* visitor);
+
   // Get the latest processed HMS notification log event ID.
   Status GetLatestNotificationLogEventId(int64_t* event_id) WARN_UNUSED_RESULT;
 
@@ -189,6 +202,13 @@ class SysCatalogTable {
   // (as in 'entry_id' column) from the system table. The container of the
   // entry identifiers must not be empty.
   Status RemoveTskEntries(const std::set<std::string>& entry_ids);
+
+  // Add a tserver state entry to the system table.
+  Status WriteTServerState(const std::string& tserver_id,
+                           const SysTServerStateEntryPB& entry);
+
+  // Remove a tserver state entry from the system table.
+  Status RemoveTServerState(const std::string& tserver_id);
 
   // Return the underlying TabletReplica instance hosting the metadata.
   // This should be used with caution -- typically the various methods
@@ -210,7 +230,7 @@ class SysCatalogTable {
   // NOTE: This is the "server-side" schema, so it must have the column IDs.
   Schema BuildTableSchema();
 
-  // Returns 'Status::OK()' if the WriteTransaction completed
+  // Returns 'Status::OK()' if the WriteTransaction completed.
   Status SyncWrite(const tserver::WriteRequestPB *req, tserver::WriteResponsePB *resp);
 
   void SysCatalogStateChanged(const std::string& tablet_id, const std::string& reason);

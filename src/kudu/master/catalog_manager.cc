@@ -109,8 +109,8 @@
 #include "kudu/master/sentry_authz_provider.h"
 #include "kudu/master/sys_catalog.h"
 #include "kudu/master/table_metrics.h"
-#include "kudu/master/ts_descriptor.h"
 #include "kudu/master/ts_manager.h"
+#include "kudu/master/ts_state.h"
 #include "kudu/rpc/messenger.h"
 #include "kudu/rpc/remote_user.h"
 #include "kudu/rpc/rpc_context.h"
@@ -482,6 +482,33 @@ class TskEntryLoader : public TskEntryVisitor {
 };
 
 ////////////////////////////////////////////////////////////
+// TServer States
+////////////////////////////////////////////////////////////
+
+class TServerStateLoader : public TServerStateVisitor {
+ public:
+  explicit TServerStateLoader(TSManager* ts_manager)
+      : ts_manager_(ts_manager) {
+    ts_manager_->ResetAllTServerStates();
+  }
+
+  Status Visit(const string& tserver_id, const SysTServerStateEntryPB& metadata) override {
+    TServerState state;
+    if (!TServerStateFromPB(metadata.state(), &state)) {
+      return Status::InvalidArgument(
+          Substitute("unknown tserver state: $0", metadata.state()));
+    }
+    auto ts_lock = ts_manager_->GetOrCreateTServerStateLock(tserver_id);
+    std::lock_guard<TServerStateLock> l(*ts_lock.get());
+    ts_lock->set_state(state);
+    return Status::OK();
+  }
+
+ private:
+  TSManager* ts_manager_;
+};
+
+////////////////////////////////////////////////////////////
 // Background Tasks
 ////////////////////////////////////////////////////////////
 
@@ -811,6 +838,13 @@ Status CatalogManager::WaitUntilCaughtUpAsLeader(const MonoDelta& timeout) {
   return Status::OK();
 }
 
+Status CatalogManager::VisitTServerStatesUnlocked() {
+  leader_lock_.AssertAcquiredForWriting();
+  TServerStateLoader loader(master_->ts_manager());
+  RETURN_NOT_OK(sys_catalog_->VisitTServerStates(&loader));
+  return Status::OK();
+}
+
 Status CatalogManager::InitCertAuthority() {
   leader_lock_.AssertAcquiredForWriting();
 
@@ -1092,6 +1126,16 @@ void CatalogManager::PrepareForLeadershipTask() {
     LOG_SLOW_EXECUTION(WARNING, 1000, LogPrefix() + kTskOpDescription) {
       if (!check(std::bind(&CatalogManager::InitTokenSigner, this),
                  *consensus, term, kTskOpDescription).ok()) {
+        return;
+      }
+    }
+
+    static const char* const kTServerStatesDescription =
+        "Initializing in-progress tserver states";
+    LOG(INFO) << kTServerStatesDescription << "...";
+    LOG_SLOW_EXECUTION(WARNING, 1000, LogPrefix() + kTServerStatesDescription) {
+      if (!check(std::bind(&CatalogManager::VisitTServerStatesUnlocked, this),
+                 *consensus, term, kTServerStatesDescription).ok()) {
         return;
       }
     }
@@ -4936,6 +4980,35 @@ Status CatalogManager::ReplaceTablet(const string& tablet_id, ReplaceTabletRespo
   LOG(INFO) << "ReplaceTablet: tablet " << old_tablet->id()
             << " deleted and replaced by tablet " << new_tablet->id();
   resp->set_replacement_tablet_id(new_tablet->id());
+  return Status::OK();
+}
+
+Status CatalogManager::SetTServerState(const string& tserver_uuid, TServerState state) {
+  // Lock the in-memory state while we write to disk so the operations are
+  // atomic with respect to one another.
+  TSManager* ts_manager = master_->ts_manager();
+  auto ts_lock = ts_manager->GetOrCreateTServerStateLock(tserver_uuid);
+  std::lock_guard<TServerStateLock> l(*ts_lock.get());
+  TServerState ts_state = ts_lock->state();
+  if (ts_state == state) {
+    return Status::OK();
+  }
+  // Update the state on-disk.
+  if (state == kNone) {
+    RETURN_NOT_OK_PREPEND(sys_catalog_->RemoveTServerState(tserver_uuid),
+        Substitute("Failed to remove tserver state for $0", tserver_uuid));
+  } else {
+    SysTServerStateEntryPB pb;
+    pb.set_state(TServerStateToPB(state));
+    RETURN_NOT_OK_PREPEND(sys_catalog_->WriteTServerState(tserver_uuid, pb),
+        Substitute("Failed to set tserver state for $0 to $1",
+                   tserver_uuid, TServerStateAsString(state)));
+  }
+  // Now that we've successfully updated on-disk state, change the in-memory
+  // state.
+  ts_lock->set_state(state);
+  LOG(INFO) << Substitute("Set tserver state for $0: $1",
+                          tserver_uuid, TServerStateAsString(state));
   return Status::OK();
 }
 

@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <limits>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 #include <boost/optional/optional.hpp>
 #include <gflags/gflags.h>
@@ -55,8 +57,10 @@ METRIC_DEFINE_gauge_int32(server, cluster_replica_skew,
                           "the least replicas.");
 
 using kudu::pb_util::SecureShortDebugString;
+using std::lock_guard;
 using std::shared_ptr;
 using std::string;
+using std::vector;
 using strings::Substitute;
 
 namespace kudu {
@@ -145,7 +149,7 @@ Status TSManager::RegisterTS(const NodeInstancePB& instance,
   shared_ptr<TSDescriptor> descriptor;
   bool new_tserver = false;
   {
-    std::lock_guard<rw_spinlock> l(lock_);
+    lock_guard<rw_spinlock> l(lock_);
     auto* descriptor_ptr = FindOrNull(servers_by_id_, uuid);
     if (descriptor_ptr) {
       descriptor = *descriptor_ptr;
@@ -188,6 +192,32 @@ void TSManager::GetAllLiveDescriptors(TSDescriptorVector* descs) const {
 int TSManager::GetCount() const {
   shared_lock<rw_spinlock> l(lock_);
   return servers_by_id_.size();
+}
+
+scoped_refptr<TServerStateLock> TSManager::GetOrCreateTServerStateLock(const string& uuid) {
+  lock_guard<rw_spinlock> l(lock_);
+  auto ts_lock = FindPtrOrNull(ts_state_by_id_, uuid);
+  if (!ts_lock) {
+    ts_lock.reset(new TServerStateLock());
+    InsertOrDie(&ts_state_by_id_, uuid, ts_lock);
+  }
+  return ts_lock;
+}
+
+TServerState TSManager::GetTServerState(const string& uuid) const {
+  shared_lock<rw_spinlock> l(lock_);
+  auto ts_lock = FindPtrOrNull(ts_state_by_id_, uuid);
+  if (!ts_lock) {
+    return kNone;
+  }
+  shared_lock<TServerStateLock> tsl(*ts_lock.get());
+  return ts_lock->state();
+}
+
+void TSManager::ResetAllTServerStates() {
+  LOG(INFO) << "Reseting tserver states";
+  lock_guard<rw_spinlock> l(lock_);
+  ts_state_by_id_ = {};
 }
 
 int TSManager::ClusterSkew() const {

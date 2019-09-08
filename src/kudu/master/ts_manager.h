@@ -14,8 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_MASTER_TS_MANAGER_H
-#define KUDU_MASTER_TS_MANAGER_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -24,6 +23,7 @@
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/master/ts_descriptor.h"
+#include "kudu/master/ts_state.h"
 #include "kudu/util/locks.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/status.h"
@@ -68,7 +68,7 @@ class TSManager {
   // Returns false if the TS has never registered.
   // Otherwise, *desc is set and returns true.
   bool LookupTSByUUID(const std::string& uuid,
-                        std::shared_ptr<TSDescriptor>* desc) const;
+                      std::shared_ptr<TSDescriptor>* desc) const;
 
   // Register or re-register a tablet server with the manager.
   //
@@ -89,6 +89,21 @@ class TSManager {
   // Get the TS count.
   int GetCount() const;
 
+  // Return the tserver state lock for the given tablet server UUID. If one
+  // doesn't exist, creates one of state kNone and adds it to
+  // 'ts_state_by_id_'.
+  scoped_refptr<TServerStateLock> GetOrCreateTServerStateLock(const std::string& uuid);
+
+  // Return the tserver state for the given tablet server UUID, or kNone if one
+  // doesn't exist.
+  TServerState GetTServerState(const std::string& uuid) const;
+
+  // Reset the tserver states of all tablet servers.
+  //
+  // This does not update any on-disk state, and should not be called while
+  // there are on-going updates to the tserver states in 'ts_states_by_id_'.
+  void ResetAllTServerStates();
+
  private:
   int ClusterSkew() const;
 
@@ -96,9 +111,15 @@ class TSManager {
 
   FunctionGaugeDetacher metric_detacher_;
 
+  // TODO(awong): add a map from HostPort to descriptor so we aren't forced to
+  // know UUIDs up front, e.g. if specifying a given tablet server for
+  // maintenance mode, it'd be easier for users to specify the HostPort.
   typedef std::unordered_map<
-    std::string, std::shared_ptr<TSDescriptor>> TSDescriptorMap;
+      std::string, std::shared_ptr<TSDescriptor>> TSDescriptorMap;
   TSDescriptorMap servers_by_id_;
+
+  // Maps from the UUIDs of tablet servers to their tserver state, if any.
+  std::unordered_map<std::string, scoped_refptr<TServerStateLock>> ts_state_by_id_;
 
   LocationCache* location_cache_;
 
@@ -108,4 +129,3 @@ class TSManager {
 } // namespace master
 } // namespace kudu
 
-#endif

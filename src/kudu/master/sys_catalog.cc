@@ -584,6 +584,15 @@ string SysCatalogTable::TskSeqNumberToEntryId(int64_t seq_number) {
   return entry_id;
 }
 
+Status SysCatalogTable::VisitTServerStates(TServerStateVisitor* visitor) {
+  TRACE_EVENT0("master", "SysCatalogTable::VisitTServerStates");
+  const auto processor = [&] (const string& entry_id,
+                              const SysTServerStateEntryPB& entry_data) {
+    return visitor->Visit(entry_id, entry_data);
+  };
+  return ProcessRows<SysTServerStateEntryPB, TSERVER_STATE>(processor);
+}
+
 Status SysCatalogTable::VisitTables(TableVisitor* visitor) {
   TRACE_EVENT0("master", "SysCatalogTable::VisitTables");
   auto processor = [&](
@@ -758,6 +767,41 @@ Status SysCatalogTable::RemoveTskEntries(const set<string>& entry_ids) {
     CHECK_OK(row.SetStringNoCopy(kSysCatalogTableColId, id));
     enc.Add(RowOperationsPB::DELETE, row);
   }
+
+  WriteResponsePB resp;
+  return SyncWrite(&req, &resp);
+}
+
+Status SysCatalogTable::WriteTServerState(const std::string& tserver_id,
+                                          const SysTServerStateEntryPB& entry) {
+  DCHECK(!tserver_id.empty());
+  WriteRequestPB req;
+  req.set_tablet_id(kSysCatalogTabletId);
+  RETURN_NOT_OK(SchemaToPB(schema_, req.mutable_schema()));
+  KuduPartialRow row(&schema_);
+  RETURN_NOT_OK(row.SetInt8(kSysCatalogTableColType, TSERVER_STATE));
+  RETURN_NOT_OK(row.SetString(kSysCatalogTableColId, tserver_id));
+
+  faststring metadata_buf;
+  pb_util::SerializeToString(entry, &metadata_buf);
+  RETURN_NOT_OK(row.SetStringNoCopy(kSysCatalogTableColMetadata, metadata_buf));
+
+  RowOperationsPBEncoder enc(req.mutable_row_operations());
+  enc.Add(RowOperationsPB::UPSERT, row);
+
+  WriteResponsePB resp;
+  return SyncWrite(&req, &resp);
+}
+
+Status SysCatalogTable::RemoveTServerState(const string& tserver_id) {
+  WriteRequestPB req;
+  req.set_tablet_id(kSysCatalogTabletId);
+  RowOperationsPBEncoder enc(req.mutable_row_operations());
+  CHECK_OK(SchemaToPB(schema_, req.mutable_schema()));
+  KuduPartialRow row(&schema_);
+  CHECK_OK(row.SetInt8(kSysCatalogTableColType, TSERVER_STATE));
+  CHECK_OK(row.SetStringNoCopy(kSysCatalogTableColId, tserver_id));
+  enc.Add(RowOperationsPB::DELETE, row);
 
   WriteResponsePB resp;
   return SyncWrite(&req, &resp);
