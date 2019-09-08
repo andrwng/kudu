@@ -350,6 +350,7 @@ void MasterServiceImpl::TSHeartbeat(const TSHeartbeatRequestPB* req,
   if (is_leader_master && ts_desc->needs_full_report()) {
     resp->set_needs_full_tablet_report(true);
   }
+
   rpc->RespondSuccess();
 }
 
