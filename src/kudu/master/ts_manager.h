@@ -104,6 +104,11 @@ class TSManager {
   // doesn't exist.
   TServerState GetTServerState(const std::string& uuid) const;
 
+  // Sets that every tablet server will send a full tablet report upon the next
+  // heartbeat. This can be useful to "recheck" the current health of a
+  // cluster.
+  void SetAllTServersRequireFullTabletReport();
+
   // Reset the tserver states of all tablet servers.
   //
   // This does not update any on-disk state, and should not be called while

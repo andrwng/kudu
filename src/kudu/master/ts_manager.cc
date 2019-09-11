@@ -228,10 +228,19 @@ TServerState TSManager::GetTServerState(const string& uuid) const {
   return ts_lock->state();
 }
 
+void TSManager::SetAllTServersRequireFullTabletReport() {
+  for (const auto& id_and_server : servers_by_id_) {
+    id_and_server.second->UpdateNeedsFullTabletReport(true);
+  }
+}
+
 void TSManager::ResetAllTServerStates() {
   LOG(INFO) << "Reseting tserver states";
   lock_guard<rw_spinlock> l(lock_);
   ts_state_by_id_ = {};
+  for (auto& id_and_desc : servers_by_id_) {
+    id_and_desc.second->UpdateNeedsFullTabletReport(false);
+  }
 }
 
 int TSManager::ClusterSkew() const {

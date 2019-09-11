@@ -4999,6 +4999,7 @@ Status CatalogManager::SetTServerState(const string& tserver_uuid, TServerState 
   if (state == kNone) {
     RETURN_NOT_OK_PREPEND(sys_catalog_->RemoveTServerState(tserver_uuid),
         Substitute("Failed to remove tserver state for $0", tserver_uuid));
+    ts_manager->SetAllTServersRequireFullTabletReport();
   } else {
     SysTServerStateEntryPB pb;
     pb.set_state(TServerStateToPB(state));
