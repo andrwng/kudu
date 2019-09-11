@@ -122,6 +122,20 @@ void CheckRespErrorOrSetUnknown(const Status& s, RespClass* resp) {
   }
 }
 
+bool ExtractTServerStateFromPB(const TServerStatePB& pb, TServerState* state) {
+  if (!pb.has_state()) {
+    *state = kNone;
+    return true;
+  }
+  switch (pb.state()) {
+    case TServerStatePB::MAINTENANCE_MODE:
+      *state = kMaintenanceMode;
+      return true;
+    default:
+      return false;
+  }
+}
+
 } // anonymous namespace
 
 MasterServiceImpl::MasterServiceImpl(Master* server)
@@ -160,6 +174,38 @@ bool MasterServiceImpl::AuthorizeSuperUser(const Message* /*req*/,
 void MasterServiceImpl::Ping(const PingRequestPB* /*req*/,
                              PingResponsePB* /*resp*/,
                              rpc::RpcContext* rpc) {
+  rpc->RespondSuccess();
+}
+
+void MasterServiceImpl::SetTServerState(const SetTServerStateRequestPB* req,
+                                        SetTServerStateResponsePB* resp,
+                                        rpc::RpcContext* rpc) {
+  Status s;
+  if (!req->has_tserver_state()) {
+    s = Status::InvalidArgument("request must contain tserver state");
+  }
+  const auto& tserver_state_pb = req->tserver_state();
+  if (!tserver_state_pb.has_uuid()) {
+    s = Status::InvalidArgument("uuid not provided");
+  }
+  TServerState tserver_state;
+  if (!ExtractTServerStateFromPB(tserver_state_pb, &tserver_state)) {
+    s = Status::InvalidArgument("invalid tserver state requested");
+  }
+  if (PREDICT_FALSE(!s.ok())) {
+    rpc->RespondFailure(s);
+    return;
+  }
+  CatalogManager* catalog_manager = server_->catalog_manager();
+  CatalogManager::ScopedLeaderSharedLock l(catalog_manager);
+  if (!l.CheckIsInitializedAndIsLeaderOrRespond(resp, rpc)) {
+    return;
+  }
+  s = catalog_manager->SetTServerState(tserver_state_pb.uuid(), tserver_state);
+  if (PREDICT_FALSE(!s.ok())) {
+    rpc->RespondFailure(s);
+    return;
+  }
   rpc->RespondSuccess();
 }
 
@@ -304,7 +350,6 @@ void MasterServiceImpl::TSHeartbeat(const TSHeartbeatRequestPB* req,
   if (is_leader_master && ts_desc->needs_full_report()) {
     resp->set_needs_full_tablet_report(true);
   }
-
   rpc->RespondSuccess();
 }
 

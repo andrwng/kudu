@@ -454,6 +454,9 @@ void Peer::ProcessResponseError(const Status& status) {
   // KLOG_EVERY_N macro that supports an appropriate LogThrottler. For now,
   // this class has 'failed_attempts_' available so it's overkill to add
   // the throttler support.
+  // TODO(awong): make this logging less verbose when peers are down. In some
+  // cases, peers can be down for many minutes, and the excessive logging is
+  // not useful.
   if (failed_attempts_ % kNumRetriesBetweenLoggingFailedRequest == 1) {
     LOG_WITH_PREFIX_UNLOCKED(WARNING) <<
       Substitute("Couldn't send request to peer $0.$1 Status: $2. This is "

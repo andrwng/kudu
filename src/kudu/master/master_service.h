@@ -69,6 +69,8 @@ class ReplaceTabletRequestPB;
 class ReplaceTabletResponsePB;
 class ResetAuthzCacheRequestPB;
 class ResetAuthzCacheResponsePB;
+class SetTServerStateRequestPB;
+class SetTServerStateResponsePB;
 class TSHeartbeatRequestPB;
 class TSHeartbeatResponsePB;
 
@@ -95,6 +97,10 @@ class MasterServiceImpl : public MasterServiceIf {
   bool AuthorizeSuperUser(const google::protobuf::Message* req,
                           google::protobuf::Message* resp,
                           rpc::RpcContext* context) override;
+
+  void SetTServerState(const SetTServerStateRequestPB* req,
+                           SetTServerStateResponsePB* resp,
+                           rpc::RpcContext* rpc) override;
 
   void Ping(const PingRequestPB* req,
             PingResponsePB* resp,

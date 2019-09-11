@@ -819,6 +819,15 @@ message TServerStatePB {
   optional State state = 2;
 }
 
+message SetTServerStateRequestPB {
+  // TODO(awong): consider setting tserver state in batches.
+  optional TServerStatePB tserver_state = 1;
+}
+
+message SetTServerStateResponsePB {
+  optional MasterErrorPB error = 1;
+}
+
 // GetMasterRegistrationRequest/Response: get the instance id and
 // HTTP/RPC addresses for this Master server.
 message GetMasterRegistrationRequestPB {
@@ -962,6 +971,10 @@ service MasterService {
   }
   rpc ResetAuthzCache(ResetAuthzCacheRequestPB) returns
       (ResetAuthzCacheResponsePB) {
+    option (kudu.rpc.authz_method) = "AuthorizeSuperUser";
+  }
+  rpc SetTServerState(SetTServerStateRequestPB) returns
+      (SetTServerStateResponsePB) {
     option (kudu.rpc.authz_method) = "AuthorizeSuperUser";
   }
 
