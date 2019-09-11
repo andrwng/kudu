@@ -630,6 +630,64 @@ TEST_P(QuorumUtilHealthPolicyParamTest, ShouldAddReplica) {
   }
 }
 
+// Test that when tablet replicas are whitelisted (e.g. due to maintenance mode
+// of a tablet server), deciding to add a replica will take into account the
+// whitelist.
+TEST_P(QuorumUtilHealthPolicyParamTest, ShouldAddReplicaWhitelist) {
+  const auto policy = GetParam();
+  {
+    RaftConfigPB config;
+    AddPeer(&config, "A", V, '?');
+    AddPeer(&config, "B", V, '-');
+    AddPeer(&config, "C", V, '+');
+    // The failed server is whitelisted, and doesn't count towards being
+    // under-replicated. The unknown server also doesn't count towards being
+    // under-replicated.
+    EXPECT_FALSE(ShouldAddReplica(config, 3, policy, { "B" }));
+
+    // While the unknown server doesn't count towards being under-replicated,
+    // the failed server does. If we require a majority to add replicas, we
+    // can't add a replica.
+    EXPECT_FALSE(ShouldAddReplica(config, 3, MajorityHealthPolicy::HONOR, { "A" }));
+
+    // If we don't require a majority to add, we can and should.
+    EXPECT_TRUE(ShouldAddReplica(config, 3, MajorityHealthPolicy::IGNORE, { "A" }));
+  }
+  {
+    // Two are healthy, but one of them is in maintenance mode.
+    // We should still add a replica in this case.
+    RaftConfigPB config;
+    AddPeer(&config, "A", V, '-');
+    AddPeer(&config, "B", V, '+');
+    AddPeer(&config, "C", V, '+');
+    EXPECT_FALSE(ShouldAddReplica(config, 3, policy, { "A" }));
+    EXPECT_TRUE(ShouldAddReplica(config, 3, policy, { "B" }));
+  }
+  {
+    // Whitelisting shouldn't change the decision when we really are
+    // under-replicated.
+    RaftConfigPB config;
+    AddPeer(&config, "A", V, '-');
+    AddPeer(&config, "B", V, '+');
+    EXPECT_TRUE(ShouldAddReplica(config, 3, MajorityHealthPolicy::IGNORE, { "A" }));
+    EXPECT_TRUE(ShouldAddReplica(config, 3, MajorityHealthPolicy::IGNORE, { "B" }));
+
+    // No majority present.
+    EXPECT_FALSE(ShouldAddReplica(config, 3, MajorityHealthPolicy::HONOR, { "A" }));
+    EXPECT_FALSE(ShouldAddReplica(config, 3, MajorityHealthPolicy::HONOR, { "B" }));
+  }
+  {
+    RaftConfigPB config;
+    AddPeer(&config, "A", V, '-');
+    AddPeer(&config, "B", V, '-');
+    AddPeer(&config, "C", V, '+');
+    AddPeer(&config, "D", V, '+');
+    AddPeer(&config, "E", V, '+');
+    EXPECT_TRUE(ShouldAddReplica(config, 5, policy, { "A" }));
+    EXPECT_FALSE(ShouldAddReplica(config, 5, policy, { "A", "B" }));
+  }
+}
+
 // Verify logic of the kudu::consensus::ShouldEvictReplica(), anticipating
 // removal of a voter replica.
 TEST(QuorumUtilTest, ShouldEvictReplicaVoters) {

@@ -22,6 +22,7 @@
 #include <queue>
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -44,6 +45,7 @@ using std::pair;
 using std::priority_queue;
 using std::set;
 using std::string;
+using std::unordered_set;
 using std::vector;
 using strings::Substitute;
 
@@ -418,8 +420,9 @@ string DiffConsensusStates(const ConsensusStatePB& old_state,
 
 // The decision is based on:
 //
-//   * the number of voter replicas in definitively bad shape and replicas
-//     marked with the REPLACE attribute
+//   * the number of voter replicas that aren't whitelisted (i.e. that aren't
+//     expected to be in bad shape), that are definitively in bad shape or
+//     are marked with the REPLACE attribute.
 //
 //   * the number of non-voter replicas marked with the PROMOTE=true attribute
 //     in good or possibly good state.
@@ -434,7 +437,8 @@ string DiffConsensusStates(const ConsensusStatePB& old_state,
 //                the latter case.
 bool ShouldAddReplica(const RaftConfigPB& config,
                       int replication_factor,
-                      MajorityHealthPolicy policy) {
+                      MajorityHealthPolicy policy,
+                      const unordered_set<string>& whitelisted_uuids) {
   int num_voters_total = 0;
   int num_voters_healthy = 0;
   int num_voters_need_replacement = 0;
@@ -452,6 +456,11 @@ bool ShouldAddReplica(const RaftConfigPB& config,
         if (peer.attrs().replace() ||
             overall_health == HealthReportPB::FAILED ||
             overall_health == HealthReportPB::FAILED_UNRECOVERABLE) {
+          // If the failure is expected, e.g. the server is in maintenance
+          // mode, don't count it towards under-replication.
+          if (ContainsKey(whitelisted_uuids, peer.permanent_uuid())) {
+            continue;
+          }
           ++num_voters_need_replacement;
         }
         if (overall_health == HealthReportPB::HEALTHY) {

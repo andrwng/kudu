@@ -1592,7 +1592,7 @@ Status CatalogManager::CreateTable(const CreateTableRequestPB* orig_req,
   // Verify that the number of replicas isn't larger than the number of live tablet
   // servers.
   TSDescriptorVector ts_descs;
-  master_->ts_manager()->GetAllLiveDescriptors(&ts_descs);
+  master_->ts_manager()->GetDescriptorsAvailableForPlacement(&ts_descs);
   const auto num_live_tservers = ts_descs.size();
   if (FLAGS_catalog_manager_check_ts_count_for_create_table && num_replicas > num_live_tservers) {
     // Note: this error message is matched against in master-stress-test.
@@ -3758,7 +3758,7 @@ bool AsyncAddReplicaTask::SendRequest(int attempt) {
     }
 
     TSDescriptorVector ts_descs;
-    master_->ts_manager()->GetAllLiveDescriptors(&ts_descs);
+    master_->ts_manager()->GetDescriptorsAvailableForPlacement(&ts_descs);
 
     // Get the dimension of the tablet. Otherwise, it will be none.
     optional<string> dimension = none;
@@ -4186,6 +4186,8 @@ Status CatalogManager::ProcessTabletReport(
       } else if (!cstate.has_pending_config() &&
                  !cstate.leader_uuid().empty() &&
                  cstate.leader_uuid() == ts_desc->permanent_uuid()) {
+        unordered_set<string> whitelisted_uuids;
+        master_->ts_manager()->GetWhitelistedUuids(&whitelisted_uuids);
         const auto& config = cstate.committed_config();
         const auto policy =
             PREDICT_FALSE(FLAGS_raft_attempt_to_replace_replica_without_majority)
@@ -4198,7 +4200,7 @@ Status CatalogManager::ProcessTabletReport(
           rpcs.emplace_back(new AsyncEvictReplicaTask(
               master_, tablet, cstate, std::move(to_evict)));
         } else if (FLAGS_master_add_server_when_underreplicated &&
-                   ShouldAddReplica(config, replication_factor, policy)) {
+                   ShouldAddReplica(config, replication_factor, policy, whitelisted_uuids)) {
           rpcs.emplace_back(new AsyncAddReplicaTask(
               master_, tablet, cstate, RaftPeerPB::NON_VOTER, &rng_));
         }
@@ -4641,7 +4643,7 @@ Status CatalogManager::ProcessPendingAssignments(
   // For those tablets which need to be created in this round, assign replicas.
   {
     TSDescriptorVector ts_descs;
-    master_->ts_manager()->GetAllLiveDescriptors(&ts_descs);
+    master_->ts_manager()->GetDescriptorsAvailableForPlacement(&ts_descs);
     PlacementPolicy policy(std::move(ts_descs), &rng_);
     for (auto& tablet : deferred.needs_create_rpc) {
       // NOTE: if we fail to select replicas on the first pass (due to

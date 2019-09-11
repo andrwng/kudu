@@ -176,14 +176,28 @@ void TSManager::GetAllDescriptors(TSDescriptorVector* descs) const {
   AppendValuesFromMap(servers_by_id_, descs);
 }
 
-void TSManager::GetAllLiveDescriptors(TSDescriptorVector* descs) const {
+void TSManager::GetWhitelistedUuids(std::unordered_set<string>* uuids) const {
+  uuids->clear();
+
+  shared_lock<rw_spinlock> l(lock_);
+  uuids->reserve(ts_state_by_id_.size());
+  for (const auto& ts_and_state : ts_state_by_id_) {
+    auto ts_lock = ts_and_state.second;
+    shared_lock<TServerStateLock> tsl(*ts_lock.get());
+    if (ts_lock->state() == kMaintenanceMode) {
+      uuids->emplace(ts_and_state.first);
+    }
+  }
+}
+
+void TSManager::GetDescriptorsAvailableForPlacement(TSDescriptorVector* descs) const {
   descs->clear();
 
   shared_lock<rw_spinlock> l(lock_);
   descs->reserve(servers_by_id_.size());
   for (const TSDescriptorMap::value_type& entry : servers_by_id_) {
     const shared_ptr<TSDescriptor>& ts = entry.second;
-    if (!ts->PresumedDead()) {
+    if (AvailableForPlacement(ts)) {
       descs->push_back(ts);
     }
   }
@@ -234,6 +248,16 @@ int TSManager::ClusterSkew() const {
     max_count = std::max(max_count, num_live_replicas);
   }
   return max_count - min_count;
+}
+
+bool TSManager::AvailableForPlacement(const shared_ptr<TSDescriptor>& ts) const {
+  // TODO(KUDU-1827): this should also be used when decommissioning a server.
+  if (GetTServerState(ts->permanent_uuid()) == kMaintenanceMode) {
+    return false;
+  }
+  // If the tablet server has heartbeated recently enough, it is considered
+  // alive and available for placement.
+  return !ts->PresumedDead();
 }
 
 } // namespace master
