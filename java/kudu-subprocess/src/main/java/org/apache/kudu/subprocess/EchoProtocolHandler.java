@@ -15,19 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// This file contains the configuration of the project hierarchy.
-// Mainly we just define what subprojects are in the build.
+package org.apache.kudu.subprocess;
 
-rootProject.name = "kudu-parent"
-include "kudu-backup"
-include "kudu-backup-common"
-include "kudu-backup-tools"
-include "kudu-client"
-include "kudu-client-tools"
-include "kudu-hive"
-include "kudu-jepsen"
-include "kudu-mapreduce"
-include "kudu-spark"
-include "kudu-spark-tools"
-include "kudu-subprocess"
-include "kudu-test-utils"
+import org.apache.yetus.audience.InterfaceAudience;
+
+import org.apache.kudu.subprocess.Subprocess.EchoRequestPB;
+import org.apache.kudu.subprocess.Subprocess.EchoResponsePB;
+
+/**
+ * Class that processes a EchoRequest and simply echoes the request
+ * as a response.
+ */
+@InterfaceAudience.Private
+class EchoProtocolHandler extends ProtocolHandler<EchoRequestPB, EchoResponsePB> {
+
+  @Override
+  EchoResponsePB createResponse(EchoRequestPB request) {
+    EchoResponsePB.Builder resBuilder = EchoResponsePB.newBuilder();
+    resBuilder.setData(request.getData());
+    return resBuilder.build();
+  }
+
+  @Override
+  Class<EchoRequestPB> getRequestClass() {
+    return EchoRequestPB.class;
+  }
+}
