@@ -1787,6 +1787,17 @@ void Tablet::UpdateCompactionStats(MaintenanceOpStats* stats) {
 
   VLOG_WITH_PREFIX(1) << "Best compaction for " << tablet_id() << ": " << quality;
 
+  uint64_t mem_bytes_in = 0;
+  uint64_t estimated_size_bytes = 0;
+  for (const auto* rs : picked_set_ignored) {
+    mem_bytes_in += rs->memory_footprint();
+    estimated_size_bytes += rs->OnDiskSize();
+  }
+  // figure out how to account for DMS->delta tracker
+  // figure out how to account for opened delta files -> closed delta files
+  uint64_t estimated_size_per_rs = 0;
+  int num_rowsets_out = estimated_size_bytes / compaction_policy_->target_rowset_size();
+  stats->set_ram_anchored(mem_bytes_in - num_rowsets_out * estimated_size_per_rs);
   stats->set_runnable(quality >= 0);
   stats->set_perf_improvement(quality);
 }

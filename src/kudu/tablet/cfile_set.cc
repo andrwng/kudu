@@ -340,6 +340,20 @@ Status CFileSet::NewKeyIterator(const IOContext* io_context,
   return key_index_reader()->NewIterator(key_iter, CFileReader::CACHE_BLOCK, io_context);
 }
 
+uint64_t CFileSet::memory_footprint() const {
+  uint64_t mem_bytes = 0;
+  for (const auto& col_and_reader : readers_by_col_id_) {
+    mem_bytes += col_and_reader.second->memory_footprint();
+  }
+  if (bloom_reader_) {
+    mem_bytes += bloom_reader_->memory_footprint();
+  }
+  if (ad_hoc_idx_reader_) {
+    mem_bytes += ad_hoc_idx_reader_->memory_footprint();
+  }
+  return mem_bytes;
+}
+
 ////////////////////////////////////////////////////////////
 // Iterator
 ////////////////////////////////////////////////////////////

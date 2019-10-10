@@ -551,6 +551,15 @@ Status DiskRowSet::Open(const IOContext* io_context) {
   return Status::OK();
 }
 
+uint64_t DiskRowSet::memory_footprint() const {
+  uint64_t mem_bytes = 0;
+  if (base_data_) {
+    mem_bytes += base_data_->memory_footprint();
+  }
+  mem_bytes += delta_tracker_->memory_footprint();
+  return mem_bytes;
+}
+
 Status DiskRowSet::FlushDeltas(const IOContext* io_context) {
   TRACE_EVENT0("tablet", "DiskRowSet::FlushDeltas");
   return delta_tracker_->Flush(io_context, DeltaTracker::FLUSH_METADATA);

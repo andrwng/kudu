@@ -341,6 +341,10 @@ Status BloomFileReader::CheckKeyPresent(const BloomKeyProbe &probe,
   return Status::OK();
 }
 
+size_t BloomFileReader::memory_footprint() const {
+  return memory_footprint_excluding_reader() + reader_->memory_footprint();
+}
+
 size_t BloomFileReader::memory_footprint_excluding_reader() const {
   return kudu_malloc_usable_size(this) + init_once_.memory_footprint_excluding_this();
 }

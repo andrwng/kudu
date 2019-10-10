@@ -188,6 +188,9 @@ class CFileReader {
   // corruption should call this method before returning.
   void HandleCorruption(const fs::IOContext* io_context) const;
 
+  // Returns the memory usage of the object including the object itself.
+  size_t memory_footprint() const;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(CFileReader);
 
@@ -201,9 +204,6 @@ class CFileReader {
   Status ReadAndParseHeader();
   Status ReadAndParseFooter();
   Status VerifyChecksum(ArrayView<const Slice> data, const Slice& checksum) const;
-
-  // Returns the memory usage of the object including the object itself.
-  size_t memory_footprint() const;
 
 #ifdef __clang__
   __attribute__((__unused__))

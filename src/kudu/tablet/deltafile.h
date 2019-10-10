@@ -192,6 +192,10 @@ class DeltaFileReader : public DeltaStore,
                            const std::shared_ptr<MemTracker>& parent_mem_tracker,
                            std::shared_ptr<DeltaFileReader>* out) const;
 
+  uint64_t memory_footprint() const override {
+    return reader_->memory_footprint();
+  }
+
  private:
   template<DeltaType Type>
   friend class DeltaFileIterator;

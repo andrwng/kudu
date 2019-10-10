@@ -310,7 +310,7 @@ class MemRowSet : public RowSet,
   // Note that this may be larger than the sum of the data
   // inserted into the memrowset, due to arena and data structure
   // overhead.
-  size_t memory_footprint() const {
+  uint64_t memory_footprint() const override {
     return arena_->memory_footprint();
   }
 

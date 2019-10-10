@@ -444,6 +444,8 @@ class DiskRowSet : public RowSet {
 
   virtual Status DebugDump(std::vector<std::string> *lines) override;
 
+  uint64_t memory_footprint() const override;
+
  private:
   FRIEND_TEST(TabletHistoryGcTest, TestMajorDeltaCompactionOnSubsetOfColumns);
   FRIEND_TEST(TestCompaction, TestOneToOne);

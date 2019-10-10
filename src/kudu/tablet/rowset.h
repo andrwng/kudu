@@ -273,6 +273,8 @@ class RowSet {
                                          int64_t* blocks_deleted,
                                          int64_t* bytes_deleted) = 0;
 
+  virtual uint64_t memory_footprint() const = 0;
+
   virtual ~RowSet() {}
 
   // Return true if this RowSet is available for compaction, based on
@@ -496,6 +498,17 @@ class DuplicatingRowSet : public RowSet {
 
   Status MinorCompactDeltaStores(
       const fs::IOContext* /*io_context*/) OVERRIDE { return Status::OK(); }
+
+  uint64_t memory_footprint() const override {
+    uint64_t mem_bytes = 0;
+    for (const auto& rs : old_rowsets_) {
+      mem_bytes += rs->memory_footprint();
+    }
+    for (const auto& rs : new_rowsets_) {
+      mem_bytes += rs->memory_footprint();
+    }
+    return mem_bytes;
+  }
 
  private:
   friend class Tablet;

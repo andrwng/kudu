@@ -270,6 +270,8 @@ class DeltaTracker {
   // in a flushing DMS (if one exists)
   int64_t CountDeletedRows() const;
 
+  uint64_t memory_footprint() const;
+
  private:
   FRIEND_TEST(TestRowSet, TestRowSetUpdate);
   FRIEND_TEST(TestRowSet, TestDMSFlush);

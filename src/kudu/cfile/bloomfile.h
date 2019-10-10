@@ -122,6 +122,8 @@ class BloomFileReader {
     return reader_->file_size();
   }
 
+  size_t memory_footprint() const;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(BloomFileReader);
 

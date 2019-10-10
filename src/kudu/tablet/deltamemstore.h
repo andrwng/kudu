@@ -125,6 +125,10 @@ class DeltaMemStore : public DeltaStore,
                                  bool* deleted) const OVERRIDE;
 
   virtual uint64_t EstimateSize() const OVERRIDE {
+    return memory_footprint();
+  }
+
+  uint64_t memory_footprint() const override {
     return arena_->memory_footprint();
   }
 

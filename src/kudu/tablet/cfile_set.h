@@ -128,6 +128,8 @@ class CFileSet : public std::enable_shared_from_this<CFileSet> {
 
   virtual ~CFileSet();
 
+  uint64_t memory_footprint() const;
+
  private:
   friend class Iterator;
 

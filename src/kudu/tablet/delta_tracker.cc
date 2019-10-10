@@ -762,6 +762,20 @@ Status DeltaTracker::FlushDMS(DeltaMemStore* dms,
   return Status::OK();
 }
 
+uint64_t DeltaTracker::memory_footprint() const {
+  uint64_t mem_bytes = 0;
+  if (dms_) {
+    mem_bytes += dms_->EstimateSize();
+  }
+  for (const auto& redo : redo_delta_stores_) {
+    mem_bytes += redo->memory_footprint();
+  }
+  for (const auto& undo : undo_delta_stores_) {
+    mem_bytes += undo->memory_footprint();
+  }
+  return mem_bytes;
+}
+
 Status DeltaTracker::Flush(const IOContext* io_context, MetadataFlushType flush_type) {
   std::lock_guard<Mutex> l(compact_flush_lock_);
   RETURN_NOT_OK(CheckWritableUnlocked());
