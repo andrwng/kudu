@@ -100,6 +100,8 @@ class Log : public RefCountedThreadSafe<Log> {
 
   ~Log();
 
+  Status UpdateLastSegmentOffset(int written_offset);
+
   // Synchronously append a new entry to the log.
   // Log does not take ownership of the passed 'entry'.
   Status Append(LogEntryPB* entry);
@@ -148,8 +150,10 @@ class Log : public RefCountedThreadSafe<Log> {
   // remain live.
   std::shared_ptr<LogReader> reader() const { return reader_; }
 
+  Status GetSchema(SchemaPB* schema_pb, int* schema_version);
+
   void SetMaxSegmentSizeForTests(uint64_t max_segment_size) {
-    max_segment_size_ = max_segment_size;
+    // max_segment_size_ = max_segment_size;
   }
 
   void DisableAsyncAllocationForTests() {
@@ -165,13 +169,16 @@ class Log : public RefCountedThreadSafe<Log> {
   // actual syncing if required.
   Status ReEnableSyncIfRequired() {
     sync_disabled_ = false;
-    return Sync();
+    return Status::OK();
+    //return segment_manager_->Sync();
   }
 
   // Get ID of tablet.
   const std::string& tablet_id() const {
     return tablet_id_;
   }
+
+  WritableLogSegment* active_segment();
 
   // Runs the garbage collector on the set of previous segments. Segments that
   // only refer to in-mem state that has been flushed are candidates for
@@ -215,8 +222,8 @@ class Log : public RefCountedThreadSafe<Log> {
   int64_t OnDiskSize();
 
   // Returns the file system location of the currently active WAL segment.
-  const std::string& ActiveSegmentPathForTests() const {
-    return active_segment_->path();
+  const std::string ActiveSegmentPathForTests() const {
+    return "todo";
   }
 
   // Return true if the append thread is currently active.
@@ -238,6 +245,11 @@ class Log : public RefCountedThreadSafe<Log> {
   //
   // This method is thread-safe.
   void SetSchemaForNextLogSegment(const Schema& schema, uint32_t version);
+
+  class ActiveSegment;
+  ActiveSegment* segment_manager() {
+    return segment_manager_.get();
+  }
  private:
   friend class LogTest;
   friend class LogTestBase;
@@ -268,9 +280,6 @@ class Log : public RefCountedThreadSafe<Log> {
   // Initializes a new one or continues an existing log.
   Status Init();
 
-  // Make segments roll over.
-  Status RollOver();
-
   static Status CreateBatchFromPB(LogEntryTypePB type,
                                   std::unique_ptr<LogEntryBatchPB> entry_batch_pb,
                                   std::unique_ptr<LogEntryBatch>* entry_batch);
@@ -280,42 +289,11 @@ class Log : public RefCountedThreadSafe<Log> {
   Status AsyncAppend(std::unique_ptr<LogEntryBatch> entry_batch,
                      const StatusCallback& callback);
 
-  // Writes the footer and closes the current segment.
-  Status CloseCurrentSegment();
-
-  // Sets 'out' to a newly created temporary file (see
-  // Env::NewTempWritableFile()) for a placeholder segment. Sets
-  // 'result_path' to the fully qualified path to the unique filename
-  // created for the segment.
-  Status CreatePlaceholderSegment(const WritableFileOptions& opts,
-                                  std::string* result_path,
-                                  std::shared_ptr<WritableFile>* out);
-
-  // Creates a new WAL segment on disk, writes the next_segment_header_ to
-  // disk as the header, and sets active_segment_ to point to this new segment.
-  Status SwitchToAllocatedSegment();
-
-  // Preallocates the space for a new segment.
-  Status PreAllocateNewSegment();
-
-  // Writes serialized contents of 'entry' to the log. Called inside
-  // AppenderThread.
-  Status DoAppend(LogEntryBatch* entry_batch);
-
-  // Update footer_builder_ to reflect the log indexes seen in 'batch'.
-  void UpdateFooterForBatch(LogEntryBatch* batch);
-
-  // Update the LogIndex to include entries for the replicate messages found in
-  // 'batch'. The index entry points to the offset 'start_offset' in the current
-  // log segment.
-  Status UpdateIndexForBatch(const LogEntryBatch& batch,
-                             int64_t start_offset);
-
   // Replaces the last "empty" segment in 'log_reader_', i.e. the one currently
   // being written to, by the same segment once properly closed.
-  Status ReplaceSegmentInReaderUnlocked();
-
-  Status Sync();
+  Status ReplaceSegmentInReaderUnlocked(WritableLogSegment* segment);
+  Status ReplaceSegmentInReader(WritableLogSegment* segment);
+  Status AddEmptySegmentInReader(scoped_refptr<ReadableLogSegment> segement);
 
   // Helper method to get the segment sequence to GC based on the provided 'retention' struct.
   Status GetSegmentsToGCUnlocked(RetentionIndexes retention_indexes,
@@ -323,11 +301,6 @@ class Log : public RefCountedThreadSafe<Log> {
 
   LogEntryBatchQueue* entry_queue() {
     return &entry_batch_queue_;
-  }
-
-  const SegmentAllocationState allocation_state() {
-    shared_lock<RWMutex> l(allocation_lock_);
-    return allocation_state_;
   }
 
   std::string LogPrefix() const;
@@ -347,17 +320,7 @@ class Log : public RefCountedThreadSafe<Log> {
   // The schema version
   uint32_t schema_version_;
 
-  // The currently active segment being written.
-  std::unique_ptr<WritableLogSegment> active_segment_;
-
-  // The current (active) segment sequence number.
-  uint64_t active_segment_sequence_number_;
-
-  // The writable file for the next allocated segment
-  std::shared_ptr<WritableFile> next_segment_file_;
-
-  // The path for the next allocated segment.
-  std::string next_segment_path_;
+  std::unique_ptr<ActiveSegment> segment_manager_;
 
   // Lock to protect mutations to log_state_ and other shared state variables.
   mutable percpu_rwlock state_lock_;
@@ -372,13 +335,6 @@ class Log : public RefCountedThreadSafe<Log> {
   // Index which translates between operation indexes and the position
   // of the operation in the log.
   scoped_refptr<LogIndex> log_index_;
-
-  // A footer being prepared for the current segment.
-  // When the segment is closed, it will be written.
-  LogSegmentFooterPB footer_builder_;
-
-  // The maximum segment size, in bytes.
-  uint64_t max_segment_size_;
 
   // The queue used to communicate between the threads appending operations
   // and the thread which actually appends them to the log.
@@ -395,13 +351,6 @@ class Log : public RefCountedThreadSafe<Log> {
   // If true, ignore the 'force_sync_all_' flag above.
   // This is used to disable fsync during bootstrap.
   bool sync_disabled_;
-
-  // The status of the most recent log-allocation action.
-  Promise<Status> allocation_status_;
-
-  // Read-write lock to protect 'allocation_state_'.
-  mutable RWMutex allocation_lock_;
-  SegmentAllocationState allocation_state_;
 
   // The codec used to compress entries, or nullptr if not configured.
   const CompressionCodec* codec_;
