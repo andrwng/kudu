@@ -35,14 +35,33 @@ target_link_libraries(subprocess_proto
 #######################################
 # kudu_subprocess
 #######################################
+execute_process(COMMAND ./gradlew :kudu-subprocess:jar
+                WORKING_DIRECTORY ${JAVA_DIR})
+execute_process(COMMAND mkdir -p ${EXECUTABLE_OUTPUT_PATH}/subprocess-home)
+execute_process(COMMAND ln -nsf
+                "${JAVA_DIR}/kudu-subprocess/build/libs/kudu-subprocess-${KUDU_VERSION_NUMBER}.jar"
+                ${EXECUTABLE_OUTPUT_PATH}/subprocess-home/kudu-subprocess.jar)
 
 add_library(kudu_subprocess
+  client.cc
+  server.cc
   subprocess_protocol.cc
 )
 target_link_libraries(kudu_subprocess
   gutil
+  kudu_test_util
   kudu_util
   subprocess_proto
   tool_proto
   ${KUDU_BASE_LIBS}
 )
+
+#######################################
+# Unit tests
+#######################################
+
+SET_KUDU_TEST_LINK_LIBS(
+  kudu_subprocess)
+
+ADD_KUDU_TEST(server-test)
+ADD_KUDU_TEST(subprocess_client-test)
