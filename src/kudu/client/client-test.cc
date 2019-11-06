@@ -2394,6 +2394,137 @@ TEST_F(ClientTest, TestInsertSingleRowManualBatch) {
   FlushSessionOrDie(session);
 }
 
+TEST_F(ClientTest, TestDiffSchemas) {
+  KuduSchema tsid_schema;
+  {
+    KuduSchemaBuilder b;
+    b.AddColumn("ts")->Type(KuduColumnSchema::INT32)->NotNull();
+    b.AddColumn("id")->Type(KuduColumnSchema::STRING)->NotNull();
+    b.SetPrimaryKey({"ts", "id"});
+    ASSERT_OK(b.Build(&tsid_schema));
+  }
+  KuduSchema idts_schema;
+  {
+    KuduSchemaBuilder b;
+    b.AddColumn("id")->Type(KuduColumnSchema::STRING)->NotNull();
+    b.AddColumn("ts")->Type(KuduColumnSchema::INT32)->NotNull();
+    b.SetPrimaryKey({"id", "ts"});
+    ASSERT_OK(b.Build(&idts_schema));
+  }
+  KuduSchema telco_schema;
+  {
+    KuduSchemaBuilder b;
+    b.AddColumn("ts_prefix")->Type(KuduColumnSchema::INT16)->NotNull();
+    b.AddColumn("id")->Type(KuduColumnSchema::STRING)->NotNull();
+    b.AddColumn("ts")->Type(KuduColumnSchema::INT32)->NotNull();
+    b.SetPrimaryKey({"ts_prefix", "id", "ts"});
+    ASSERT_OK(b.Build(&telco_schema));
+  }
+
+  const int kUniqueIds = 10000;
+  const int kTimestamps = 100000;
+  const int kUniqueIdsPerTimestamp = 100;
+
+  shared_ptr<KuduClient> client;
+  ASSERT_OK(KuduClientBuilder()
+      .add_master_server_addr("vb0203.halxg.cloudera.com")
+      .Build(&client));
+  unique_ptr<KuduTableCreator> table_creator(client->NewTableCreator());
+  ASSERT_OK(table_creator->table_name("default.tsid")
+                          .schema(&tsid_schema)
+                          .num_replicas(1)
+                          .set_range_partition_columns({ "ts" })
+                          .timeout(MonoDelta::FromSeconds(60))
+                          .Create());
+  shared_ptr<KuduTable> tsid_table;
+  ASSERT_OK(client->OpenTable("default.tsid", &tsid_table));
+  ASSERT_OK(table_creator->table_name("default.idts")
+                          .schema(&idts_schema)
+                          .num_replicas(1)
+                          .set_range_partition_columns({ "ts" })
+                          .timeout(MonoDelta::FromSeconds(60))
+                          .Create());
+  shared_ptr<KuduTable> idts_table;
+  ASSERT_OK(client->OpenTable("default.idts", &idts_table));
+  ASSERT_OK(table_creator->table_name("default.telco")
+                          .schema(&telco_schema)
+                          .num_replicas(1)
+                          .set_range_partition_columns({ "ts" })
+                          .timeout(MonoDelta::FromSeconds(60))
+                          .Create());
+  shared_ptr<KuduTable> telco_table;
+  ASSERT_OK(client->OpenTable("default.telco", &telco_table));
+
+  ObjectIdGenerator oid;
+  Random rng(SeedRandom());
+  vector<string> uuids;
+  uuids.reserve(kUniqueIds);
+  for (int i = 0; i < kUniqueIds; i++) {
+    uuids.emplace_back(oid.Next());
+  }
+  vector<vector<string>> rows;
+  rows.reserve(kTimestamps);
+  for (int ts = 0; ts < kTimestamps; ts++) {
+    vector<string> ids_this_ts;
+    ids_this_ts.reserve(kUniqueIdsPerTimestamp);
+    ReservoirSample(uuids, kUniqueIdsPerTimestamp, std::set<string>{}, &rng, &ids_this_ts);
+    rows.emplace_back(std::move(ids_this_ts));
+  }
+  vector<thread> threads;
+  shared_ptr<KuduSession> tsid_session = client->NewSession();
+  tsid_session->SetTimeoutMillis(60000);
+  shared_ptr<KuduSession> idts_session = client->NewSession();
+  idts_session->SetTimeoutMillis(60000);
+  shared_ptr<KuduSession> telco_session = client->NewSession();
+  telco_session->SetTimeoutMillis(60000);
+  threads.emplace_back([&] {
+    for (int ts = 0; ts < kTimestamps; ts++) {
+      for (const auto& id : rows[ts]) {
+        unique_ptr<KuduInsert> tsid_insert(tsid_table->NewInsert());
+        KuduPartialRow* tsid = tsid_insert->mutable_row();
+        ASSERT_OK(tsid->SetInt32("ts", ts));
+        ASSERT_OK(tsid->SetString("id", id));
+        ASSERT_OK(tsid_session->Apply(tsid_insert.release()));
+      }
+      if (ts % 10000 == 0) {
+        LOG(INFO) << "TSID inserted " << ts;
+      }
+    }
+  });
+  threads.emplace_back([&] {
+    for (int ts = 0; ts < kTimestamps; ts++) {
+      for (const auto& id : rows[ts]) {
+        unique_ptr<KuduInsert> idts_insert(idts_table->NewInsert());
+        KuduPartialRow* idts = idts_insert->mutable_row();
+        ASSERT_OK(idts->SetString("id", id));
+        ASSERT_OK(idts->SetInt32("ts", ts));
+        ASSERT_OK(idts_session->Apply(idts_insert.release()));
+      }
+      if (ts % 10000 == 0) {
+        LOG(INFO) << "IDTS inserted " << ts;
+      }
+    }
+  });
+  threads.emplace_back([&] {
+    for (int ts = 0; ts < kTimestamps; ts++) {
+      for (const auto& id : rows[ts]) {
+        unique_ptr<KuduInsert> telco_insert(telco_table->NewInsert());
+        KuduPartialRow* telco = telco_insert->mutable_row();
+        ASSERT_OK(telco->SetInt16("ts_prefix", ts / 5000));
+        ASSERT_OK(telco->SetString("id", id));
+        ASSERT_OK(telco->SetInt32("ts", ts));
+        ASSERT_OK(telco_session->Apply(telco_insert.release()));
+      }
+      if (ts % 10000 == 0) {
+        LOG(INFO) << "TELCO inserted " << ts;
+      }
+    }
+  });
+  for (auto& t : threads) {
+    t.join();
+  }
+}
+
 TEST_F(ClientTest, TestInsertAutoFlushSync) {
   shared_ptr<KuduSession> session = client_->NewSession();
   ASSERT_FALSE(session->HasPendingOperations());
