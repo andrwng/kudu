@@ -109,6 +109,7 @@ DEFINE_string(predicates, "",
               "For example,\n"
               R"*(   ["AND", [">=", "col1", "value"], ["NOTNULL", "col2"]])*""\n"
               "The only supported predicate operator is `AND`.");
+DEFINE_bool(fault_tolerant, false, "Whether to perform a fault-tolerant scan.");
 DEFINE_bool(show_values, false,
             "Whether to show values of scanned rows.");
 DECLARE_string(tablets);
@@ -474,6 +475,9 @@ Status TableScanner::ScanData(const std::vector<kudu::client::KuduScanToken*>& t
     RETURN_NOT_OK(token->IntoKuduScanner(&scanner_ptr));
 
     unique_ptr<KuduScanner> scanner(scanner_ptr);
+    if (FLAGS_fault_tolerant) {
+      RETURN_NOT_OK(scanner->SetFaultTolerant());
+    }
     RETURN_NOT_OK(scanner->Open());
 
     uint64_t count = 0;

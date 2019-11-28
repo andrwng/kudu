@@ -866,6 +866,7 @@ unique_ptr<Mode> BuildPerfMode() {
       .AddRequiredParameter({ kMasterAddressesArg, kMasterAddressesArgDesc })
       .AddRequiredParameter({ kTableNameArg, "Name of the table to scan"})
       .AddOptionalParameter("columns")
+      .AddOptionalParameter("fault_tolerant")
       .AddOptionalParameter("fill_cache")
       .AddOptionalParameter("num_threads")
       .AddOptionalParameter("predicates")
