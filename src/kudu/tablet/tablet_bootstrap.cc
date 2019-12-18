@@ -54,6 +54,7 @@
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/fs/io_context.h"
+#include "kudu/fs/wal_dirs.h"
 #include "kudu/gutil/bind.h"
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/map-util.h"
@@ -580,6 +581,15 @@ Status TabletBootstrap::RunBootstrap(shared_ptr<Tablet>* rebuilt_tablet,
     return Status::IOError("some tablet data is in a failed directory");
   }
 
+  // Ensure the tablet's wal dirs are present and healthy before it is opened.
+  WalDirPB wal_dir;
+  RETURN_NOT_OK_PREPEND(
+      tablet_meta_->fs_manager()->wd_manager()->GetWalDirPB(tablet_id, &wal_dir),
+      "error retrieving tablet WAL dir (WAL dir may have been removed)");
+  if (tablet_meta_->fs_manager()->wd_manager()->IsTabletInFailedDir(tablet_id)) {
+    return Status::IOError("some tablet WAL is in a failed directory");
+  }
+
   RETURN_NOT_OK(flushed_stores_.InitFrom(*tablet_meta_.get()));
 
   bool has_blocks;
@@ -613,8 +623,10 @@ Status TabletBootstrap::RunBootstrap(shared_ptr<Tablet>* rebuilt_tablet,
 
   IOContext io_context({ tablet_meta_->table_id() });
   RETURN_NOT_OK_PREPEND(PlaySegments(&io_context, consensus_info), "Failed log replay. Reason");
-
+  string wal_recovery_dir;
+  tablet_->metadata()->fs_manager()->GetTabletWalRecoveryDir(tablet_id, &wal_recovery_dir);
   RETURN_NOT_OK(Log::RemoveRecoveryDirIfExists(tablet_->metadata()->fs_manager(),
+                                               wal_recovery_dir,
                                                tablet_->metadata()->tablet_id()));
   RETURN_NOT_OK(FinishBootstrap("Bootstrap complete.", rebuilt_log, rebuilt_tablet));
 
@@ -652,12 +664,14 @@ Status TabletBootstrap::PrepareRecoveryDir(bool* needs_recovery) {
 
   FsManager* fs_manager = tablet_->metadata()->fs_manager();
   string tablet_id = tablet_->metadata()->tablet_id();
-  string log_dir = fs_manager->GetTabletWalDir(tablet_id);
+  string log_dir;
+  RETURN_NOT_OK(fs_manager->GetTabletWalDir(tablet_id, &log_dir));
 
   // If the recovery directory exists, then we crashed mid-recovery.
   // Throw away any logs from the previous recovery attempt and restart the log
   // replay process from the beginning using the same recovery dir as last time.
-  string recovery_path = fs_manager->GetTabletWalRecoveryDir(tablet_id);
+  string recovery_path;
+  RETURN_NOT_OK(fs_manager->GetTabletWalRecoveryDir(tablet_id, &recovery_path));
   if (fs_manager->Exists(recovery_path)) {
     LOG_WITH_PREFIX(INFO) << "Previous recovery directory found at " << recovery_path << ": "
                           << "Replaying log files from this location instead of " << log_dir;
@@ -717,13 +731,14 @@ Status TabletBootstrap::PrepareRecoveryDir(bool* needs_recovery) {
 Status TabletBootstrap::OpenLogReaderInRecoveryDir() {
   const string& tablet_id = tablet_->tablet_id();
   FsManager* fs_manager = tablet_meta_->fs_manager();
+  string recovery_dir;
+  RETURN_NOT_OK(fs_manager->GetTabletWalRecoveryDir(tablet_id, &recovery_dir));
   VLOG_WITH_PREFIX(1) << "Opening log reader in log recovery dir "
-                      << fs_manager->GetTabletWalRecoveryDir(tablet_id);
+                      << recovery_dir;
   // Open the reader.
   // Since we're recovering, we don't want to have any log index -- since it
   // isn't fsynced() during writing, its contents are useless to us.
   scoped_refptr<LogIndex> log_index(nullptr);
-  const string recovery_dir = fs_manager->GetTabletWalRecoveryDir(tablet_id);
   RETURN_NOT_OK_PREPEND(LogReader::Open(fs_manager->env(), recovery_dir, log_index, tablet_id,
                                         tablet_->GetMetricEntity().get(),
                                         file_cache_,

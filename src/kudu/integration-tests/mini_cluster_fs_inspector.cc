@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <set>
+#include <utility>
 
 #include <glog/logging.h>
 
@@ -43,6 +44,7 @@ using std::set;
 using std::string;
 using std::vector;
 using consensus::ConsensusMetadataPB;
+using env_util::ListDirsInDir;
 using env_util::ListFilesInDir;
 using strings::Substitute;
 using tablet::TabletDataState;
@@ -66,16 +68,45 @@ string MiniClusterFsInspector::WalDirForTS(int ts_idx) const {
   return JoinPathSegments(cluster_->WalRootForTS(ts_idx), FsManager::kWalDirName);
 }
 
+vector<string> MiniClusterFsInspector::WalDirsForTS(int ts_idx) const {
+  return JoinPathSegmentsV(cluster_->WalRootsForTS(ts_idx), FsManager::kWalDirName);
+}
+
 int MiniClusterFsInspector::CountWALFilesOnTS(int ts_idx) {
-  string ts_wal_dir = WalDirForTS(ts_idx);
-  vector<string> tablets;
-  CHECK_OK(ListFilesInDir(env_, ts_wal_dir, &tablets));
+  vector<string> ts_wal_dirs = WalDirsForTS(ts_idx);
   int total_segments = 0;
-  for (const string& tablet : tablets) {
-    string tablet_wal_dir = JoinPathSegments(ts_wal_dir, tablet);
-    total_segments += CountFilesInDir(tablet_wal_dir);
+  for (const string& ts_wal_dir : ts_wal_dirs) {
+    vector<string> tablets;
+    CHECK_OK(ListDirsInDir(env_, ts_wal_dir, &tablets));
+    for (const string& tablet : tablets) {
+      string tablet_wal_dir = JoinPathSegments(ts_wal_dir, tablet);
+      total_segments += CountFilesInDir(tablet_wal_dir);
+    }
   }
   return total_segments;
+}
+
+Status MiniClusterFsInspector::GetWalDirForTabletOnTS(int ts_idx,
+                                                      const string& tablet_id,
+                                                      string* dir) {
+  vector<string> tablet_dirs;
+  for (const auto& wal_dir : WalDirsForTS(ts_idx)) {
+    string tablet_wal_dir = JoinPathSegments(wal_dir, tablet_id);
+    if (!env_->FileExists(tablet_wal_dir)) {
+      continue;
+    }
+    tablet_dirs.push_back(tablet_wal_dir);
+  }
+  if (tablet_dirs.empty()) {
+    return Status::NotFound(Substitute(
+        "Can not find a wal dir for tablet $0 on tserver $1", tablet_id, ts_idx));
+  }
+  if (tablet_dirs.size() != 1) {
+    return Status::Corruption(Substitute(
+        "At least two wal dir found for tablet $0 on tserver $1", tablet_id, ts_idx));
+  }
+  *dir = tablet_dirs[0];
+  return Status::OK();
 }
 
 vector<string> MiniClusterFsInspector::ListTablets() {
@@ -97,7 +128,9 @@ vector<string> MiniClusterFsInspector::ListTabletsOnTS(int ts_idx) {
 
 vector<string> MiniClusterFsInspector::ListTabletsWithDataOnTS(int ts_idx) {
   vector<string> tablets;
-  CHECK_OK(ListFilesInDir(env_, WalDirForTS(ts_idx), &tablets));
+  for (const auto& wal_dir : WalDirsForTS(ts_idx)) {
+    CHECK_OK(ListDirsInDir(env_, wal_dir, &tablets));
+  }
   return tablets;
 }
 
@@ -105,8 +138,9 @@ int MiniClusterFsInspector::CountFilesInWALDirForTS(
     int ts_idx,
     const string& tablet_id,
     StringPiece pattern) {
-  string tablet_wal_dir = JoinPathSegments(WalDirForTS(ts_idx), tablet_id);
-  if (!env_->FileExists(tablet_wal_dir)) {
+  string tablet_wal_dir;
+  Status s = GetWalDirForTabletOnTS(ts_idx, tablet_id, &tablet_wal_dir);
+  if (!s.ok()) {
     return 0;
   }
   return CountFilesInDir(tablet_wal_dir, pattern);
@@ -126,22 +160,23 @@ int MiniClusterFsInspector::CountReplicasInMetadataDirs() {
   // tablet servers isn't easy.
   int count = 0;
   for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
-    count += CountFilesInDir(JoinPathSegments(cluster_->WalRootForTS(i),
+    count += CountFilesInDir(JoinPathSegments(cluster_->WalRootsForTS(i)[0],
                                               FsManager::kTabletMetadataDirName));
   }
   return count;
 }
 
 Status MiniClusterFsInspector::CheckNoDataOnTS(int ts_idx) {
-  const string& wal_root = cluster_->WalRootForTS(ts_idx);
-  if (CountFilesInDir(JoinPathSegments(wal_root, FsManager::kTabletMetadataDirName)) > 0) {
-    return Status::IllegalState("tablet metadata blocks still exist", wal_root);
-  }
-  if (CountWALFilesOnTS(ts_idx) > 0) {
-    return Status::IllegalState("wals still exist", wal_root);
-  }
-  if (CountFilesInDir(JoinPathSegments(wal_root, FsManager::kConsensusMetadataDirName)) > 0) {
-    return Status::IllegalState("consensus metadata still exists", wal_root);
+  for (const string& wal_root : cluster_->WalRootsForTS(ts_idx)) {
+    if (CountFilesInDir(JoinPathSegments(wal_root, FsManager::kTabletMetadataDirName)) > 0) {
+      return Status::IllegalState("tablet metadata blocks still exist", wal_root);
+    }
+    if (CountWALFilesOnTS(ts_idx) > 0) {
+      return Status::IllegalState("wals still exist", wal_root);
+    }
+    if (CountFilesInDir(JoinPathSegments(wal_root, FsManager::kConsensusMetadataDirName)) > 0) {
+      return Status::IllegalState("consensus metadata still exists", wal_root);
+    }
   }
   return Status::OK();
 }
@@ -155,7 +190,7 @@ Status MiniClusterFsInspector::CheckNoData() {
 
 string MiniClusterFsInspector::GetTabletSuperBlockPathOnTS(int ts_idx,
                                                            const string& tablet_id) const {
-  string meta_dir = JoinPathSegments(cluster_->WalRootForTS(ts_idx),
+  string meta_dir = JoinPathSegments(cluster_->WalRootsForTS(ts_idx)[0],
                                      FsManager::kTabletMetadataDirName);
   return JoinPathSegments(meta_dir, tablet_id);
 }
@@ -177,8 +212,8 @@ int64_t MiniClusterFsInspector::GetTabletSuperBlockMTimeOrDie(int ts_idx,
 
 string MiniClusterFsInspector::GetConsensusMetadataPathOnTS(int ts_idx,
                                                             const string& tablet_id) const {
-  string wal_root = cluster_->WalRootForTS(ts_idx);
-  string cmeta_dir = JoinPathSegments(wal_root, FsManager::kConsensusMetadataDirName);
+  string cmeta_dir = JoinPathSegments(cluster_->WalRootsForTS(ts_idx)[0],
+                                FsManager::kConsensusMetadataDirName);
   return JoinPathSegments(cmeta_dir, tablet_id);
 }
 
@@ -319,7 +354,8 @@ Status MiniClusterFsInspector::WaitForFilePatternInTabletWalDirOnTs(
   Status s;
   MonoTime deadline = MonoTime::Now() + timeout;
 
-  string tablet_wal_dir = JoinPathSegments(WalDirForTS(ts_idx), tablet_id);
+  string tablet_wal_dir;
+  RETURN_NOT_OK(GetWalDirForTabletOnTS(ts_idx, tablet_id, &tablet_wal_dir));
 
   string error_msg;
   vector<string> entries;

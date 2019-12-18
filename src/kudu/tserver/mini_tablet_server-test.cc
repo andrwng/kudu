@@ -39,17 +39,19 @@ using std::unique_ptr;
 
 class MiniTabletServerTest : public KuduTest {};
 
-TEST_F(MiniTabletServerTest, TestMultiDirServer) {
+TEST_F(MiniTabletServerTest, TestMultiDataAndWalDirServer) {
   // Specifying the number of data directories will create subdirectories under the test root.
   unique_ptr<MiniTabletServer> mini_server;
   FsManager* fs_manager;
 
   int kNumDataDirs = 3;
+  int kNumWalDirs = 3;
   mini_server.reset(new MiniTabletServer(GetTestPath("TServer"),
-      HostPort("127.0.0.1", 0), kNumDataDirs));
+      HostPort("127.0.0.1", 0), kNumDataDirs, kNumWalDirs));
   ASSERT_OK(mini_server->Start());
   fs_manager = mini_server->server()->fs_manager();
-  ASSERT_STR_CONTAINS(DirName(fs_manager->GetWalsRootDir()), "wal");
+  ASSERT_EQ(kNumWalDirs, fs_manager->GetWalRootDirs().size());
+  ASSERT_STR_CONTAINS(DirName(fs_manager->GetWalRootDirs()[0]), "wal");
   ASSERT_EQ(kNumDataDirs, fs_manager->GetDataRootDirs().size());
 }
 

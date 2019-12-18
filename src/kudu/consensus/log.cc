@@ -677,8 +677,10 @@ Status SegmentAllocator::SwitchToAllocatedSegment(
   // Increment "next" log segment seqno.
   active_segment_sequence_number_++;
   const auto& tablet_id = ctx_->tablet_id;
-  string new_segment_path = ctx_->fs_manager->GetWalSegmentFileName(
-      tablet_id, active_segment_sequence_number_);
+  string new_segment_path;
+  RETURN_NOT_OK_PREPEND(ctx_->fs_manager->GetWalSegmentFileName(
+      tablet_id, active_segment_sequence_number_, &new_segment_path),
+      "could not find WAL segment file name");
   Env* env = ctx_->fs_manager->env();
   RETURN_NOT_OK_PREPEND(env->RenameFile(next_segment_path_, new_segment_path),
                         "could not rename next WAL segment");
@@ -768,7 +770,8 @@ Status Log::Open(LogOptions options,
                  const scoped_refptr<MetricEntity>& metric_entity,
                  scoped_refptr<Log>* log) {
 
-  string tablet_wal_path = fs_manager->GetTabletWalDir(tablet_id);
+  string tablet_wal_path;
+  RETURN_NOT_OK(fs_manager->GetTabletWalDir(tablet_id, &tablet_wal_path));
   RETURN_NOT_OK(env_util::CreateDirIfMissing(fs_manager->env(), tablet_wal_path));
 
   LogContext ctx({ tablet_id, std::move(tablet_wal_path) });
@@ -813,9 +816,11 @@ Status Log::Init() {
   // We must pick up where the previous WAL left off in terms of
   // sequence numbers.
   uint64_t active_seg_seq_num = 0;
+  string wal_path;
+  RETURN_NOT_OK(ctx_.fs_manager->GetTabletWalDir(ctx_.tablet_id, &wal_path));
   if (reader_->num_segments() != 0) {
     VLOG_WITH_PREFIX(1) << "Using existing " << reader_->num_segments()
-                        << " segments from path: " << ctx_.fs_manager->GetWalsRootDir();
+                        << " segments from path: " << wal_path;
 
     vector<scoped_refptr<ReadableLogSegment> > segments;
     reader_->GetSegmentsSnapshot(&segments);
@@ -1182,16 +1187,31 @@ Status Log::Close() {
 }
 
 bool Log::HasOnDiskData(FsManager* fs_manager, const string& tablet_id) {
-  const string wal_dir = fs_manager->GetTabletWalDir(tablet_id);
+  string wal_dir;
+  Status s = fs_manager->GetTabletWalDir(tablet_id, &wal_dir);
+  if (!s.ok()) {
+    s = fs_manager->GetWalDirFromDisk(tablet_id, &wal_dir);
+    return s.ok();
+  }
   return fs_manager->env()->FileExists(wal_dir);
 }
 
-Status Log::DeleteOnDiskData(FsManager* fs_manager, const string& tablet_id) {
-  string wal_dir = fs_manager->GetTabletWalDir(tablet_id);
+Status Log::DeleteOnDiskData(FsManager* fs_manager, const string& wal_path,
+    const string& tablet_id) {
+  string wal_dir;
   Env* env = fs_manager->env();
-  if (!env->FileExists(wal_dir)) {
-    return Status::OK();
+  if (wal_path.empty()) {
+    Status s = fs_manager->GetWalDirFromDisk(tablet_id, &wal_dir);
+    if (!s.ok()) {
+      return Status::OK();
+    }
+  } else {
+    if (!env->FileExists(wal_path)) {
+      return Status::OK();
+    }
+    wal_dir = wal_path;
   }
+
   LOG(INFO) << Substitute("T $0 P $1: Deleting WAL directory at $2",
                           tablet_id, fs_manager->uuid(), wal_dir);
   // We don't need to delete through the file cache; we're guaranteed that
@@ -1202,13 +1222,24 @@ Status Log::DeleteOnDiskData(FsManager* fs_manager, const string& tablet_id) {
   return Status::OK();
 }
 
-Status Log::RemoveRecoveryDirIfExists(FsManager* fs_manager, const string& tablet_id) {
-  string recovery_path = fs_manager->GetTabletWalRecoveryDir(tablet_id);
+Status Log::RemoveRecoveryDirIfExists(FsManager* fs_manager,
+                                      const string& wal_recovery_dir,
+                                      const string& tablet_id) {
+  string recovery_path;
   const auto kLogPrefix = Substitute("T $0 P $1: ", tablet_id, fs_manager->uuid());
-  if (!fs_manager->Exists(recovery_path)) {
-    VLOG(1) << kLogPrefix << "Tablet WAL recovery dir " << recovery_path <<
+  //Status s = fs_manager->GetTabletWalRecoveryDir(dir_uuid, tablet_id, &recovery_path);
+  if (wal_recovery_dir.empty()) {
+    Status s = fs_manager->GetWalRecoveryDirFromDisk(tablet_id, &recovery_path);
+    if (!s.ok()) {
+      return Status::OK();
+    }
+  } else {
+    if (!fs_manager->Exists(wal_recovery_dir)) {
+      VLOG(1) << kLogPrefix << "Tablet WAL recovery dir " << recovery_path <<
             " does not exist.";
-    return Status::OK();
+      return Status::OK();
+    }
+    recovery_path = wal_recovery_dir;
   }
 
   VLOG(1) << kLogPrefix << "Preparing to delete log recovery files and directory " << recovery_path;

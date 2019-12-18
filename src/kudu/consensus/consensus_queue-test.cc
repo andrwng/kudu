@@ -51,6 +51,8 @@
 #include "kudu/consensus/ref_counted_replicate.h"
 #include "kudu/consensus/time_manager.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
+#include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/util/async_util.h"
@@ -96,6 +98,7 @@ class ConsensusQueueTest : public KuduTest {
     fs_manager_.reset(new FsManager(env_, FsManagerOpts(GetTestPath("fs_root"))));
     ASSERT_OK(fs_manager_->CreateInitialFileSystemLayout());
     ASSERT_OK(fs_manager_->Open());
+    ASSERT_OK(fs_manager_->wd_manager()->CreateWalDir(kTestTablet));
     CHECK_OK(log::Log::Open(log::LogOptions(),
                             fs_manager_.get(),
                             /*file_cache*/nullptr,

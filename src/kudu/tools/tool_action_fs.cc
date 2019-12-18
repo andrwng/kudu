@@ -47,6 +47,8 @@
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/fs/fs_report.h"
+#include "kudu/fs/wal_dirs.h"
+#include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/human_readable.h"
@@ -337,15 +339,19 @@ Status CheckForTabletsThatWillFailWithUpdate() {
     scoped_refptr<TabletMetadata> meta;
     RETURN_NOT_OK(TabletMetadata::Load(&fs, t, &meta));
     DataDirGroupPB group;
-    Status s = fs.dd_manager()->GetDataDirGroupPB(t, &group);
+    Status s1 = fs.dd_manager()->GetDataDirGroupPB(t, &group);
+    WalDirPB dir;
+    Status s2 = fs.wd_manager()->GetWalDirPB(t, &dir);
     if (meta->tablet_data_state() == TabletDataState::TABLET_DATA_TOMBSTONED) {
       // If we just loaded a tombstoned tablet, there should be no in-memory
       // data dir group for the tablet, and the staged directory config won't
       // affect this tablet.
-      DCHECK(s.IsNotFound()) << s.ToString();
+      DCHECK(s1.IsNotFound() || s2.IsNotFound()) << s1.ToString();
       continue;
     }
-    RETURN_NOT_OK_PREPEND(s, "at least one tablet is configured to use removed data directory. "
+    RETURN_NOT_OK_PREPEND(s1, "at least one tablet is configured to use removed data directory. "
+        "Retry with --force to override this");
+    RETURN_NOT_OK_PREPEND(s2, "at least one tablet is configured to use removed WAL directory. "
         "Retry with --force to override this");
   }
   return Status::OK();
@@ -892,6 +898,7 @@ unique_ptr<Mode> BuildFsMode() {
       .AddOptionalParameter("fs_data_dirs")
       .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("fs_wal_dir")
+      .AddOptionalParameter("fs_wal_dirs")
       .Build();
 
   unique_ptr<Action> list =
@@ -907,6 +914,7 @@ unique_ptr<Mode> BuildFsMode() {
       .AddOptionalParameter("fs_data_dirs")
       .AddOptionalParameter("fs_metadata_dir")
       .AddOptionalParameter("fs_wal_dir")
+      .AddOptionalParameter("fs_wal_dirs")
       .AddOptionalParameter("table_id")
       .AddOptionalParameter("table_name")
       .AddOptionalParameter("tablet_id")

@@ -500,7 +500,7 @@ TEST_F(TabletCopyITest, TestDeleteTabletDuringTabletCopy) {
   FsManagerOpts opts;
   string testbase = GetTestPath("fake-ts");
   ASSERT_OK(env_->CreateDir(testbase));
-  opts.wal_root = JoinPathSegments(testbase, "wals");
+  opts.wal_roots = { JoinPathSegments(testbase, "wals") };
   opts.data_roots.push_back(JoinPathSegments(testbase, "data-0"));
   unique_ptr<FsManager> fs_manager(new FsManager(env_, opts));
   ASSERT_OK(fs_manager->CreateInitialFileSystemLayout());
@@ -1212,6 +1212,182 @@ TEST_F(TabletCopyITest, TestTabletCopyThrottling) {
   ASSERT_GT(num_inprogress, 0);
   LOG(INFO) << "Number of Service unavailable responses: " << num_service_unavailable;
   LOG(INFO) << "Number of in progress responses: " << num_inprogress;
+}
+
+// Start a cluster with 3 tablet servers consisting of 2 tablet with 3 replicas.
+// Write some data in the cluster. Create a fake tablet server with 2 wal directories.
+// Try copy tablets from original tserver. 2 tablets spread across 2 wal directories.
+TEST_F(TabletCopyITest, TestMultiWalDirTabletCopy) {
+  MonoDelta timeout = MonoDelta::FromSeconds(10);
+  // We'll test with the first TS.
+  const int kTsIndex = 0;
+  NO_FATALS(StartCluster());
+
+  // Populate a tablet with some data.
+  TestWorkload workload(cluster_.get());
+  workload.set_num_tablets(2);
+  workload.Setup();
+  workload.Start();
+  while (workload.rows_inserted() < 2000) {
+    SleepFor(MonoDelta::FromMilliseconds(10));
+  }
+
+  // Figure out the tablet id of the created tablet.
+  vector<ListTabletsResponsePB::StatusAndSchemaPB> tablets;
+  TServerDetails* ts = ts_map_[cluster_->tablet_server(kTsIndex)->uuid()];
+  ASSERT_OK(WaitForNumTabletsOnTS(ts, 2, timeout, &tablets));
+  string tablet1_id = tablets[0].tablet_status().tablet_id();
+  string tablet2_id = tablets[1].tablet_status().tablet_id();
+
+  // Ensure all the servers agree before we proceed.
+  workload.StopAndJoin();
+  ASSERT_OK(WaitForServersToAgree(timeout, ts_map_, tablet1_id, workload.batches_completed()));
+  ASSERT_OK(WaitForServersToAgree(timeout, ts_map_, tablet2_id, workload.batches_completed()));
+
+  // Set up an FsManager to use with the TabletCopyClient.
+  FsManagerOpts opts;
+  string testbase = GetTestPath("fake-ts");
+  ASSERT_OK(env_->CreateDir(testbase));
+  opts.wal_roots = { JoinPathSegments(testbase, "wal-0"),
+                      JoinPathSegments(testbase, "wal-1") };
+  opts.data_roots.push_back(JoinPathSegments(testbase, "data-0"));
+  unique_ptr<FsManager> fs_manager(new FsManager(env_, opts));
+  ASSERT_OK(fs_manager->CreateInitialFileSystemLayout());
+  ASSERT_OK(fs_manager->Open());
+  scoped_refptr<ConsensusMetadataManager> cmeta_manager(
+      new ConsensusMetadataManager(fs_manager.get()));
+
+  {
+    // Start up a TabletCopyClient and open first tablet copy session.
+    TabletCopyClient tc_client(tablet1_id, fs_manager.get(),
+                               cmeta_manager, cluster_->messenger(),
+                               nullptr /* no metrics */);
+    scoped_refptr<tablet::TabletMetadata> meta;
+    ASSERT_OK(tc_client.Start(cluster_->tablet_server(kTsIndex)->bound_rpc_hostport(),
+                              &meta));
+
+    // Now finish copying!
+    ASSERT_OK(tc_client.FetchAll(nullptr /* no listener */));
+    ASSERT_OK(tc_client.Finish());
+  }
+
+  {
+    // Start up a TabletCopyClient and open second tablet copy session.
+    TabletCopyClient tc_client(tablet2_id, fs_manager.get(),
+                               cmeta_manager, cluster_->messenger(),
+                               nullptr /* no metrics */);
+    scoped_refptr<tablet::TabletMetadata> meta;
+    ASSERT_OK(tc_client.Start(cluster_->tablet_server(kTsIndex)->bound_rpc_hostport(),
+                              &meta));
+
+    // Now finish copying!
+    ASSERT_OK(tc_client.FetchAll(nullptr /* no listener */));
+    ASSERT_OK(tc_client.Finish());
+  }
+  string tablet1_wal_dir;
+  ASSERT_OK(fs_manager->GetTabletWalDir(tablet1_id, &tablet1_wal_dir));
+  string tablet2_wal_dir;
+  ASSERT_OK(fs_manager->GetTabletWalDir(tablet2_id, &tablet2_wal_dir));
+  ASSERT_STR_NOT_MATCHES(tablet1_wal_dir, tablet2_wal_dir);
+}
+
+// Start a cluster with 3 tablet servers consisting of 2 tablet with 3 replicas.
+// Write some data in the cluster. Tombstone a tablet in the follower. Inject failures
+// to the metadata and trigger the tablet copy. This will cause the copy to fail.
+// Clean up the inject failures, trigger a successful copy, The copied tablet's wal
+// directory is same as before.
+TEST_F(TabletCopyITest, TestMultiDirTabletCopyAfterFailedCopy) {
+  MonoDelta kTimeout = MonoDelta::FromSeconds(30);
+  const int kTsIndex = 1;
+  // Use 2 wal dirs so we can fail a directory without crashing the server.
+  ExternalMiniClusterOptions cluster_opts;
+  cluster_opts.num_data_dirs = 2;
+  cluster_opts.num_wal_dirs = 2;
+  cluster_opts.num_tablet_servers = 3;
+  // We're going to tombstone replicas manually, so prevent the master from
+  // tombstoning evicted followers.
+  cluster_opts.extra_master_flags.emplace_back("--master_tombstone_evicted_tablet_replicas=false");
+  NO_FATALS(StartClusterWithOpts(std::move(cluster_opts)));
+
+  // Populate a tablet with some data.
+  TestWorkload workload(cluster_.get());
+  workload.set_num_tablets(2);
+  workload.Setup();
+  workload.Start();
+  while (workload.rows_inserted() < 2000) {
+    SleepFor(MonoDelta::FromMilliseconds(10));
+  }
+
+  TServerDetails* ts = ts_map_[cluster_->tablet_server(kTsIndex)->uuid()];
+  vector<ListTabletsResponsePB::StatusAndSchemaPB> tablets;
+  ASSERT_OK(WaitForNumTabletsOnTS(ts, 2, kTimeout, &tablets));
+  string tablet_id = tablets[0].tablet_status().tablet_id();
+
+  // Ensure all the servers agree before we proceed.
+  workload.StopAndJoin();
+  ASSERT_OK(WaitForServersToAgree(kTimeout, ts_map_, tablet_id,
+                                  workload.batches_completed()));
+
+  int leader_index;
+  int follower_index;
+  TServerDetails* leader_ts;
+  TServerDetails* follower_ts;
+
+  // Get the leader and follower tablet servers.
+  ASSERT_OK(FindTabletLeader(ts_map_, tablet_id, kTimeout, &leader_ts));
+  leader_index = cluster_->tablet_server_index_by_uuid(leader_ts->uuid());
+  follower_index = (leader_index + 1) % cluster_->num_tablet_servers();
+  ExternalTabletServer* follower = cluster_->tablet_server(follower_index);
+  leader_ts = ts_map_[cluster_->tablet_server(leader_index)->uuid()];
+  follower_ts = ts_map_[follower->uuid()];
+
+  string tablet_wal_dir;
+  ASSERT_OK(inspect_->GetWalDirForTabletOnTS(follower_index, tablet_id,
+      &tablet_wal_dir));
+
+  // Tombstone the follower.
+  ASSERT_OK(DeleteTabletWithRetries(follower_ts, tablet_id,
+                                    TabletDataState::TABLET_DATA_TOMBSTONED,
+                                    kTimeout));
+  HostPort leader_addr;
+  ASSERT_OK(HostPortFromPB(leader_ts->registration.rpc_addresses(0), &leader_addr));
+
+  // Inject failures to the metadata and trigger the tablet copy. This will
+  // cause the copy to fail.
+  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(follower_index),
+      "env_inject_eio_globs", JoinPathSegments(cluster_->WalRootsForTS(follower_index)[0],
+                                               "tablet-meta/**")));
+  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(follower_index),
+      "env_inject_eio", "0.10"));
+  Status s;
+  ASSERT_EVENTUALLY([&] {
+    s = itest::StartTabletCopy(follower_ts, tablet_id, leader_ts->uuid(),
+                               leader_addr, std::numeric_limits<int64_t>::max(), kTimeout);
+    ASSERT_STR_CONTAINS(s.ToString(), "INJECTED FAILURE");
+  });
+
+  // Trigger a copy again. This should fail. The previous copy might still be
+  // cleaning up so we might get some "already in progress" errors; eventually
+  // a copy will successfully start and fail with the expected error.
+  ASSERT_EVENTUALLY([&] {
+    s = itest::StartTabletCopy(follower_ts, tablet_id, leader_ts->uuid(),
+                               leader_addr, std::numeric_limits<int64_t>::max(), kTimeout);
+    ASSERT_STR_CONTAINS(s.ToString(), "INJECTED FAILURE");
+  });
+
+  for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
+    const auto tserver = cluster_->tablet_server(i);
+    ASSERT_TRUE(tserver->IsProcessAlive())
+        << Substitute("Tablet server $0 ($1) has crashed...", i, tserver->uuid());
+  }
+
+  // Finally, trigger a successful copy.
+  ASSERT_OK(cluster_->SetFlag(cluster_->tablet_server(follower_index),
+      "env_inject_eio", "0.0"));
+  ASSERT_EVENTUALLY([&] {
+    ASSERT_OK(itest::StartTabletCopy(follower_ts, tablet_id, leader_ts->uuid(),
+                                    leader_addr, std::numeric_limits<int64_t>::max(), kTimeout));
+  });
 }
 
 class TabletCopyFailureITest : public TabletCopyITest,

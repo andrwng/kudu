@@ -17,6 +17,7 @@
 
 #include "kudu/consensus/consensus_peers.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -40,6 +41,8 @@
 #include "kudu/consensus/opid_util.h"
 #include "kudu/consensus/time_manager.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
+#include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/rpc/messenger.h"
@@ -86,6 +89,7 @@ class ConsensusPeersTest : public KuduTest {
     fs_manager_.reset(new FsManager(env_, FsManagerOpts(GetTestPath("fs_root"))));
     ASSERT_OK(fs_manager_->CreateInitialFileSystemLayout());
     ASSERT_OK(fs_manager_->Open());
+    ASSERT_OK(fs_manager_->wd_manager()->CreateWalDir(kTabletId));
     ASSERT_OK(Log::Open(options_,
                         fs_manager_.get(),
                         /*file_cache*/nullptr,

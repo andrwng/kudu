@@ -17,7 +17,6 @@
 
 #include "kudu/fs/fs_manager.h"
 
-#include <algorithm>
 #include <cinttypes>
 #include <ctime>
 #include <initializer_list>
@@ -38,6 +37,7 @@
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_report.h"
 #include "kudu/fs/log_block_manager.h"
+#include "kudu/fs/wal_dirs.h"
 #include "kudu/gutil/bind.h"
 #include "kudu/gutil/bind_helpers.h"
 #include "kudu/gutil/map-util.h"
@@ -52,6 +52,8 @@
 #include "kudu/gutil/walltime.h"
 #include "kudu/util/env_util.h"
 #include "kudu/util/flag_tags.h"
+#include "kudu/util/flag_validators.h"
+#include "kudu/util/flags.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/net/net_util.h"
 #include "kudu/util/oid_generator.h"
@@ -87,6 +89,10 @@ DEFINE_string(fs_wal_dir, "",
               "Directory with write-ahead logs. If this is not specified, the "
               "program will not start. May be the same as fs_data_dirs");
 TAG_FLAG(fs_wal_dir, stable);
+DEFINE_string(fs_wal_dirs, "",
+              "Directory with write-ahead logs. If this is not specified, the "
+              "program will not start. May be the same as fs_data_dirs");
+TAG_FLAG(fs_wal_dirs, stable);
 DEFINE_string(fs_data_dirs, "",
               "Comma-separated list of directories with data blocks. If this "
               "is not specified, fs_wal_dir will be used as the sole data "
@@ -112,6 +118,8 @@ using kudu::fs::FsReport;
 using kudu::fs::LogBlockManager;
 using kudu::fs::ReadableBlock;
 using kudu::fs::UpdateInstanceBehavior;
+using kudu::fs::WalDirManager;
+using kudu::fs::WalDirManagerOptions;
 using kudu::fs::WritableBlock;
 using kudu::pb_util::SecureDebugString;
 using std::ostream;
@@ -120,9 +128,19 @@ using std::unique_ptr;
 using std::unordered_map;
 using std::unordered_set;
 using std::vector;
+using strings::Split;
 using strings::Substitute;
 
 namespace kudu {
+
+bool ValidateFsWalDir() {
+  if (!FLAGS_fs_wal_dirs.empty() && !FLAGS_fs_wal_dir.empty()) {
+    LOG(ERROR) << "at most one of {fs_wal_dir, fs_wal_dirs} is a non-empty string.";
+    return false;
+  }
+  return true;
+}
+GROUP_FLAG_VALIDATOR(fs_wal_dir, ValidateFsWalDir);
 
 // ==========================================================================
 //  FS Paths
@@ -136,18 +154,23 @@ const char *FsManager::kInstanceMetadataFileName = "instance";
 const char *FsManager::kConsensusMetadataDirName = "consensus-meta";
 
 FsManagerOpts::FsManagerOpts()
-  : wal_root(FLAGS_fs_wal_dir),
-    metadata_root(FLAGS_fs_metadata_dir),
+  : metadata_root(FLAGS_fs_metadata_dir),
     block_manager_type(FLAGS_block_manager),
     read_only(false),
     update_instances(UpdateInstanceBehavior::UPDATE_AND_IGNORE_FAILURES),
     file_cache(nullptr),
     skip_block_manager(false) {
-  data_roots = strings::Split(FLAGS_fs_data_dirs, ",", strings::SkipEmpty());
+  if (!FLAGS_fs_wal_dirs.empty()) {
+    wal_roots = Split(FLAGS_fs_wal_dirs, ",", strings::SkipEmpty());
+  }
+  if (!FLAGS_fs_wal_dir.empty()) {
+    wal_roots = { FLAGS_fs_wal_dir };
+  }
+  data_roots = Split(FLAGS_fs_data_dirs, ",", strings::SkipEmpty());
 }
 
 FsManagerOpts::FsManagerOpts(const string& root)
-  : wal_root(root),
+  : wal_roots({ root }),
     data_roots({ root }),
     block_manager_type(FLAGS_block_manager),
     read_only(false),
@@ -179,13 +202,15 @@ Status FsManager::Init() {
     return Status::OK();
   }
 
-  // The wal root must be set.
-  if (opts_.wal_root.empty()) {
-    return Status::IOError("Write-ahead log directory (fs_wal_dir) not provided");
+  // The wals root must be set.
+  if (opts_.wal_roots.empty()) {
+    return Status::IOError("Write-ahead log directory (fs_wal_dir/fs_wal_dirs) "
+        "not provided");
   }
 
   // Deduplicate all of the roots.
-  unordered_set<string> all_roots = { opts_.wal_root };
+  unordered_set<string> all_roots;
+  all_roots.insert(opts_.wal_roots.begin(), opts_.wal_roots.end());
   all_roots.insert(opts_.data_roots.begin(), opts_.data_roots.end());
 
   // If the metadata root not set, Kudu will either use the wal root or the
@@ -231,24 +256,31 @@ Status FsManager::Init() {
   }
 
   // All done, use the map to set the canonicalized state.
-
-  canonicalized_wal_fs_root_ = FindOrDie(canonicalized_roots, opts_.wal_root);
   unordered_set<string> unique_roots;
+  for (const string& wal_fs_root : opts_.wal_roots) {
+    const auto& root = FindOrDie(canonicalized_roots, wal_fs_root);
+    if (InsertIfNotPresent(&unique_roots, root.path)) {
+      canonicalized_wal_fs_roots_.emplace_back(root);
+      canonicalized_all_fs_roots_.emplace_back(root);
+    }
+  }
+
   if (!opts_.data_roots.empty()) {
+    unordered_set<string> unique_data_roots;
     for (const string& data_fs_root : opts_.data_roots) {
       const auto& root = FindOrDie(canonicalized_roots, data_fs_root);
       if (InsertIfNotPresent(&unique_roots, root.path)) {
-        canonicalized_data_fs_roots_.emplace_back(root);
         canonicalized_all_fs_roots_.emplace_back(root);
+      }
+      if (InsertIfNotPresent(&unique_data_roots, root.path)) {
+        canonicalized_data_fs_roots_.emplace_back(root);
       }
     }
   } else {
     LOG(INFO) << "Data directories (fs_data_dirs) not provided";
-    LOG(INFO) << "Using write-ahead log directory (fs_wal_dir) as data directory";
-    canonicalized_data_fs_roots_.emplace_back(canonicalized_wal_fs_root_);
-  }
-  if (InsertIfNotPresent(&unique_roots, canonicalized_wal_fs_root_.path)) {
-    canonicalized_all_fs_roots_.emplace_back(canonicalized_wal_fs_root_);
+    LOG(INFO) << Substitute("Using write-ahead log directory ($0) "
+        "as data directory", FLAGS_fs_wal_dir.empty() ? "fs_wal_dirs" : "fs_wal_dir");
+    canonicalized_data_fs_roots_ = canonicalized_wal_fs_roots_;
   }
 
   // Decide on a metadata root to use.
@@ -257,13 +289,13 @@ Status FsManager::Init() {
     const string meta_dir_in_data_root = JoinPathSegments(canonicalized_data_fs_roots_[0].path,
                                                           kTabletMetadataDirName);
     // If there is already metadata in the first data root, use it. Otherwise,
-    // use the WAL root.
+    // use the first WAL root.
     LOG(INFO) << "Metadata directory not provided";
     if (env_->FileExists(meta_dir_in_data_root)) {
       canonicalized_metadata_fs_root_ = canonicalized_data_fs_roots_[0];
       LOG(INFO) << "Using existing metadata directory in first data directory";
     } else {
-      canonicalized_metadata_fs_root_ = canonicalized_wal_fs_root_;
+      canonicalized_metadata_fs_root_ = canonicalized_wal_fs_roots_[0];
       LOG(INFO) << "Using write-ahead log directory (fs_wal_dir) as metadata directory";
     }
   } else {
@@ -274,17 +306,14 @@ Status FsManager::Init() {
     }
   }
 
-  // The server cannot start if the WAL root or metadata root failed to
-  // canonicalize.
-  const string& wal_root = canonicalized_wal_fs_root_.path;
-  RETURN_NOT_OK_PREPEND(canonicalized_wal_fs_root_.status,
-      Substitute("Write-ahead log directory $0 failed to canonicalize", wal_root));
+  // The server cannot start if the metadata root failed to canonicalize.
   const string& meta_root = canonicalized_metadata_fs_root_.path;
   RETURN_NOT_OK_PREPEND(canonicalized_metadata_fs_root_.status,
       Substitute("Metadata directory $0 failed to canonicalize", meta_root));
 
   if (VLOG_IS_ON(1)) {
-    VLOG(1) << "WAL root: " << canonicalized_wal_fs_root_.path;
+    VLOG(1) << "WAL roots: " <<
+      JoinStrings(WalDirManager::GetRootNames(canonicalized_wal_fs_roots_), ",");
     VLOG(1) << "Metadata root: " << canonicalized_metadata_fs_root_.path;
     VLOG(1) << "Data roots: " <<
       JoinStrings(DataDirManager::GetRootNames(canonicalized_data_fs_roots_), ",");
@@ -359,9 +388,9 @@ Status FsManager::Open(FsReport* report) {
   RETURN_NOT_OK(PartialOpen(&missing_roots));
 
   // Ensure all of the ancillary directories exist.
-  vector<string> ancillary_dirs = { GetWalsRootDir(),
-                                    GetTabletMetadataDir(),
-                                    GetConsensusMetadataDir() };
+  vector<string> ancillary_dirs;
+  ancillary_dirs.emplace_back(GetTabletMetadataDir());
+  ancillary_dirs.emplace_back(GetConsensusMetadataDir());
   for (const auto& d : ancillary_dirs) {
     bool is_dir;
     RETURN_NOT_OK_PREPEND(env_->IsDirectory(d, &is_dir),
@@ -409,9 +438,21 @@ Status FsManager::Open(FsReport* report) {
     dm_opts.read_only = opts_.read_only;
     dm_opts.dir_type = opts_.block_manager_type;
     dm_opts.update_instances = opts_.update_instances;
-    LOG_TIMING(INFO, "opening directory manager") {
+    LOG_TIMING(INFO, "opening data directory manager") {
       RETURN_NOT_OK(DataDirManager::OpenExisting(env_,
           canonicalized_data_fs_roots_, dm_opts, &dd_manager_));
+    }
+  }
+
+  if (!wd_manager_) {
+    WalDirManagerOptions wm_opts;
+    wm_opts.metric_entity = opts_.metric_entity;
+    wm_opts.read_only = opts_.read_only;
+    wm_opts.dir_type = kWalDirName;
+    wm_opts.update_instances = opts_.update_instances;
+    LOG_TIMING(INFO, "opening WAL directory manager") {
+      RETURN_NOT_OK(WalDirManager::OpenExisting(env_,
+          canonicalized_wal_fs_roots_, wm_opts, &wd_manager_));
     }
   }
 
@@ -437,7 +478,7 @@ Status FsManager::Open(FsReport* report) {
 
   // Report wal and metadata directories.
   if (report) {
-    report->wal_dir = canonicalized_wal_fs_root_.path;
+    report->wal_dirs = WalDirManager::GetRootNames(canonicalized_wal_fs_roots_);
     report->metadata_dir = canonicalized_metadata_fs_root_.path;
   }
 
@@ -497,9 +538,9 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
                         "unable to create file system roots");
 
   // Create ancillary directories.
-  vector<string> ancillary_dirs = { GetWalsRootDir(),
-                                    GetTabletMetadataDir(),
-                                    GetConsensusMetadataDir() };
+  vector<string> ancillary_dirs;
+  ancillary_dirs.emplace_back(GetTabletMetadataDir());
+  ancillary_dirs.emplace_back(GetConsensusMetadataDir());
   for (const string& dir : ancillary_dirs) {
     bool created;
     RETURN_NOT_OK_PREPEND(env_util::CreateDirIfMissing(env_, dir, &created),
@@ -515,10 +556,19 @@ Status FsManager::CreateInitialFileSystemLayout(boost::optional<string> uuid) {
   DataDirManagerOptions dm_opts;
   dm_opts.metric_entity = opts_.metric_entity;
   dm_opts.read_only = opts_.read_only;
-  LOG_TIMING(INFO, "creating directory manager") {
+  LOG_TIMING(INFO, "creating data directory manager") {
     RETURN_NOT_OK_PREPEND(DataDirManager::CreateNew(
         env_, canonicalized_data_fs_roots_, dm_opts, &dd_manager_),
-                          "Unable to create directory manager");
+                          "Unable to create data directory manager");
+  }
+
+  WalDirManagerOptions wm_opts;
+  wm_opts.metric_entity = opts_.metric_entity;
+  wm_opts.read_only = opts_.read_only;
+  LOG_TIMING(INFO, "creating WAL directory manager") {
+    RETURN_NOT_OK_PREPEND(WalDirManager::CreateNew(
+        env_, canonicalized_wal_fs_roots_, wm_opts, &wd_manager_),
+                          "Unable to create WAL directory manager");
   }
 
   if (FLAGS_enable_data_block_fsync) {
@@ -628,6 +678,11 @@ vector<string> FsManager::GetDataRootDirs() const {
   return dd_manager_->GetDirs();
 }
 
+vector<string> FsManager::GetWalRootDirs() const {
+  // Get the data subdirectory for each Wal root.
+  return wd_manager_->GetDirs();
+}
+
 string FsManager::GetTabletMetadataDir() const {
   DCHECK(initted_);
   return JoinPathSegments(canonicalized_metadata_fs_root_.path, kTabletMetadataDirName);
@@ -683,27 +738,70 @@ string FsManager::GetInstanceMetadataPath(const string& root) const {
   return JoinPathSegments(root, kInstanceMetadataFileName);
 }
 
-string FsManager::GetTabletWalRecoveryDir(const string& tablet_id) const {
-  string path = JoinPathSegments(GetWalsRootDir(), tablet_id);
-  StrAppend(&path, kWalsRecoveryDirSuffix);
-  return path;
+Status FsManager::GetWalDirFromDisk(const string& tablet_id, string* wal_dir) {
+  CHECK(wal_dir);
+  Status s = wd_manager_->FindTabletDirFromDisk(tablet_id, "", wal_dir);
+  if (!s.ok()) {
+    LOG(WARNING) << Substitute("cannot find tablet:$0 wal directory. $1", tablet_id,
+                 s.message().ToString());
+  }
+  return s;
 }
 
-string FsManager::GetWalSegmentFileName(const string& tablet_id,
-                                        uint64_t sequence_number) const {
-  return JoinPathSegments(GetTabletWalDir(tablet_id),
-                          strings::Substitute("$0-$1",
-                                              kWalFileNamePrefix,
-                                              StringPrintf("%09" PRIu64, sequence_number)));
+Status FsManager::GetWalRecoveryDirFromDisk(const string& tablet_id,
+                                       string* wal_recovery_dir) {
+  CHECK(wal_recovery_dir);
+  Status s = wd_manager_->FindTabletDirFromDisk(tablet_id, kWalsRecoveryDirSuffix,
+      wal_recovery_dir);
+  if (!s.ok()) {
+    LOG(WARNING) << Substitute("cannot find tablet:$0 wal directory. $1", tablet_id,
+                 s.message().ToString());
+  }
+  return s;
+}
+
+Status FsManager::GetTabletWalDir(const string& tablet_id, string* wal_dir) {
+  CHECK(wal_dir);
+  string dir;
+  Status s = wd_manager_->FindWalDirByTabletId(tablet_id, &dir);
+  if (!s.ok()) {
+    LOG(WARNING) << "cannot find tablet:" << tablet_id << " wal directory." <<
+                 s.message().ToString();
+  } else {
+    *wal_dir = JoinPathSegments(dir, tablet_id);
+  }
+  return s;
+}
+
+Status FsManager::GetTabletWalRecoveryDir(const string& tablet_id,
+              string* recovery_dir) {
+  RETURN_NOT_OK(GetTabletWalDir(tablet_id, recovery_dir));
+  StrAppend(recovery_dir, kWalsRecoveryDirSuffix);
+  return Status::OK();
+}
+
+Status FsManager::GetWalSegmentFileName(const string& tablet_id,
+                                        uint64_t sequence_number, string* segment_name) {
+  CHECK(segment_name);
+  string wal_dir;
+  RETURN_NOT_OK(GetTabletWalDir(tablet_id, &wal_dir));
+  *segment_name = JoinPathSegments(wal_dir, strings::Substitute("$0-$1",
+      kWalFileNamePrefix, StringPrintf("%09" PRIu64, sequence_number)));
+  return Status::OK();
 }
 
 void FsManager::CleanTmpFiles() {
   DCHECK(!opts_.read_only);
   // Temporary files in the Block Manager directories are cleaned during
   // Block Manager startup.
-  for (const auto& s : { GetWalsRootDir(),
-                         GetTabletMetadataDir(),
-                         GetConsensusMetadataDir() }) {
+  vector<string> meta_roots;
+  meta_roots.emplace_back(GetTabletMetadataDir());
+  meta_roots.emplace_back(GetConsensusMetadataDir());
+  for (const auto& s : meta_roots) {
+    WARN_NOT_OK(env_util::DeleteTmpFilesRecursively(env_, s),
+                Substitute("Error deleting tmp files in $0", s));
+  }
+  for (const auto& s : GetWalRootDirs()) {
     WARN_NOT_OK(env_util::DeleteTmpFilesRecursively(env_, s),
                 Substitute("Error deleting tmp files in $0", s));
   }

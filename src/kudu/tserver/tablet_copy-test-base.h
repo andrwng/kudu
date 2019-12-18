@@ -67,6 +67,9 @@ class TabletCopyTest : public TabletServerTestBase {
   // Number of data directories on the copying server.
   const int kNumDataDirs = 3;
 
+  // Number of wal directories on the copying server.
+  const int kNumWalDirs = 3;
+
   // Grab the first column block we find in the SuperBlock.
   static BlockId FirstColumnBlockId(const tablet::TabletSuperBlockPB& superblock) {
     DCHECK_GT(superblock.rowsets_size(), 0);

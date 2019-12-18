@@ -3073,9 +3073,9 @@ TEST_P(RaftConsensusParamReplicationModesITest, TestRestartWithDifferentUUID) {
   writes.StopAndJoin();
 
   // Start up a new server with a new UUID bound to the old RPC port.
-  ts_opts.wal_dir = Substitute("$0-new", ts_opts.wal_dir);
+  ts_opts.wal_dirs = { Substitute("$0-new", ts_opts.wal_dirs[0]) };
   ts_opts.data_dirs = { Substitute("$0-new", ts_opts.data_dirs[0]) };
-  ASSERT_OK(env_->CreateDir(ts_opts.wal_dir));
+  ASSERT_OK(env_->CreateDir(ts_opts.wal_dirs[0]));
   ASSERT_OK(env_->CreateDir(ts_opts.data_dirs[0]));
   scoped_refptr<ExternalTabletServer> new_ts =
     new ExternalTabletServer(ts_opts, master_hostports);
@@ -3084,7 +3084,8 @@ TEST_P(RaftConsensusParamReplicationModesITest, TestRestartWithDifferentUUID) {
   // Eventually the new server should be copied to.
   ASSERT_EVENTUALLY([&] {
     vector<string> files_in_wal_dir;
-    ASSERT_OK(ListFilesInDir(env_, JoinPathSegments(ts_opts.wal_dir, "wals"), &files_in_wal_dir));
+    ASSERT_OK(ListFilesInDir(env_, JoinPathSegments(
+        ts_opts.wal_dirs[0], "wals"), &files_in_wal_dir));
     ASSERT_FALSE(files_in_wal_dir.empty());
   });
 }

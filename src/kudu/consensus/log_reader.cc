@@ -101,7 +101,9 @@ Status LogReader::Open(FsManager* fs_manager,
                        const scoped_refptr<MetricEntity>& metric_entity,
                        FileCache* file_cache,
                        std::shared_ptr<LogReader>* reader) {
-  return LogReader::Open(fs_manager->env(), fs_manager->GetTabletWalDir(tablet_id),
+  string wal_dir;
+  RETURN_NOT_OK(fs_manager->GetTabletWalDir(tablet_id, &wal_dir));
+  return LogReader::Open(fs_manager->env(), wal_dir,
                          index, tablet_id, metric_entity, file_cache, reader);
 }
 

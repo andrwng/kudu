@@ -60,7 +60,8 @@ class TabletServerTestBase : public KuduTest {
   // Starts the tablet server, override to start it later.
   void SetUp() override;
 
-  virtual void StartTabletServer(int num_data_dirs);
+  void StartTabletServer(int num_data_dirs,
+                                 int num_wal_dirs = 1);
 
   Status WaitForTabletRunning(const char *tablet_id);
 
@@ -106,7 +107,7 @@ class TabletServerTestBase : public KuduTest {
 
   void ShutdownTablet();
 
-  Status ShutdownAndRebuildTablet(int num_data_dirs = 1);
+  Status ShutdownAndRebuildTablet(int num_data_dirs = 1, int num_wal_dirs = 1);
 
   // Verifies that a set of expected rows (key, value) is present in the tablet.
   void VerifyRows(const Schema& schema, const std::vector<KeyValue>& expected);

@@ -212,7 +212,7 @@ class TabletServerTest : public TabletServerTestBase {
   // Starts the tablet server, override to start it later.
   virtual void SetUp() OVERRIDE {
     NO_FATALS(TabletServerTestBase::SetUp());
-    NO_FATALS(StartTabletServer(/*num_data_dirs=*/1));
+    NO_FATALS(StartTabletServer(/*num_data_dirs=*/1, /*num_wal_dirs=*/3));
   }
 
   void DoOrderedScanTest(const Schema& projection, const string& expected_rows_as_string);
@@ -1087,7 +1087,7 @@ TEST_F(TabletServerTest, TestInsert) {
   Timestamp now_before = mini_server_->server()->clock()->Now();
 
   rows_inserted = nullptr;
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(schema_, { KeyValue(1, 1), KeyValue(2, 1), KeyValue(1234, 5678) });
 
   // get the clock's timestamp after replay
@@ -1376,7 +1376,7 @@ TEST_F(TabletServerTest, TestInsertAndMutate) {
 
   rows_inserted = nullptr;
   rows_updated = nullptr;
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(schema_, { KeyValue(2, 3), KeyValue(3, 4), KeyValue(4, 4), KeyValue(6, 6) });
 
   // get the clock's timestamp after replay
@@ -1562,7 +1562,7 @@ TEST_F(TabletServerTest, TestRecoveryWithMutationsWhileFlushing) {
   // Shutdown the tserver and try and rebuild the tablet from the log
   // produced on recovery (recovery flushed no state, but produced a new
   // log).
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(schema_, { KeyValue(1, 10),
                         KeyValue(2, 20),
                         KeyValue(3, 30),
@@ -1575,7 +1575,7 @@ TEST_F(TabletServerTest, TestRecoveryWithMutationsWhileFlushing) {
 
   // Shutdown and rebuild again to test that the log generated during
   // the previous recovery allows to perform recovery again.
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(schema_, { KeyValue(1, 10),
                         KeyValue(2, 20),
                         KeyValue(3, 30),
@@ -1600,7 +1600,7 @@ TEST_F(TabletServerTest, TestRecoveryWithMutationsWhileFlushingAndCompacting) {
   // flush the first time
   ASSERT_OK(tablet_replica_->tablet()->Flush());
 
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(schema_, { KeyValue(1, 10),
                         KeyValue(2, 20),
                         KeyValue(3, 30),
@@ -1640,7 +1640,7 @@ TEST_F(TabletServerTest, TestRecoveryWithMutationsWhileFlushingAndCompacting) {
   // Shutdown the tserver and try and rebuild the tablet from the log
   // produced on recovery (recovery flushed no state, but produced a new
   // log).
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(schema_, { KeyValue(1, 11),
                         KeyValue(2, 22),
                         KeyValue(3, 32),
@@ -1686,7 +1686,7 @@ TEST_F(TabletServerTest, TestKUDU_176_RecoveryAfterMajorDeltaCompaction) {
   ANFF(VerifyRows(schema_, { KeyValue(1, 2) }));
 
   // Verify that data remains after a restart.
-  ASSERT_OK(ShutdownAndRebuildTablet());
+  ASSERT_OK(ShutdownAndRebuildTablet(1, 3));
   ANFF(VerifyRows(schema_, { KeyValue(1, 2) }));
 }
 
@@ -1713,7 +1713,7 @@ TEST_F(TabletServerTest, TestKUDU_1341) {
   ANFF(VerifyRows(schema_, { KeyValue(1, 12345) }));
 
   // Test restart.
-  ASSERT_OK(ShutdownAndRebuildTablet());
+  ASSERT_OK(ShutdownAndRebuildTablet(1, 3));
   ANFF(VerifyRows(schema_, { KeyValue(1, 12345) }));
   ASSERT_OK(tablet_replica_->tablet()->Flush());
   ANFF(VerifyRows(schema_, { KeyValue(1, 12345) }));
@@ -1772,7 +1772,7 @@ TEST_F(TabletServerTest, TestExactlyOnceForErrorsAcrossRestart) {
   req.clear_row_operations();
   for (int i = 1; i <= 5; i++) {
     SCOPED_TRACE(Substitute("restart attempt #$0", i));
-    NO_FATALS(ShutdownAndRebuildTablet());
+    NO_FATALS(ShutdownAndRebuildTablet(1, 3));
     rpc.Reset();
     req_id.set_attempt_no(req_id.attempt_no() + 1);
     rpc.SetRequestIdPB(unique_ptr<rpc::RequestIdPB>(new rpc::RequestIdPB(req_id)));
@@ -1812,7 +1812,7 @@ TEST_F(TabletServerTest, TestKUDU_177_RecoveryOfDMSEditsAfterMajorDeltaCompactio
   ANFF(VerifyRows(schema_, { KeyValue(1, 3) }));
 
   // Verify that the update remains after a restart.
-  ASSERT_OK(ShutdownAndRebuildTablet());
+  ASSERT_OK(ShutdownAndRebuildTablet(1, 3));
   ANFF(VerifyRows(schema_, { KeyValue(1, 3) }));
 }
 
@@ -1828,7 +1828,7 @@ TEST_F(TabletServerTest, TestClientGetsErrorBackWhenRecoveryFailed) {
 
   ASSERT_OK(log::CorruptLogFile(env_, log_path, log::FLIP_BYTE, 300));
 
-  ASSERT_FALSE(ShutdownAndRebuildTablet().ok());
+  ASSERT_FALSE(ShutdownAndRebuildTablet(1, 3).ok());
 
   // Connect to it.
   CreateTsClientProxies(mini_server_->bound_rpc_addr(),
@@ -2006,7 +2006,7 @@ TEST_P(ScanCorruptedDeltasParamTest, Test) {
   // Flush the corruption and rebuild the server with the corrupt data.
   ASSERT_OK(pb_util::WritePBContainerToPath(env_,
       meta_path, superblock_pb, pb_util::OVERWRITE, pb_util::SYNC));
-  ASSERT_OK(ShutdownAndRebuildTablet());
+  ASSERT_OK(ShutdownAndRebuildTablet(1, 3));
   LOG(INFO) << Substitute("Rebuilt tablet $0 with broken blocks", tablet_replica_->tablet_id());
 
   // Now open a scanner for the server.
@@ -3333,14 +3333,14 @@ TEST_F(TabletServerTest, TestAlterSchema) {
   const Schema projection({ ColumnSchema("key", INT32), (ColumnSchema("c2", INT32)) }, 1);
 
   // Try recovering from the original log
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(projection, { KeyValue(0, 7),
                            KeyValue(1, 7),
                            KeyValue(2, 5),
                            KeyValue(3, 5) });
 
   // Try recovering from the log generated on recovery
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(projection, { KeyValue(0, 7),
                            KeyValue(1, 7),
                            KeyValue(2, 5),
@@ -3384,11 +3384,11 @@ TEST_F(TabletServerTest, TestAlterSchema_AddColWithoutWriteDefault) {
   VerifyRows(projection, { KeyValue(0, 7), KeyValue(1, 7) });
 
   // Try recovering from the original log
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(projection, { KeyValue(0, 7), KeyValue(1, 7) });
 
   // Try recovering from the log generated on recovery
-  NO_FATALS(ShutdownAndRebuildTablet());
+  NO_FATALS(ShutdownAndRebuildTablet(1, 3));
   VerifyRows(projection, { KeyValue(0, 7), KeyValue(1, 7) });
 }
 
@@ -3487,7 +3487,7 @@ TEST_F(TabletServerTest, TestDeleteTablet) {
 
   // Verify that after restarting the TS, the tablet is still not in the tablet manager.
   // This ensures that the on-disk metadata got removed.
-  Status s = ShutdownAndRebuildTablet();
+  Status s = ShutdownAndRebuildTablet(1, 3);
   ASSERT_TRUE(s.IsNotFound()) << s.ToString();
   ASSERT_FALSE(mini_server_->server()->tablet_manager()->LookupTablet(kTabletId, &tablet));
 }
@@ -3925,7 +3925,8 @@ TEST_F(TabletServerTest, TestDataDirGroupsCreated) {
   // Remove the DataDirGroupPB on-disk.
   superblock.clear_data_dir_group();
   ASSERT_FALSE(superblock.has_data_dir_group());
-  string tablet_meta_path = JoinPathSegments(GetTestPath("TabletServerTest-fsroot"), "tablet-meta");
+  string tablet_meta_path = JoinPathSegments(JoinPathSegments(
+      GetTestPath("TabletServerTest-fsroot"), "wal-0"), "tablet-meta");
   string pb_path = JoinPathSegments(tablet_meta_path, tablet_replica_->tablet_id());
   ASSERT_OK(pb_util::WritePBContainerToPath(Env::Default(),
       pb_path, superblock, pb_util::OVERWRITE, pb_util::SYNC));
@@ -3937,7 +3938,7 @@ TEST_F(TabletServerTest, TestDataDirGroupsCreated) {
   // Restart the server and check that a new group is created. By default, the
   // group will be created with all data directories and should be identical to
   // the original one.
-  ASSERT_OK(ShutdownAndRebuildTablet());
+  ASSERT_OK(ShutdownAndRebuildTablet(1, 3));
   tablet_replica_->tablet()->metadata()->ToSuperBlock(&superblock);
   DataDirGroupPB new_group = superblock.data_dir_group();
   MessageDifferencer md;

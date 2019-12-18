@@ -44,7 +44,8 @@ TEST_F(MiniMasterTest, TestMultiDirMaster) {
   mini_master.reset(new MiniMaster(GetTestPath("Master"), HostPort("127.0.0.1", 0), kNumDataDirs));
   ASSERT_OK(mini_master->Start());
   fs_manager = mini_master->master()->fs_manager();
-  ASSERT_STR_CONTAINS(DirName(fs_manager->GetWalsRootDir()), "wal");
+  ASSERT_EQ(1, fs_manager->GetWalRootDirs().size());
+  ASSERT_STR_CONTAINS(DirName(fs_manager->GetWalRootDirs()[0]), "wal");
   ASSERT_EQ(kNumDataDirs, fs_manager->GetDataRootDirs().size());
 }
 

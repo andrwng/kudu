@@ -253,8 +253,8 @@ struct FsReport {
   // Data directories described by this report.
   std::vector<std::string> data_dirs;
 
-  // WAL directory.
-  std::string wal_dir;
+  // WAL directorys.
+  std::vector<std::string> wal_dirs;
 
   // Metadata directory.
   std::string metadata_dir;

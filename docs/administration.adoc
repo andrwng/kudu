@@ -1201,18 +1201,18 @@ UNIX user, typically `kudu`.
   bring the entire cluster offline while performing the update.
 
 . Run the tool with the desired directory configuration flags. For example, if a
-  cluster was set up with `--fs_wal_dir=/wals`, `--fs_metadata_dir=/meta`, and
+  cluster was set up with `--fs_wal_dir=/wal/1`, `--fs_metadata_dir=/meta`, and
   `--fs_data_dirs=/data/1,/data/2,/data/3`, and `/data/3` is to be removed (e.g.
-  due to a disk error), run the command:
+  due to a disk error), and `/wal/2` is to be added, run the command:
 
 +
 [source,bash]
 ----
-$ sudo -u kudu kudu fs update_dirs --force --fs_wal_dir=/wals --fs_metadata_dir=/meta --fs_data_dirs=/data/1,/data/2
+$ sudo -u kudu kudu fs update_dirs --force --fs_wal_dirs=/wal/1,/wal/2 --fs_metadata_dir=/meta --fs_data_dirs=/data/1,/data/2
 ----
 +
 
-. Modify the values of the `fs_data_dirs` flags for the updated sever. If using
+. Modify the values of the `fs_data_dirs` or `fs_wal_dirs` flags for the updated sever. If using
   CM, make sure to only update the configurations of the updated server, rather
   than of the entire Kudu service.
 

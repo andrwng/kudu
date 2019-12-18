@@ -36,7 +36,8 @@ add_library(kudu_fs
   file_block_manager.cc
   fs_manager.cc
   fs_report.cc
-  log_block_manager.cc)
+  log_block_manager.cc
+  wal_dirs.cc)
 
 target_link_libraries(kudu_fs
   fs_proto
@@ -60,6 +61,7 @@ ADD_KUDU_TEST(data_dirs-test)
 ADD_KUDU_TEST(dir_util-test)
 ADD_KUDU_TEST(error_manager-test)
 ADD_KUDU_TEST(fs_manager-test)
+ADD_KUDU_TEST(wal_dirs-test)
 if (NOT APPLE)
   # Will only pass on Linux.
   ADD_KUDU_TEST(log_block_manager-test)

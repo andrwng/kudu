@@ -63,7 +63,8 @@ namespace tserver {
 
 MiniTabletServer::MiniTabletServer(string fs_root,
                                    const HostPort& rpc_bind_addr,
-                                   int num_data_dirs)
+                                   int num_data_dirs,
+                                   int num_wal_dirs)
     : fs_root_(std::move(fs_root)) {
   // Disable minidump handler (we allow only one per process).
   FLAGS_enable_minidumps = false;
@@ -72,16 +73,30 @@ MiniTabletServer::MiniTabletServer(string fs_root,
   opts_.rpc_opts.rpc_bind_addresses = rpc_bind_addr.ToString();
   opts_.webserver_opts.bind_interface = rpc_bind_addr.host();
   opts_.webserver_opts.port = 0;
-  if (num_data_dirs == 1) {
-    opts_.fs_opts.wal_root = fs_root_;
+  if (num_data_dirs == 1 && num_wal_dirs == 1) {
+    opts_.fs_opts.wal_roots = { fs_root_ };
     opts_.fs_opts.data_roots = { fs_root_ };
   } else {
-    vector<string> fs_data_dirs;
-    for (int dir = 0; dir < num_data_dirs; dir++) {
-      fs_data_dirs.emplace_back(JoinPathSegments(fs_root_, Substitute("data-$0", dir)));
+    if (num_data_dirs == 1) {
+      opts_.fs_opts.data_roots = { JoinPathSegments(fs_root_, "data") };
+    } else {
+      vector<string> fs_data_dirs;
+      fs_data_dirs.reserve(num_data_dirs);
+      for (int dir = 0; dir < num_data_dirs; dir++) {
+        fs_data_dirs.emplace_back(JoinPathSegments(fs_root_, Substitute("data-$0", dir)));
+      }
+      opts_.fs_opts.data_roots = fs_data_dirs;
     }
-    opts_.fs_opts.wal_root = JoinPathSegments(fs_root_, "wal");
-    opts_.fs_opts.data_roots = fs_data_dirs;
+    if (num_wal_dirs == 1) {
+      opts_.fs_opts.wal_roots = { JoinPathSegments(fs_root_, "wal") };
+    } else {
+      vector<string> fs_wal_dirs;
+      fs_wal_dirs.reserve(num_wal_dirs);
+      for (int dir = 0; dir < num_wal_dirs; dir++) {
+        fs_wal_dirs.emplace_back(JoinPathSegments(fs_root_, Substitute("wal-$0", dir)));
+      }
+      opts_.fs_opts.wal_roots = fs_wal_dirs;
+    }
   }
 }
 

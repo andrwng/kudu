@@ -35,6 +35,7 @@
 #include "kudu/fs/data_dirs.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
 #include "kudu/gutil/atomicops.h"
 #include "kudu/gutil/bind.h"
 #include "kudu/gutil/map-util.h"
@@ -101,8 +102,11 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
   }
 
   RETURN_NOT_OK_PREPEND(fs_manager->dd_manager()->CreateDataDirGroup(tablet_id),
-      "Failed to create TabletMetadata");
+      "Failed to create a new directory group for tablet data");
+  RETURN_NOT_OK_PREPEND(fs_manager->wd_manager()->CreateWalDir(tablet_id),
+      "Failed to create a new directory for tablet WAL");
   auto dir_group_cleanup = MakeScopedCleanup([&]() {
+    fs_manager->wd_manager()->DeleteWalDir(tablet_id);
     fs_manager->dd_manager()->DeleteDataDirGroup(tablet_id);
   });
   scoped_refptr<TabletMetadata> ret(new TabletMetadata(fs_manager,
@@ -226,11 +230,12 @@ Status TabletMetadata::DeleteTabletData(TabletDataState delete_type,
     }
   }
 
-  // Unregister the tablet's data dir group in memory (it is stored on disk in
-  // the superblock). Even if we fail to flush below, the expectation is that
-  // we will no longer be writing to the tablet, and therefore don't need its
-  // data dir group.
+  // Unregister the tablet's data dir group and WAL dir in memory (it is stored
+  // on disk in the superblock). Even if we fail to flush below, the expectation
+  // is that we will no longer be writing to the tablet, and therefore don't need
+  // its data dir group.
   fs_manager_->dd_manager()->DeleteDataDirGroup(tablet_id_);
+  fs_manager_->wd_manager()->DeleteWalDir(tablet_id_);
 
   // Flushing will sync the new tablet_data_state_ to disk and will now also
   // delete all the data.
@@ -453,6 +458,22 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
           fs::DataDirManager::DirDistributionMode::ACROSS_ALL_DIRS));
     }
 
+    if (superblock.has_wal_dir()) {
+      // An error loading the WAL dir is non-fatal, it just means the
+      // tablet will fail to bootstrap later.
+      WARN_NOT_OK(fs_manager_->wd_manager()->LoadWalDirFromPB(
+          tablet_id_, superblock.wal_dir()),
+          Substitute("failed to load tablet $0 WalDir from superblock", tablet_id_));
+    } else if (tablet_data_state_ == TABLET_DATA_READY) {
+      // If the superblock does not contain a WalDirPB, this server has
+      // likely been upgraded from before 1.12.0. Try to find tablet's WalDir from
+      // WAL directories. If the data state is not TABLET_DATA_READY, dir creation is
+      // pointless, as the tablet metadata will be deleted anyway.
+      WARN_NOT_OK(fs_manager_->wd_manager()->FindAndRegisterWalDirOnDisk(tablet_id_),
+          Substitute("tablet $0 WAL directory is empty in superblock, and cannot "
+                     "be found in WAL directories", tablet_id_));
+    }
+
     // Note: Previous versions of Kudu used MinimumOpId() as a "null" value on
     // disk for the last-logged opid, so we special-case it at load time and
     // consider it equal to "not present".
@@ -630,6 +651,7 @@ Status TabletMetadata::ReplaceSuperBlock(const TabletSuperBlockPB &pb) {
     MutexLock l(flush_lock_);
     RETURN_NOT_OK_PREPEND(ReplaceSuperBlockUnlocked(pb), "Unable to replace superblock");
     fs_manager_->dd_manager()->DeleteDataDirGroup(tablet_id_);
+    fs_manager_->wd_manager()->DeleteWalDir(tablet_id_);
   }
 
   RETURN_NOT_OK_PREPEND(LoadFromSuperBlock(pb),
@@ -707,11 +729,16 @@ Status TabletMetadata::ToSuperBlockUnlocked(TabletSuperBlockPB* super_block,
     block_id.CopyToPB(pb.mutable_orphaned_blocks()->Add());
   }
 
-  // Serialize the tablet's DataDirGroupPB if one exists. One may not exist if
-  // this is called during a tablet deletion.
-  DataDirGroupPB group_pb;
-  if (fs_manager_->dd_manager()->GetDataDirGroupPB(tablet_id_, &group_pb).ok()) {
-    pb.mutable_data_dir_group()->Swap(&group_pb);
+  // Serialize the tablet's data directory group and WAL directory, if they exist. They may
+  // not exist if this is called during a tablet deletion.
+  DataDirGroupPB data_group_pb;
+  if (fs_manager_->dd_manager()->GetDataDirGroupPB(tablet_id_, &data_group_pb).ok()) {
+    pb.mutable_data_dir_group()->Swap(&data_group_pb);
+  }
+
+  WalDirPB wal_dir_pb;
+  if (fs_manager_->wd_manager()->GetWalDirPB(tablet_id_, &wal_dir_pb).ok()) {
+    pb.mutable_wal_dir()->Swap(&wal_dir_pb);
   }
 
   pb.set_supports_live_row_count(supports_live_row_count_);

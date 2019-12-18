@@ -33,6 +33,10 @@
 #include "kudu/common/schema.h"
 #include "kudu/common/wire_protocol-test-util.h"
 #include "kudu/fs/block_id.h"
+#include "kudu/fs/fs.pb.h"
+#include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
+#include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/tablet/local_tablet_writer.h"
@@ -41,6 +45,7 @@
 #include "kudu/tablet/tablet-harness.h"
 #include "kudu/tablet/tablet-test-util.h"
 #include "kudu/tablet/tablet.h"
+#include "kudu/util/env.h"
 #include "kudu/util/pb_util.h"
 #include "kudu/util/status.h"
 #include "kudu/util/stopwatch.h"
@@ -102,6 +107,9 @@ TEST_F(TestTabletMetadata, TestLoadFromSuperBlock) {
   TabletSuperBlockPB superblock_pb_0;
   ASSERT_OK(meta->ToSuperBlock(&superblock_pb_0));
 
+  // Check the wal dir.
+  ASSERT_TRUE(superblock_pb_0.has_wal_dir());
+
   // Alter table's extra configuration properties.
   TableExtraConfigPB extra_config;
   extra_config.set_history_max_age_sec(7200);
@@ -129,6 +137,9 @@ TEST_F(TestTabletMetadata, TestLoadFromSuperBlock) {
     TabletSuperBlockPB superblock_pb_2;
     ASSERT_OK(meta->ToSuperBlock(&superblock_pb_2));
 
+    // Check the wal dir.
+    ASSERT_TRUE(superblock_pb_2.has_wal_dir());
+
     // Compare the 2 dumped superblock PBs.
     ASSERT_EQ(superblock_pb_1.SerializeAsString(),
               superblock_pb_2.SerializeAsString())
@@ -148,6 +159,8 @@ TEST_F(TestTabletMetadata, TestLoadFromSuperBlock) {
     TabletSuperBlockPB superblock_pb_2;
     ASSERT_OK(new_meta->ToSuperBlock(&superblock_pb_2));
 
+    ASSERT_TRUE(superblock_pb_2.has_wal_dir());
+
     // Compare the 2 dumped superblock PBs.
     ASSERT_EQ(superblock_pb_1.SerializeAsString(),
               superblock_pb_2.SerializeAsString())
@@ -157,6 +170,88 @@ TEST_F(TestTabletMetadata, TestLoadFromSuperBlock) {
 
   LOG(INFO) << "Superblocks match:\n"
             << pb_util::SecureDebugString(superblock_pb_1);
+}
+
+// Test that loading the WalDirPB from metadata, if we load a superblock
+// that doesn't have a WAL UUID, then we'll assign one based on what we
+// find on disk.
+TEST_F(TestTabletMetadata, TestLoadWalDirFromDisk) {
+  TabletMetadata* meta = harness_->tablet()->metadata();
+
+  // Dump the superblock to a PB. Save the PB to the side.
+  TabletSuperBlockPB superblock_pb_0;
+  ASSERT_OK(meta->ToSuperBlock(&superblock_pb_0));
+
+  // Check the wal dir.
+  ASSERT_TRUE(superblock_pb_0.has_wal_dir());
+  const std::string& uuid = superblock_pb_0.wal_dir().uuid();
+  std::string tablet_wal_dir;
+  ASSERT_OK(harness_->fs_manager()->GetTabletWalDir(
+      harness_->tablet()->tablet_id(), &tablet_wal_dir));
+
+  // We delete the wal dir from superblock.
+  harness_->fs_manager()->wd_manager()->DeleteWalDir(harness_->tablet()->tablet_id());
+  ASSERT_OK(harness_->tablet()->Flush());
+  TabletSuperBlockPB superblock_pb_1;
+  TabletMetadata* meta1 = harness_->tablet()->metadata();
+  ASSERT_OK(meta1->ToSuperBlock(&superblock_pb_1));
+  ASSERT_FALSE(superblock_pb_1.has_wal_dir());
+
+  // Test WAL dir load from disk.
+  // Create WAL directory.
+  ASSERT_OK(env_->CreateDir(tablet_wal_dir));
+  // Load the TabletMetadata, WAL dir will be finded on disk.
+  scoped_refptr<TabletMetadata> new_meta;
+  ASSERT_OK(TabletMetadata::Load(harness_->fs_manager(),
+                                 harness_->tablet()->tablet_id(),
+                                 &new_meta));
+  // New metadata has WAL dir.
+  TabletSuperBlockPB superblock_pb_2;
+  ASSERT_OK(new_meta->ToSuperBlock(&superblock_pb_2));
+  ASSERT_TRUE(superblock_pb_2.has_wal_dir());
+  const std::string& uuid1 = superblock_pb_2.wal_dir().uuid();
+  ASSERT_EQ(uuid, uuid1);
+}
+
+// Test that loading the WalDirPB from metadata, if we load a superblock
+// that doesn't have a WAL UUID, and the tablet's WAL directory is missing,
+// we cannot load the wal dir, and report a warning.
+TEST_F(TestTabletMetadata, TestLoadWalDirFailed) {
+  TabletMetadata* meta = harness_->tablet()->metadata();
+
+  // Dump the superblock to a PB. Save the PB to the side.
+  TabletSuperBlockPB superblock_pb_0;
+  ASSERT_OK(meta->ToSuperBlock(&superblock_pb_0));
+
+  // Check the wal dir.
+  ASSERT_TRUE(superblock_pb_0.has_wal_dir());
+  std::string tablet_wal_dir;
+  ASSERT_OK(harness_->fs_manager()->GetTabletWalDir(
+      harness_->tablet()->tablet_id(), &tablet_wal_dir));
+
+  // We delete the wal dir from superblock.
+  harness_->fs_manager()->wd_manager()->DeleteWalDir(harness_->tablet()->tablet_id());
+  ASSERT_OK(harness_->tablet()->Flush());
+  TabletSuperBlockPB superblock_pb_1;
+  TabletMetadata* meta1 = harness_->tablet()->metadata();
+  ASSERT_OK(meta1->ToSuperBlock(&superblock_pb_1));
+  ASSERT_FALSE(superblock_pb_1.has_wal_dir());
+
+  // Load the TabletMetadata, WAL directory is missing, and cannot find on disk,
+  // because there is no WAL directory on disk.
+  scoped_refptr<TabletMetadata> new_meta;
+  ASSERT_OK(TabletMetadata::Load(harness_->fs_manager(),
+                                 harness_->tablet()->tablet_id(),
+                                 &new_meta));
+
+  // Dump the tablet metadata to a superblock PB again, and save it.
+  TabletSuperBlockPB superblock_pb_2;
+  ASSERT_OK(new_meta->ToSuperBlock(&superblock_pb_2));
+  ASSERT_FALSE(superblock_pb_2.has_wal_dir());
+  Status s = harness_->fs_manager()->GetTabletWalDir(
+      harness_->tablet()->tablet_id(), &tablet_wal_dir);
+  ASSERT_STR_CONTAINS(s.ToString(), "could not find wal dir for tablet");
+  ASSERT_TRUE(s.IsNotFound());
 }
 
 TEST_F(TestTabletMetadata, TestOnDiskSize) {

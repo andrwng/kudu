@@ -71,6 +71,7 @@ InternalMiniClusterOptions::InternalMiniClusterOptions()
   : num_masters(1),
     num_tablet_servers(1),
     num_data_dirs(1),
+    num_wal_dirs(1),
     bind_mode(kDefaultBindMode) {
 }
 
@@ -201,7 +202,8 @@ Status InternalMiniCluster::AddTabletServer() {
   unique_ptr<MiniTabletServer> tablet_server(new MiniTabletServer(
       GetTabletServerFsRoot(new_idx),
       HostPort(bind_ip, ts_rpc_port),
-      opts_.num_data_dirs));
+      opts_.num_data_dirs,
+      opts_.num_wal_dirs));
 
   // set the master addresses
   tablet_server->options()->master_addresses = master_rpc_addrs();
@@ -403,7 +405,12 @@ std::shared_ptr<TabletServerServiceProxy> InternalMiniCluster::tserver_proxy(int
 }
 
 string InternalMiniCluster::WalRootForTS(int ts_idx) const {
-  return mini_tablet_server(ts_idx)->options()->fs_opts.wal_root;
+  CHECK_EQ(1, opts_.num_wal_dirs);
+  return mini_tablet_server(ts_idx)->options()->fs_opts.wal_roots[0];
+}
+
+vector<string> InternalMiniCluster::WalRootsForTS(int ts_idx) const {
+  return mini_tablet_server(ts_idx)->options()->fs_opts.wal_roots;
 }
 
 string InternalMiniCluster::UuidForTS(int ts_idx) const {

@@ -159,6 +159,11 @@ struct ExternalMiniClusterOptions {
   // Default: 1.
   int num_data_dirs;
 
+  // Number of wal directories to be created for each daemon.
+  //
+  // Default: 1.
+  int num_wal_dirs;
+
   // Extra flags for tablet servers and masters respectively.
   //
   // In these flags, you may use the special string '${index}' which will
@@ -366,6 +371,9 @@ class ExternalMiniCluster : public MiniCluster {
   // Returns the WALs root directory for the tablet server 'ts_idx'.
   virtual std::string WalRootForTS(int ts_idx) const override;
 
+  // Returns the WALs root directories for the tablet server 'ts_idx'.
+  std::vector<std::string> WalRootsForTS(int ts_idx) const override;
+
   // Returns the UUID for the tablet server 'ts_idx'.
   virtual std::string UuidForTS(int ts_idx) const override;
 
@@ -455,7 +463,12 @@ class ExternalMiniCluster : public MiniCluster {
 
   // Returns the path where 'daemon_id' is expected to store its wal, or other
   // files that reside in the wal dir.
-  std::string GetWalPath(const std::string& daemon_id) const;
+  std::string GetWalPath(const std::string& daemon_id,
+                         boost::optional<uint32_t> dir_index = boost::none) const;
+
+  // Returns paths where 'daemon_id' is expected to store its wal, each with a
+  // numeric suffix appropriate for 'opts_.num_wal_dirs'
+  std::vector<std::string> GetWalPaths(const std::string& daemon_id) const;
 
   // Returns the path where 'daemon_id' is expected to store its logs, or other
   // files that reside in the log dir.
@@ -500,7 +513,7 @@ struct ExternalDaemonOptions {
   std::string block_manager_type;
   std::string exe;
   HostPort rpc_bind_address;
-  std::string wal_dir;
+  std::vector<std::string> wal_dirs;
   std::vector<std::string> data_dirs;
   std::string log_dir;
   std::string perf_record_filename;
@@ -582,16 +595,20 @@ class ExternalDaemon : public RefCountedThreadSafe<ExternalDaemon> {
   virtual Status Restart() = 0;
   virtual void Shutdown();
 
-  // Delete files specified by 'wal_dir_' and 'data_dirs_'.
+  // Delete files specified by 'wal_dirs_' and 'data_dirs_'.
   Status DeleteFromDisk() const WARN_UNUSED_RESULT;
 
-  const std::string& wal_dir() const { return opts_.wal_dir; }
+  const std::string& wal_dir() const {
+    CHECK_EQ(1, opts_.wal_dirs.size());
+    return opts_.wal_dirs[0];
+  }
 
   const std::string& data_dir() const {
     CHECK_EQ(1, opts_.data_dirs.size());
     return opts_.data_dirs[0];
   }
 
+  const std::vector<std::string>& wal_dirs() const { return opts_.wal_dirs; }
   const std::vector<std::string>& data_dirs() const { return opts_.data_dirs; }
 
   // Returns the log dir of the external daemon.

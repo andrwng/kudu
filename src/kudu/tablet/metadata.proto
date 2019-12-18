@@ -146,6 +146,11 @@ message TabletSuperBlockPB {
   // The dimension label for tablet. Used by the master to determine load when
   // creating new tablet replicas based on dimension.
   optional string dimension_label = 18;
+
+  // Tablet WAL is spread across multi directories. If this is not set,
+  // it is assumed that the WAL is from a version of Kudu before 1.10.0.
+  // In this case, WAL will be created spanning only one directory.
+  optional WalDirPB wal_dir = 19;
 }
 
 // Tablet states represent stages of a TabletReplica's object lifecycle and are

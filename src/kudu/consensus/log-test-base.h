@@ -36,6 +36,8 @@
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/consensus/opid_util.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
+#include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/stl_util.h"
 #include "kudu/gutil/stringprintf.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -166,7 +168,7 @@ class LogTestBase : public KuduTest {
     ASSERT_OK(file_cache_->Init());
     ASSERT_OK(fs_manager_->CreateInitialFileSystemLayout());
     ASSERT_OK(fs_manager_->Open());
-
+    ASSERT_OK(fs_manager_->wd_manager()->CreateWalDir(kTestTablet));
     clock_.reset(new clock::HybridClock(metric_entity_server_));
     ASSERT_OK(clock_->Init());
   }
@@ -192,7 +194,7 @@ class LogTestBase : public KuduTest {
     // We should have n segments plus '.' and '..'
     std::vector<std::string> files;
     ASSERT_OK(env_->GetChildren(
-                       JoinPathSegments(fs_manager_->GetWalsRootDir(),
+                       JoinPathSegments(fs_manager_->GetWalRootDirs()[0],
                                         kTestTablet),
                        &files));
     int count = 0;

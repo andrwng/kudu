@@ -42,6 +42,7 @@
 #include "kudu/fs/data_dirs.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/gutil/walltime.h"
@@ -292,6 +293,7 @@ Status TabletCopyClient::Start(const HostPort& copy_source_addr,
   // The UUIDs within the DataDirGroupPB on the remote are also unique to the
   // remote and have no meaning to us.
   superblock_->clear_data_dir_group();
+  superblock_->clear_wal_dir();
 
   // Set the data state to COPYING to indicate that, on crash, this replica
   // should be discarded.
@@ -342,7 +344,9 @@ Status TabletCopyClient::Start(const HostPort& copy_source_addr,
     TRACE("Replaced tombstoned tablet metadata.");
 
     RETURN_NOT_OK_PREPEND(fs_manager_->dd_manager()->CreateDataDirGroup(tablet_id_),
-        "Could not create a new directory group for tablet copy");
+        "Could not create a new data directory group for tablet copy");
+    RETURN_NOT_OK_PREPEND(fs_manager_->wd_manager()->CreateWalDir(tablet_id_),
+        "Could not create a new WAL directory for tablet copy");
   } else {
     // HACK: Set the initial tombstoned last-logged OpId to 1.0 when copying a
     // replica for the first time, so that if the tablet copy fails, the
@@ -376,6 +380,8 @@ Status TabletCopyClient::Start(const HostPort& copy_source_addr,
   }
   CHECK_OK(fs_manager_->dd_manager()->GetDataDirGroupPB(
       tablet_id_, superblock_->mutable_data_dir_group()));
+  CHECK_OK(fs_manager_->wd_manager()->GetWalDirPB(
+      tablet_id_, superblock_->mutable_wal_dir()));
 
   // Create the ConsensusMetadata before returning from Start() so that it's
   // possible to vote while we are copying the replica for the first time.
@@ -533,8 +539,11 @@ Status TabletCopyClient::DownloadWALs() {
 
   // Delete and recreate WAL dir if it already exists, to ensure stray files are
   // not kept from previous copies and runs.
-  RETURN_NOT_OK(log::Log::DeleteOnDiskData(fs_manager_, tablet_id_));
-  string path = fs_manager_->GetTabletWalDir(tablet_id_);
+  string path;
+  RETURN_NOT_OK(fs_manager_->GetTabletWalDir(tablet_id_, &path));
+  if (fs_manager_->env()->FileExists(path)) {
+    RETURN_NOT_OK(fs_manager_->env()->DeleteRecursively(path));
+  }
   RETURN_NOT_OK(fs_manager_->env()->CreateDir(path));
   RETURN_NOT_OK(fs_manager_->env()->SyncDir(DirName(path))); // fsync() parent dir.
 
@@ -643,7 +652,9 @@ Status TabletCopyClient::DownloadWAL(uint64_t wal_segment_seqno) {
   DataIdPB data_id;
   data_id.set_type(DataIdPB::LOG_SEGMENT);
   data_id.set_wal_segment_seqno(wal_segment_seqno);
-  string dest_path = fs_manager_->GetWalSegmentFileName(tablet_id_, wal_segment_seqno);
+  string dest_path;
+  RETURN_NOT_OK(fs_manager_->GetWalSegmentFileName(tablet_id_, wal_segment_seqno,
+      &dest_path));
 
   WritableFileOptions opts;
   opts.sync_on_close = true;

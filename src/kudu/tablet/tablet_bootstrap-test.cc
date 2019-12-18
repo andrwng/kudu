@@ -56,6 +56,8 @@
 #include "kudu/consensus/ref_counted_replicate.h"
 #include "kudu/fs/data_dirs.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
+#include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/rpc/result_tracker.h"
@@ -107,7 +109,7 @@ class BootstrapTest : public LogTestBase {
   Status LoadTestTabletMetadata(int mrs_id, int delta_id, scoped_refptr<TabletMetadata>* meta) {
     Schema schema = SchemaBuilder(schema_).Build();
     std::pair<PartitionSchema, Partition> partition = CreateDefaultPartition(schema);
-
+    fs_manager_->wd_manager()->DeleteWalDir(log::kTestTablet);
     RETURN_NOT_OK(TabletMetadata::LoadOrCreate(fs_manager_.get(),
                                                log::kTestTablet,
                                                log::kTestTable,
@@ -235,6 +237,115 @@ TEST_F(BootstrapTest, TestBootstrap) {
   vector<string> results;
   IterateTabletRows(tablet.get(), &results);
   ASSERT_EQ(1, results.size());
+}
+
+// Tests a bootstrap scenario missing tablet's WAL directory in meatadta.
+TEST_F(BootstrapTest, TestBootstrapMissingWalInMeta) {
+  ASSERT_OK(BuildLog());
+
+  ASSERT_OK(AppendReplicateBatch(MakeOpId(1, current_index_)));
+  ASSERT_OK(RollLog());
+
+  ASSERT_OK(AppendCommit(MakeOpId(1, current_index_)));
+
+  shared_ptr<Tablet> tablet;
+  ConsensusBootstrapInfo boot_info;
+  StringVectorSink capture_logs;
+  {
+    // Capture the log messages during bootstrap.
+    ScopedRegisterSink reg(&capture_logs);
+    scoped_refptr<TabletMetadata> meta;
+    ASSERT_OK(LoadTestTabletMetadata(-1, -1, &meta));
+
+    ASSERT_OK(CreateConsensusMetadata(meta));
+
+    // Delete WAL dir from metadata.
+    fs_manager_->wd_manager()->DeleteWalDir(log::kTestTablet);
+    ASSERT_OK(meta->Flush());
+    TabletSuperBlockPB superblock_pb;
+    ASSERT_OK(meta->ToSuperBlock(&superblock_pb));
+    ASSERT_FALSE(superblock_pb.has_wal_dir());
+
+    // Reload the metadata.
+    scoped_refptr<TabletMetadata> new_meta;
+    ASSERT_OK(TabletMetadata::Load(fs_manager_.get(),
+                                   log::kTestTablet,
+                                   &new_meta));
+
+    // Run tablet bootstrap.
+    ASSERT_OK(RunBootstrapOnTestTablet(new_meta, &tablet, &boot_info));
+    // Make sure we don't see anything in the logs that would make a user scared.
+    for (const string& s : capture_logs.logged_msgs()) {
+      ASSERT_STR_NOT_MATCHES(s, "[cC]orrupt");
+    }
+
+    vector<string> results;
+    IterateTabletRows(tablet.get(), &results);
+    ASSERT_EQ(1, results.size());
+  }
+}
+
+// Tests a bootstrap scenario missing tablet's WAL directory on disk.
+TEST_F(BootstrapTest, TestBootstrapMissingWalOnDisk) {
+  ASSERT_OK(BuildLog());
+
+  ASSERT_OK(AppendReplicateBatch(MakeOpId(1, current_index_)));
+  ASSERT_OK(RollLog());
+
+  ASSERT_OK(AppendCommit(MakeOpId(1, current_index_)));
+
+  shared_ptr<Tablet> tablet;
+  ConsensusBootstrapInfo boot_info;
+  StringVectorSink capture_logs;
+  {
+    // Capture the log messages during bootstrap.
+    ScopedRegisterSink reg(&capture_logs);
+    scoped_refptr<TabletMetadata> meta;
+    ASSERT_OK(LoadTestTabletMetadata(-1, -1, &meta));
+
+    ASSERT_OK(CreateConsensusMetadata(meta));
+
+    std::string tablet_wal_dir;
+    ASSERT_OK(fs_manager_->GetTabletWalDir(
+        log::kTestTablet, &tablet_wal_dir));
+
+    // Delete WAL dir from metadata.
+    fs_manager_->wd_manager()->DeleteWalDir(log::kTestTablet);
+    ASSERT_OK(meta->Flush());
+    TabletSuperBlockPB superblock_pb;
+    ASSERT_OK(meta->ToSuperBlock(&superblock_pb));
+    ASSERT_FALSE(superblock_pb.has_wal_dir());
+
+    // Delete WAL dir from disk.
+    ASSERT_OK(env_->DeleteRecursively(tablet_wal_dir));
+
+    // Reload the metadata.
+    scoped_refptr<TabletMetadata> new_meta;
+    ASSERT_OK(TabletMetadata::Load(fs_manager_.get(),
+                                   log::kTestTablet,
+                                   &new_meta));
+
+    scoped_refptr<ConsensusMetadata> cmeta;
+    ASSERT_OK(cmeta_manager_->Load(new_meta->tablet_id(), &cmeta));
+
+    scoped_refptr<LogAnchorRegistry> log_anchor_registry(new LogAnchorRegistry());
+    // Now attempt to recover the log
+    Status s = BootstrapTablet(
+        new_meta,
+        cmeta->CommittedConfig(),
+        clock_.get(),
+        shared_ptr<MemTracker>(),
+        scoped_refptr<rpc::ResultTracker>(),
+        nullptr, // no metrics registry
+        nullptr, // no cache
+        nullptr, // no replica
+        log_anchor_registry,
+        &tablet,
+        &log_,
+        &boot_info);
+    ASSERT_STR_CONTAINS(s.ToString(), "error retrieving tablet WAL dir");
+    ASSERT_TRUE(s.IsNotFound());
+  }
 }
 
 // Test that we don't overflow opids. Regression test for KUDU-1933.

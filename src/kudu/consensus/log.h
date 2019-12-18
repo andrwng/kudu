@@ -316,11 +316,15 @@ class Log : public RefCountedThreadSafe<Log> {
 
   // Delete all WAL data from the log associated with this tablet.
   // REQUIRES: The Log must be closed.
-  static Status DeleteOnDiskData(FsManager* fs_manager, const std::string& tablet_id);
+  static Status DeleteOnDiskData(FsManager* fs_manager,
+                                 const std::string& wal_path,
+                                 const std::string& tablet_id);
 
   // Removes the recovery directory and all files contained therein, if it exists.
   // Intended to be invoked after log replay successfully completes.
-  static Status RemoveRecoveryDirIfExists(FsManager* fs_manager, const std::string& tablet_id);
+  static Status RemoveRecoveryDirIfExists(FsManager* fs_manager,
+                                          const std::string& wal_recovery_dir,
+                                          const std::string& tablet_id);
 
   // Returns a reader that is able to read through the previous segments,
   // provided the log is initialized and not yet closed. After being closed,

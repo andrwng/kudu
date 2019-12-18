@@ -1481,6 +1481,14 @@ Status TSTabletManager::DeleteTabletData(
       << "Unexpected delete_type to delete tablet " << tablet_id << ": "
       << TabletDataState_Name(delete_type) << " (" << delete_type << ")";
 
+  string wal_dir;
+  string wal_recovery_dir;
+  WARN_NOT_OK(meta->fs_manager()->GetTabletWalDir(tablet_id, &wal_dir),
+              Substitute("Could not find WAL directory for tablet $0", tablet_id));
+  WARN_NOT_OK(meta->fs_manager()->GetTabletWalRecoveryDir(
+      tablet_id, &wal_recovery_dir), Substitute("Could not find WAL recovery directory"
+      "for tablet $0", tablet_id));
+
   // Note: Passing an unset 'last_logged_opid' will retain the last_logged_opid
   // that was previously in the metadata.
   RETURN_NOT_OK(meta->DeleteTabletData(delete_type, last_logged_opid));
@@ -1492,8 +1500,9 @@ Status TSTabletManager::DeleteTabletData(
             << (last_logged_opid ? OpIdToString(*last_logged_opid) : "unknown");
   MAYBE_FAULT(FLAGS_fault_crash_after_blocks_deleted);
 
-  CHECK_OK(Log::DeleteOnDiskData(meta->fs_manager(), tablet_id));
-  CHECK_OK(Log::RemoveRecoveryDirIfExists(meta->fs_manager(), tablet_id));
+  CHECK_OK(Log::DeleteOnDiskData(meta->fs_manager(), wal_dir, tablet_id));
+  CHECK_OK(Log::RemoveRecoveryDirIfExists(meta->fs_manager(), wal_recovery_dir,
+      tablet_id));
   MAYBE_FAULT(FLAGS_fault_crash_after_wal_deleted);
 
   // We do not delete the superblock or the consensus metadata when tombstoning

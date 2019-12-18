@@ -59,6 +59,7 @@ class FsManagerTestBase_TestMetadataDirInDataRoot_Test;
 class FsManagerTestBase_TestMetadataDirInWALRoot_Test;
 class FsManagerTestBase_TestOpenWithDuplicateInstanceFiles_Test;
 class ReadableBlock;
+class WalDirManager;
 class WritableBlock;
 struct CreateBlockOptions;
 struct FsReport;
@@ -97,7 +98,7 @@ struct FsManagerOpts {
   std::shared_ptr<MemTracker> parent_mem_tracker;
 
   // The directory root where WALs will be stored. Cannot be empty.
-  std::string wal_root;
+  std::vector<std::string> wal_roots;
 
   // The directory root where data blocks will be stored. If empty, Kudu will
   // use the WAL root.
@@ -228,20 +229,20 @@ class FsManager {
   //  on-disk path
   // ==========================================================================
   std::vector<std::string> GetDataRootDirs() const;
+  std::vector<std::string> GetWalRootDirs() const;
 
-  std::string GetWalsRootDir() const {
-    DCHECK(initted_);
-    return JoinPathSegments(canonicalized_wal_fs_root_.path, kWalDirName);
-  }
+  Status GetWalDirFromDisk(const std::string& tablet_id, std::string* wal_dir);
 
-  std::string GetTabletWalDir(const std::string& tablet_id) const {
-    return JoinPathSegments(GetWalsRootDir(), tablet_id);
-  }
+  Status GetWalRecoveryDirFromDisk(const std::string& tablet_id,
+                                   std::string* wal_recovery_dir);
 
-  std::string GetTabletWalRecoveryDir(const std::string& tablet_id) const;
+  Status GetTabletWalDir(const std::string& tablet_id, std::string* wal_dir);
 
-  std::string GetWalSegmentFileName(const std::string& tablet_id,
-                                    uint64_t sequence_number) const;
+  Status GetTabletWalRecoveryDir(const std::string& tablet_id, std::string* recovery_dir);
+
+  Status GetWalSegmentFileName(const std::string& tablet_id,
+                               uint64_t sequence_number,
+                               std::string* segment_name);
 
   // Return the directory where tablet superblocks should be stored.
   std::string GetTabletMetadataDir() const;
@@ -289,6 +290,10 @@ class FsManager {
 
   fs::DataDirManager* dd_manager() const {
     return dd_manager_.get();
+  }
+
+  fs::WalDirManager* wd_manager() const {
+    return wd_manager_.get();
   }
 
   fs::BlockManager* block_manager() {
@@ -382,8 +387,8 @@ class FsManager {
   //
   // - The first data root is used as the metadata root.
   // - Common roots in the collections have been deduplicated.
-  CanonicalizedRootAndStatus canonicalized_wal_fs_root_;
   CanonicalizedRootAndStatus canonicalized_metadata_fs_root_;
+  CanonicalizedRootsList canonicalized_wal_fs_roots_;
   CanonicalizedRootsList canonicalized_data_fs_roots_;
   CanonicalizedRootsList canonicalized_all_fs_roots_;
 
@@ -391,6 +396,7 @@ class FsManager {
 
   std::unique_ptr<fs::FsErrorManager> error_manager_;
   std::unique_ptr<fs::DataDirManager> dd_manager_;
+  std::unique_ptr<fs::WalDirManager> wd_manager_;
   std::unique_ptr<fs::BlockManager> block_manager_;
 
   ObjectIdGenerator oid_generator_;

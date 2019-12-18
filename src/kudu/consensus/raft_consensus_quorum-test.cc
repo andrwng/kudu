@@ -54,6 +54,7 @@
 #include "kudu/consensus/raft_consensus.h"
 #include "kudu/consensus/time_manager.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
 #include "kudu/gutil/bind.h"
 #include "kudu/gutil/casts.h"
 #include "kudu/gutil/map-util.h"
@@ -142,12 +143,12 @@ class RaftConsensusQuorumTest : public KuduTest {
       string test_path = GetTestPath(Substitute("peer-$0-root", i));
       FsManagerOpts opts;
       opts.parent_mem_tracker = parent_mem_tracker;
-      opts.wal_root = test_path;
+      opts.wal_roots = { test_path };
       opts.data_roots = { test_path };
       unique_ptr<FsManager> fs_manager(new FsManager(env_, opts));
       RETURN_NOT_OK(fs_manager->CreateInitialFileSystemLayout());
       RETURN_NOT_OK(fs_manager->Open());
-
+      RETURN_NOT_OK(fs_manager->wd_manager()->CreateWalDir(kTestTablet));
       scoped_refptr<Log> log;
       RETURN_NOT_OK(Log::Open(LogOptions(),
                               fs_manager.get(),

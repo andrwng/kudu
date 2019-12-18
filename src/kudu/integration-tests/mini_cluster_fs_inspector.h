@@ -51,7 +51,17 @@ class MiniClusterFsInspector {
   // Returns the WALs FS subdirectory created for TS 'ts_idx'.
   std::string WalDirForTS(int ts_idx) const;
 
-  // If provided, files are filtered by the glob-style pattern 'pattern'.
+  // Returns the WALs FS subdirectories created for TS 'ts_idx'.
+  std::vector<std::string> WalDirsForTS(int ts_idx) const;
+
+  // Get the wal directory for "tablet_id" on TS "ts_indx".
+  // If cannot find directory, return Not_Found.
+  // If find multiple directories, return Corruption.
+  // Else return OK.
+  Status GetWalDirForTabletOnTS(int ts_idx, const std::string& tablet_id,
+      std::string* dir);
+
+  // If provided, files and dirs are filtered by the glob-style pattern 'pattern'.
   int CountFilesInDir(const std::string& path, StringPiece pattern = StringPiece());
 
   // List all of the tablets with tablet metadata in the cluster.

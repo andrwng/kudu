@@ -71,6 +71,10 @@ struct InternalMiniClusterOptions {
   // Default: 1 (this will place the wals in the same dir)
   int num_data_dirs;
 
+  // Number of wal dirs for each daemon.
+  // Default: 1
+  int num_wal_dirs;
+
   // Directory in which to store the cluster's data.
   // Default: "", which auto-generates a unique path for this cluster.
   // The default may only be used from a gtest unit test.
@@ -141,6 +145,9 @@ class InternalMiniCluster : public MiniCluster {
 
   // Returns the WALs root directory for the tablet server 'ts_idx'.
   std::string WalRootForTS(int ts_idx) const override;
+
+  // Returns the WALs root directories for the tablet server 'ts_idx'.
+  std::vector<std::string> WalRootsForTS(int ts_idx) const override;
 
   // Returns the UUID for the tablet server 'ts_idx'.
   std::string UuidForTS(int ts_idx) const override;

@@ -71,6 +71,7 @@
 #include "kudu/fs/block_manager.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/fs/fs_report.h"
+#include "kudu/fs/wal_dirs.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/ref_counted.h"
@@ -1590,6 +1591,7 @@ TEST_F(ToolTest, TestWalDump) {
   FsManager fs(env_, FsManagerOpts(kTestDir));
   ASSERT_OK(fs.CreateInitialFileSystemLayout());
   ASSERT_OK(fs.Open());
+  ASSERT_OK(fs.wd_manager()->CreateWalDir(kTestTablet));
 
   {
     scoped_refptr<Log> log;
@@ -1621,7 +1623,8 @@ TEST_F(ToolTest, TestWalDump) {
     ASSERT_OK(s.Wait());
   }
 
-  string wal_path = fs.GetWalSegmentFileName(kTestTablet, 1);
+  string wal_path;
+  ASSERT_OK(fs.GetWalSegmentFileName(kTestTablet, 1, &wal_path));
   string stdout;
   for (const auto& args : { Substitute("wal dump $0", wal_path),
                             Substitute("local_replica dump wals --fs_wal_dir=$0 $1",
@@ -1706,7 +1709,7 @@ TEST_F(ToolTest, TestLocalReplicaDumpDataDirs) {
   const Schema kSchemaWithIds(SchemaBuilder(kSchema).Build());
 
   FsManagerOpts opts;
-  opts.wal_root = GetTestPath("wal");
+  opts.wal_roots = { GetTestPath("wal") };
   opts.data_roots = {
     GetTestPath("data0"),
     GetTestPath("data1"),
@@ -1732,7 +1735,7 @@ TEST_F(ToolTest, TestLocalReplicaDumpDataDirs) {
   NO_FATALS(RunActionStdoutString(Substitute("local_replica dump data_dirs $0 "
                                              "--fs_wal_dir=$1 "
                                              "--fs_data_dirs=$2",
-                                             kTestTablet, opts.wal_root,
+                                             kTestTablet, opts.wal_roots[0],
                                              JoinStrings(opts.data_roots, ",")),
                                   &stdout));
   vector<string> expected;
@@ -2727,7 +2730,7 @@ TEST_F(ToolTest, TestLocalReplicaDelete) {
     ASSERT_OK(tablet->Flush());
     tablet_id = tablet_replicas[0]->tablet_id();
   }
-  const string& tserver_dir = ts->options()->fs_opts.wal_root;
+  const string& tserver_dir = ts->options()->fs_opts.wal_roots[0];
   // Using the delete tool with tablet server running fails.
   string stderr;
   Status s = RunTool(
@@ -2807,7 +2810,7 @@ TEST_F(ToolTest, TestLocalReplicaTombstoneDelete) {
     Tablet* tablet = tablet_replicas[0]->tablet();
     ASSERT_OK(tablet->Flush());
   }
-  const string& tserver_dir = ts->options()->fs_opts.wal_root;
+  const string& tserver_dir = ts->options()->fs_opts.wal_roots[0];
 
   // Shut down tablet server and use the delete tool.
   ts->Shutdown();
@@ -2856,7 +2859,7 @@ TEST_F(ToolTest, TestLocalReplicaCMetaOps) {
   workload.Setup();
   MiniTabletServer* ts = mini_cluster_->mini_tablet_server(0);
   const string ts_uuid = ts->uuid();
-  const string& flags = Substitute("-fs-wal-dir $0", ts->options()->fs_opts.wal_root);
+  const string& flags = Substitute("-fs-wal-dir $0", ts->options()->fs_opts.wal_roots[0]);
   string tablet_id;
   {
     vector<string> tablets;
@@ -4980,7 +4983,7 @@ TEST_F(ToolTest, TestFsSwappingDirectoriesFailsGracefully) {
   mts->Shutdown();
 
   // Now try to update to put data exclusively in a different directory.
-  const string& wal_root = mts->options()->fs_opts.wal_root;
+  const string& wal_root = mts->options()->fs_opts.wal_roots[0];
   const string& new_data_root_no_wal = GetTestPath("foo");
   string stderr;
   Status s = RunTool(Substitute(
@@ -5084,7 +5087,7 @@ TEST_F(ToolTest, TestFsRemoveDataDirWithTombstone) {
   // KUDU-2680: tombstones shouldn't prevent us from removing a directory.
   NO_FATALS(RunActionStdoutNone(Substitute(
       "fs update_dirs --fs_wal_dir=$0 --fs_data_dirs=$1",
-      mts->options()->fs_opts.wal_root, data_root)));
+      mts->options()->fs_opts.wal_roots[0], data_root)));
 
   ASSERT_OK(mts->Start());
   ASSERT_OK(mts->WaitStarted());
@@ -5115,7 +5118,7 @@ TEST_F(ToolTest, TestFsAddRemoveDataDirEndToEnd) {
 
   // Add a new data directory.
   MiniTabletServer* mts = mini_cluster_->mini_tablet_server(0);
-  const string& wal_root = mts->options()->fs_opts.wal_root;
+  const string& wal_root = mts->options()->fs_opts.wal_roots[0];
   vector<string> data_roots = mts->options()->fs_opts.data_roots;
   string to_add = JoinPathSegments(DirName(data_roots.back()), "data-new");
   data_roots.emplace_back(to_add);
@@ -5246,13 +5249,187 @@ TEST_F(ToolTest, TestFsAddRemoveDataDirEndToEnd) {
   ASSERT_OK(mts->WaitStarted());
 }
 
+TEST_F(ToolTest, TestFsRemoveWalDirWithTombstone) {
+  // Start a cluster whose tserver has multiple WAL directories and create a
+  // tablet on it.
+  InternalMiniClusterOptions opts;
+  opts.num_wal_dirs = 2;
+  NO_FATALS(StartMiniCluster(std::move(opts)));
+  NO_FATALS(CreateTableWithFlushedData("tablename", mini_cluster_.get()));
+
+  // Tombstone the tablet.
+  MiniTabletServer* mts = mini_cluster_->mini_tablet_server(0);
+  vector<string> tablet_ids = mts->ListTablets();
+  ASSERT_EQ(1, tablet_ids.size());
+  TabletServerErrorPB::Code error;
+  ASSERT_OK(mts->server()->tablet_manager()->DeleteTablet(
+      tablet_ids[0], TabletDataState::TABLET_DATA_TOMBSTONED, boost::none, &error));
+
+  // Set things up so we can restart with one fewer directory.
+  string wal_root = mts->options()->fs_opts.wal_roots[0];
+  mts->options()->fs_opts.wal_roots = { wal_root };
+  mts->Shutdown();
+  NO_FATALS(RunActionStdoutNone(Substitute(
+      "fs update_dirs --fs_wal_dirs=$0 --fs_data_dirs=$1",
+      wal_root, mts->options()->fs_opts.data_roots[0])));
+
+  ASSERT_OK(mts->Start());
+  ASSERT_OK(mts->WaitStarted());
+  ASSERT_EQ(0, mts->server()->tablet_manager()->GetNumLiveTablets());
+}
+
+TEST_F(ToolTest, TestFsAddRemoveWalDirEndToEnd) {
+  const string kTableFoo = "foo";
+  const string kTableBar = "bar";
+
+  // Start a cluster whose tserver has multiple WAL directories.
+  InternalMiniClusterOptions opts;
+  opts.num_wal_dirs = 2;
+  NO_FATALS(StartMiniCluster(std::move(opts)));
+
+  // Create a table and flush some test data to it.
+  NO_FATALS(CreateTableWithFlushedData(kTableFoo, mini_cluster_.get()));
+
+  // Add a new WAL directory.
+  MiniTabletServer* mts = mini_cluster_->mini_tablet_server(0);
+  vector<string> wal_roots = mts->options()->fs_opts.wal_roots;
+  const string& data_root = mts->options()->fs_opts.data_roots[0];
+  string to_add = JoinPathSegments(DirName(wal_roots.back()), "wal-new");
+  wal_roots.emplace_back(to_add);
+  mts->Shutdown();
+  NO_FATALS(RunActionStdoutNone(Substitute(
+      "fs update_dirs --force --fs_wal_dirs=$0 --fs_data_dirs=$1 --fs_metadata_dir=$2",
+      JoinStrings(wal_roots, ","), data_root, wal_roots[0])));
+
+  // Reconfigure the tserver to use the newly added WAL directory and restart it.
+  //
+  // Note: WaitStarted() will return a bad status if any tablets fail to bootstrap.
+  mts->options()->fs_opts.wal_roots = wal_roots;
+  ASSERT_OK(mts->Start());
+  ASSERT_OK(mts->WaitStarted());
+
+  // Create a second table and flush some data. The flush should write some
+  // data to the newly added data directory.
+  uint64_t disk_space_used_before;
+  ASSERT_OK(env_->GetFileSizeOnDiskRecursively(to_add, &disk_space_used_before));
+  NO_FATALS(CreateTableWithFlushedData(kTableBar, mini_cluster_.get()));
+  uint64_t disk_space_used_after;
+  ASSERT_OK(env_->GetFileSizeOnDiskRecursively(to_add, &disk_space_used_after));
+  ASSERT_GT(disk_space_used_after, disk_space_used_before);
+
+  // Try to remove the newly added WAL directory. This will fail because
+  // tablets from the second table are configured to use it.
+  mts->Shutdown();
+  wal_roots.pop_back();
+  string stderr;
+  ASSERT_TRUE(RunActionStderrString(Substitute(
+      "fs update_dirs --fs_wal_dirs=$0 --fs_data_dirs=$1 --fs_metadata_dir=$2",
+      JoinStrings(wal_roots, ","), data_root, wal_roots[0]), &stderr).IsRuntimeError());
+  ASSERT_STR_CONTAINS(
+      stderr, "Not found: cannot update data directories: at least one "
+      "tablet is configured to use removed WAL directory. Retry with --force "
+      "to override this");
+
+  // Make sure the failure really had no effect.
+  ASSERT_OK(mts->Start());
+  ASSERT_OK(mts->WaitStarted());
+  mts->Shutdown();
+
+  // If we force the removal it'll succeed, but the tserver will fail to
+  // bootstrap some tablets when restarted.
+  NO_FATALS(RunActionStdoutNone(Substitute(
+      "fs update_dirs --fs_wal_dirs=$0 --fs_data_dirs=$1 --fs_metadata_dir=$2 --force",
+      JoinStrings(wal_roots, ","), data_root, wal_roots[0])));
+  mts->options()->fs_opts.wal_roots = wal_roots;
+  ASSERT_OK(mts->Start());
+  Status s = mts->WaitStarted();
+  ASSERT_TRUE(s.IsNotFound());
+  ASSERT_STR_CONTAINS(s.ToString(), "WAL dir may have been removed");
+
+  // Tablets belonging to the first table should still be OK, but those in the
+  // second table should have all failed.
+  {
+    vector<scoped_refptr<TabletReplica>> replicas;
+    mts->server()->tablet_manager()->GetTabletReplicas(&replicas);
+    ASSERT_GT(replicas.size(), 0);
+    for (const auto& r : replicas) {
+      const string& table_name = r->tablet_metadata()->table_name();
+      if (table_name == kTableFoo) {
+        ASSERT_EQ(tablet::RUNNING, r->state());
+      } else {
+        ASSERT_EQ(kTableBar, table_name);
+        ASSERT_EQ(tablet::FAILED, r->state());
+      }
+    }
+  }
+
+  // Add the removed WAL directory back. All tablets should successfully
+  // bootstrap.
+  mts->Shutdown();
+  wal_roots.emplace_back(to_add);
+  NO_FATALS(RunActionStdoutNone(Substitute(
+      "fs update_dirs --fs_wal_dirs=$0 --fs_data_dirs=$1 --fs_metadata_dir=$2 --force",
+      JoinStrings(wal_roots, ","), data_root, wal_roots[0])));
+  mts->options()->fs_opts.wal_roots = wal_roots;
+  ASSERT_OK(mts->Start());
+  ASSERT_OK(mts->WaitStarted());
+  mts->Shutdown();
+
+  // Remove it again so that the second table's tablets fail once again.
+  wal_roots.pop_back();
+  NO_FATALS(RunActionStdoutNone(Substitute(
+      "fs update_dirs --fs_wal_dirs=$0 --fs_data_dirs=$1 --fs_metadata_dir=$2 --force",
+      JoinStrings(wal_roots, ","), data_root, wal_roots[0])));
+  mts->options()->fs_opts.wal_roots = wal_roots;
+  ASSERT_OK(mts->Start());
+  s = mts->WaitStarted();
+  ASSERT_TRUE(s.IsNotFound());
+  ASSERT_STR_CONTAINS(s.ToString(), "WAL dir may have been removed");
+
+  // Delete the second table and wait for all of its tablets to be deleted.
+  shared_ptr<KuduClient> client;
+  ASSERT_OK(mini_cluster_->CreateClient(nullptr, &client));
+  ASSERT_OK(client->DeleteTable(kTableBar));
+  ASSERT_EVENTUALLY([&]{
+    vector<scoped_refptr<TabletReplica>> replicas;
+    mts->server()->tablet_manager()->GetTabletReplicas(&replicas);
+    for (const auto& r : replicas) {
+      ASSERT_NE(kTableBar, r->tablet_metadata()->table_name());
+    }
+  });
+
+  // Shut down the tserver, add a new WAL directory, and restart it. There
+  // should be no bootstrapping errors because the second table (whose tablets
+  // were configured to use the removed WAL directory) is gone.
+  mts->Shutdown();
+  wal_roots.emplace_back(JoinPathSegments(DirName(wal_roots.back()), "wal-new2"));
+  NO_FATALS(RunActionStdoutNone(Substitute(
+      "fs update_dirs --fs_wal_dirs=$0 --fs_data_dirs=$1 --fs_metadata_dir=$2 --force",
+      JoinStrings(wal_roots, ","), data_root, wal_roots[0])));
+  mts->options()->fs_opts.wal_roots = wal_roots;
+  ASSERT_OK(mts->Start());
+  ASSERT_OK(mts->WaitStarted());
+
+  // Shut down again, delete the newly added WAL directory, and restart. No
+  // errors, because the first table's tablets were never configured to use the
+  // new WAL directory.
+  mts->Shutdown();
+  wal_roots.pop_back();
+  NO_FATALS(RunActionStdoutNone(Substitute(
+      "fs update_dirs --fs_wal_dirs=$0 --fs_data_dirs=$1 --fs_metadata_dir=$2 --force",
+      JoinStrings(wal_roots, ","), data_root, wal_roots[0])));
+  mts->options()->fs_opts.wal_roots = wal_roots;
+  ASSERT_OK(mts->Start());
+  ASSERT_OK(mts->WaitStarted());
+}
+
 TEST_F(ToolTest, TestCheckFSWithNonDefaultMetadataDir) {
   const string kTestDir = GetTestPath("test");
   ASSERT_OK(env_->CreateDir(kTestDir));
   string uuid;
   FsManagerOpts opts;
   {
-    opts.wal_root = JoinPathSegments(kTestDir, "wal");
+    opts.wal_roots = { JoinPathSegments(kTestDir, "wal") };
     opts.metadata_root = JoinPathSegments(kTestDir, "meta");
     FsManager fs(env_, opts);
     ASSERT_OK(fs.CreateInitialFileSystemLayout());
@@ -5263,7 +5440,7 @@ TEST_F(ToolTest, TestCheckFSWithNonDefaultMetadataDir) {
   // enough arguments to open the FsManager, or else FS tools will not work.
   // The tool will fail in its own process. Catch its output.
   string stderr;
-  Status s = RunTool(Substitute("fs check --fs_wal_dir=$0", opts.wal_root),
+  Status s = RunTool(Substitute("fs check --fs_wal_dir=$0", opts.wal_roots[0]),
                     nullptr, &stderr, {}, {});
   ASSERT_TRUE(s.IsRuntimeError());
   ASSERT_STR_CONTAINS(s.ToString(), "process exited with non-zero status");
@@ -5274,7 +5451,7 @@ TEST_F(ToolTest, TestCheckFSWithNonDefaultMetadataDir) {
   string stdout;
   NO_FATALS(RunActionStdoutString(Substitute(
       "fs check --fs_wal_dir=$0 --fs_metadata_dir=$1",
-      opts.wal_root, opts.metadata_root), &stdout));
+      opts.wal_roots[0], opts.metadata_root), &stdout));
   SCOPED_TRACE(stdout);
 }
 
@@ -5360,7 +5537,7 @@ TEST_F(ToolTest, TestGetFlags) {
     const string& daemon_addr = daemon_type == "master" ?
                                 cluster_->master()->bound_rpc_addr().ToString() :
                                 cluster_->tablet_server(0)->bound_rpc_addr().ToString();
-    const string& wal_dir = daemon_type == "master" ?
+    const string& wal_dirs = daemon_type == "master" ?
                             cluster_->master()->wal_dir() :
                             cluster_->tablet_server(0)->wal_dir();
     string out;
@@ -5369,7 +5546,7 @@ TEST_F(ToolTest, TestGetFlags) {
           &out));
     ASSERT_STR_NOT_MATCHES(out, "help,*");
     ASSERT_STR_NOT_MATCHES(out, "logemaillevel,*");
-    ASSERT_STR_CONTAINS(out, Substitute("fs_wal_dir,$0,false", wal_dir));
+    ASSERT_STR_CONTAINS(out, Substitute("fs_wal_dirs,$0,false", wal_dirs));
 
     // Check that we get all flags with -all_flags.
     out.clear();
@@ -5378,7 +5555,7 @@ TEST_F(ToolTest, TestGetFlags) {
           &out));
     ASSERT_STR_CONTAINS(out, "help,false,true");
     ASSERT_STR_CONTAINS(out, "logemaillevel,999,true");
-    ASSERT_STR_CONTAINS(out, Substitute("fs_wal_dir,$0,false", wal_dir));
+    ASSERT_STR_CONTAINS(out, Substitute("fs_wal_dirs,$0,false", wal_dirs));
 
     // Check that -flag_tags filter to matching tags.
     // -logemaillevel is an unsafe flag.
@@ -5389,17 +5566,17 @@ TEST_F(ToolTest, TestGetFlags) {
           &out));
     ASSERT_STR_CONTAINS(out, "help,false,true");
     ASSERT_STR_NOT_MATCHES(out, "logemaillevel,*");
-    ASSERT_STR_CONTAINS(out, Substitute("fs_wal_dir,$0,false", wal_dir));
+    ASSERT_STR_CONTAINS(out, Substitute("fs_wal_dirs,$0,false", wal_dirs));
 
     // Check that we get flags with -flags.
     out.clear();
     NO_FATALS(RunActionStdoutString(
-        Substitute("$0 get_flags $1 -format=csv -flags=fs_wal_dir,logemaillevel",
+        Substitute("$0 get_flags $1 -format=csv -flags=fs_wal_dirs,logemaillevel",
                    daemon_type, daemon_addr),
         &out));
     ASSERT_STR_NOT_MATCHES(out, "help*");
     ASSERT_STR_CONTAINS(out, "logemaillevel,999,true");
-    ASSERT_STR_CONTAINS(out, Substitute("fs_wal_dir,$0,false", wal_dir));
+    ASSERT_STR_CONTAINS(out, Substitute("fs_wal_dirs,$0,false", wal_dirs));
 
     // Check -flags will ignore -all_flags.
     out.clear();
@@ -5409,7 +5586,7 @@ TEST_F(ToolTest, TestGetFlags) {
         &out));
     ASSERT_STR_NOT_MATCHES(out, "help*");
     ASSERT_STR_CONTAINS(out, "logemaillevel,999,true");
-    ASSERT_STR_NOT_MATCHES(out, "fs_wal_dir*");
+    ASSERT_STR_NOT_MATCHES(out, "fs_wal_dirs*");
 
     // Check -flag_tags filter to matching tags with -flags.
     out.clear();
@@ -5419,7 +5596,7 @@ TEST_F(ToolTest, TestGetFlags) {
         &out));
     ASSERT_STR_NOT_MATCHES(out, "help*");
     ASSERT_STR_NOT_MATCHES(out, "logemaillevel,*");
-    ASSERT_STR_NOT_MATCHES(out, "fs_wal_dir*");
+    ASSERT_STR_NOT_MATCHES(out, "fs_wal_dirs*");
   }
 }
 

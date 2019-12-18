@@ -124,6 +124,9 @@ class MiniCluster {
   // Returns the WALs root directory for the tablet server 'ts_idx'.
   virtual std::string WalRootForTS(int ts_idx) const = 0;
 
+  // Returns the WALs root directories for the tablet server 'ts_idx'.
+  virtual std::vector<std::string> WalRootsForTS(int ts_idx) const = 0;
+
   // Returns the Env on which the cluster operates.
   virtual Env* env() const = 0;
 

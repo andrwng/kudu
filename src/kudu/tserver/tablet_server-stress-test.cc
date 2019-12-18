@@ -14,22 +14,21 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#include "kudu/tserver/tablet_server-test-base.h"
 
 #include <cstdint>
 #include <ostream>
 #include <string>
-#include <vector>
 #include <thread>
+#include <vector>
 
 #include <gflags/gflags.h>
-#include <gflags/gflags_declare.h>
 #include <glog/logging.h>
 #include <gtest/gtest.h>
 
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/substitute.h"
+#include "kudu/tserver/tablet_server-test-base.h"
 #include "kudu/util/countdown_latch.h"
 #include "kudu/util/jsonwriter.h"
 #include "kudu/util/metrics.h"
@@ -64,7 +63,8 @@ METRIC_DEFINE_histogram(test, insert_latency,
 namespace kudu {
 namespace tserver {
 
-class TSStressTest : public TabletServerTestBase {
+class TSStressTest : public TabletServerTestBase,
+                     public ::testing::WithParamInterface<int> {
  public:
   TSStressTest()
       : start_latch_(FLAGS_num_inserter_threads),
@@ -80,7 +80,6 @@ class TSStressTest : public TabletServerTestBase {
 
   virtual void SetUp() OVERRIDE {
     TabletServerTestBase::SetUp();
-    NO_FATALS(StartTabletServer(/* num_data_dirs */ 1));
 
     histogram_ = METRIC_insert_latency.Instantiate(ts_test_metric_entity_);
   }
@@ -127,7 +126,9 @@ void TSStressTest::InserterThread(int thread_idx) {
   LOG(INFO) << "Inserter thread " << thread_idx << " complete";
 }
 
-TEST_F(TSStressTest, TestMTInserts) {
+TEST_P(TSStressTest, TestMTInserts) {
+  const int dir_nums = GetParam();
+  NO_FATALS(StartTabletServer(dir_nums, dir_nums));
   std::thread timeout_thread;
   StartThreads();
   Stopwatch s(Stopwatch::ALL_THREADS);
@@ -172,6 +173,8 @@ TEST_F(TSStressTest, TestMTInserts) {
     });
 #endif
 }
+
+INSTANTIATE_TEST_CASE_P(NumDirs, TSStressTest, testing::Values(1, 3));
 
 } // namespace tserver
 } // namespace kudu

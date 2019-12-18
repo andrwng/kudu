@@ -53,6 +53,7 @@
 #include "kudu/fs/dir_manager.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/fs/io_context.h"
+#include "kudu/fs/wal_dirs.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/escaping.h"
@@ -374,6 +375,8 @@ Status DeleteLocalReplica(const RunnerContext& context) {
   scoped_refptr<ConsensusMetadataManager> cmeta_manager(new ConsensusMetadataManager(&fs_manager));
   boost::optional<OpId> last_logged_opid = boost::none;
   TabletDataState state = TabletDataState::TABLET_DATA_DELETED;
+  scoped_refptr<TabletMetadata> meta;
+  RETURN_NOT_OK(TabletMetadata::Load(&fs_manager, tablet_id, &meta));
   if (!FLAGS_clean_unsafe) {
     state = TabletDataState::TABLET_DATA_TOMBSTONED;
     // Tombstone the tablet. If we couldn't find the last committed OpId from
@@ -395,8 +398,6 @@ Status DeleteLocalReplica(const RunnerContext& context) {
   }
 
   // Force the specified tablet on this node to be in 'state'.
-  scoped_refptr<TabletMetadata> meta;
-  RETURN_NOT_OK(TabletMetadata::Load(&fs_manager, tablet_id, &meta));
   RETURN_NOT_OK(TSTabletManager::DeleteTabletData(meta, cmeta_manager, state, last_logged_opid));
   return Status::OK();
 }
@@ -525,6 +526,9 @@ Status DumpWals(const RunnerContext& context) {
   unique_ptr<FsManager> fs_manager;
   RETURN_NOT_OK(FsInit(&fs_manager));
   const string& tablet_id = FindOrDie(context.required_args, kTabletIdArg);
+  // For new version, need load metadata, find directory from metadata.
+  // But we just find the wal dir for tablet from disk first.
+  RETURN_NOT_OK(fs_manager->wd_manager()->FindAndRegisterWalDirOnDisk(tablet_id));
 
   shared_ptr<LogReader> reader;
   RETURN_NOT_OK(LogReader::Open(fs_manager.get(),

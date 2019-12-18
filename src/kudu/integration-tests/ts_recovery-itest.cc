@@ -51,6 +51,7 @@
 #include "kudu/fs/data_dirs.h"
 #include "kudu/fs/fs.pb.h"
 #include "kudu/fs/fs_manager.h"
+#include "kudu/fs/wal_dirs.h"
 #include "kudu/gutil/basictypes.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -197,18 +198,21 @@ TEST_F(TsRecoveryITest, TestTabletRecoveryAfterSegmentDelete) {
   // from the first tablet replica.
   {
     FsManagerOpts opts;
-    opts.wal_root = ets->wal_dir();
+    opts.wal_roots = { ets->wal_dir() };
     opts.data_roots = ets->data_dirs();
 
     unique_ptr<FsManager> fs_manager(new FsManager(env_, opts));
 
     ASSERT_OK(fs_manager->Open());
+    ASSERT_OK(fs_manager->wd_manager()->FindAndRegisterWalDirOnDisk(tablet_id));
 
-    string wal_dir = fs_manager->GetTabletWalDir(tablet_id);
+    string wal_dir;
+    ASSERT_OK(fs_manager->GetTabletWalDir(tablet_id, &wal_dir));
 
     // Delete one of the WAL segments so at tablet startup time we will
     // detect out-of-order WAL segments during log replay and fail to bootstrap.
-    string segment = fs_manager->GetWalSegmentFileName(tablet_id, 2);
+    string segment;
+    ASSERT_OK(fs_manager->GetWalSegmentFileName(tablet_id, 2, &segment));
 
     LOG(INFO) << "Deleting WAL segment: " << segment;
     ASSERT_OK(fs_manager->env()->DeleteFile(segment));
@@ -582,10 +586,11 @@ TEST_P(TsRecoveryITestDeathTest, TestRecoverFromOpIdOverflow) {
     // Append a no-op to the WAL with an overflowed term and index to simulate a
     // crash after KUDU-1933.
     FsManagerOpts opts;
-    opts.wal_root = ets->wal_dir();
+    opts.wal_roots = { ets->wal_dir() };
     opts.data_roots = ets->data_dirs();
     unique_ptr<FsManager> fs_manager(new FsManager(env_, opts));
     ASSERT_OK(fs_manager->Open());
+    ASSERT_OK(fs_manager->wd_manager()->CreateWalDir(tablet_id));
     scoped_refptr<ConsensusMetadataManager> cmeta_manager(
         new ConsensusMetadataManager(fs_manager.get()));
     MetricRegistry metric_registry;
@@ -622,7 +627,8 @@ TEST_P(TsRecoveryITestDeathTest, TestRecoverFromOpIdOverflow) {
     // If we remove the first segment then the tablet will just assume that
     // commit messages for all replicates in previous segments have already
     // been written, thus avoiding the check.
-    string wal_dir = fs_manager->GetTabletWalDir(tablet_id);
+    string wal_dir;
+    ASSERT_OK(fs_manager->GetTabletWalDir(tablet_id, &wal_dir));
     vector<string> wal_children;
     ASSERT_OK(fs_manager->env()->GetChildren(wal_dir, &wal_children));
     // Skip '.', '..', and index files.
@@ -635,7 +641,8 @@ TEST_P(TsRecoveryITestDeathTest, TestRecoverFromOpIdOverflow) {
     ASSERT_GE(wal_segments.size(), 2) << "Too few WAL segments. Files in dir (" << wal_dir << "): "
                                       << wal_children;
     // If WAL segment index 1 exists, delete it.
-    string first_segment = fs_manager->GetWalSegmentFileName(tablet_id, 1);
+    string first_segment;
+    ASSERT_OK(fs_manager->GetWalSegmentFileName(tablet_id, 1, &first_segment));
     if (fs_manager->env()->FileExists(first_segment)) {
       LOG(INFO) << "Deleting first WAL segment: " << first_segment;
       ASSERT_OK(fs_manager->env()->DeleteFile(first_segment));
