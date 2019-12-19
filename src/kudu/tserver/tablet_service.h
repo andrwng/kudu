@@ -23,6 +23,7 @@
 
 #include "kudu/consensus/consensus.service.h"
 #include "kudu/gutil/port.h"
+#include "kudu/kserver/kserver.h"
 #include "kudu/tserver/tserver.pb.h"
 #include "kudu/tserver/tserver_admin.service.h"
 #include "kudu/tserver/tserver_service.service.h"
@@ -217,7 +218,7 @@ class TabletServiceAdminImpl : public TabletServerAdminServiceIf {
 
 class ConsensusServiceImpl : public consensus::ConsensusServiceIf {
  public:
-  ConsensusServiceImpl(server::ServerBase* server,
+  ConsensusServiceImpl(kserver::KuduServer* server,
                        TabletReplicaLookupIf* tablet_manager);
 
   virtual ~ConsensusServiceImpl();
@@ -271,7 +272,7 @@ class ConsensusServiceImpl : public consensus::ConsensusServiceIf {
                                rpc::RpcContext* context) OVERRIDE;
 
  private:
-  server::ServerBase* server_;
+  kserver::KuduServer* server_;
   TabletReplicaLookupIf* tablet_manager_;
 };
 

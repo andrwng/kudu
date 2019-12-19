@@ -20,6 +20,7 @@
 #include <atomic>
 #include <cstdint>
 #include <iosfwd>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -78,6 +79,20 @@ class PeerProxyFactory;
 class PendingRounds;
 struct ConsensusBootstrapInfo;
 struct ElectionResult;
+
+// Context containing resources shared by the Raft consensus instances on a
+// single server.
+struct ServerContext {
+  // Functor that indicates whether the server is quiescing, in which case this
+  // replica should not attempt to become leader.
+  std::function<bool()> quiescing_func;
+
+  // Gauge indicating how many Raft leaders are hosted on the server.
+  scoped_refptr<AtomicGauge<int32_t>> num_leaders;
+
+  // Threadpool on which to run Raft tasks.
+  ThreadPool* raft_pool;
+};
 
 struct ConsensusOptions {
   std::string tablet_id;
@@ -138,7 +153,7 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   static Status Create(ConsensusOptions options,
                        RaftPeerPB local_peer_pb,
                        scoped_refptr<ConsensusMetadataManager> cmeta_manager,
-                       ThreadPool* raft_pool,
+                       ServerContext server_ctx,
                        std::shared_ptr<RaftConsensus>* consensus_out);
 
   // Starts running the Raft consensus algorithm.
@@ -385,11 +400,12 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
 
   int64_t GetMillisSinceLastLeaderHeartbeat() const;
 
+
  protected:
   RaftConsensus(ConsensusOptions options,
                 RaftPeerPB local_peer_pb,
                 scoped_refptr<ConsensusMetadataManager> cmeta_manager,
-                ThreadPool* raft_pool);
+                ServerContext server_ctx);
 
  private:
   friend class RaftConsensusQuorumTest;
@@ -812,7 +828,8 @@ class RaftConsensus : public std::enable_shared_from_this<RaftConsensus>,
   // Consensus metadata service.
   const scoped_refptr<ConsensusMetadataManager> cmeta_manager_;
 
-  ThreadPool* const raft_pool_;
+  // State shared by Raft instances on a given server.
+  const ServerContext server_ctx_;
 
   // TODO(dralves) hack to serialize updates due to repeated/out-of-order messages
   // should probably be refactored out.

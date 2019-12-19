@@ -192,6 +192,12 @@ METRIC_DEFINE_gauge_int32(server, tablets_num_shutdown,
                           "Number of tablets currently shut down",
                           kudu::MetricLevel::kInfo);
 
+METRIC_DEFINE_gauge_int32(server, num_leaders,
+                          "Number of Tablet Leaders",
+                          kudu::MetricUnit::kTablets,
+                          "Number of tablet replicas that are Raft leaders",
+                          kudu::MetricLevel::kInfo);
+
 DECLARE_int32(heartbeat_interval_ms);
 
 using std::set;
@@ -255,6 +261,8 @@ TSTabletManager::TSTabletManager(TabletServer* server)
     state_(MANAGER_INITIALIZING) {
   next_update_time_ = MonoTime::Now() +
       MonoDelta::FromMilliseconds(FLAGS_update_tablet_stats_interval_ms);
+
+  num_leaders_ = server->metric_entity()->FindOrCreateGauge(&METRIC_num_leaders, 0);
 
   METRIC_tablets_num_not_initialized.InstantiateFunctionGauge(
           server->metric_entity(),
@@ -822,7 +830,9 @@ Status TSTabletManager::CreateAndRegisterTabletReplica(
                         Bind(&TSTabletManager::MarkTabletDirty,
                              Unretained(this),
                              tablet_id)));
-  Status s = replica->Init(server_->raft_pool());
+  Status s = replica->Init({ [this] { return server_->quiescing(); },
+                             num_leaders_,
+                             server_->raft_pool() });
   if (PREDICT_FALSE(!s.ok())) {
     replica->SetError(s);
     replica->Shutdown();

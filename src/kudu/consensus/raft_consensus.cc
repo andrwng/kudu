@@ -181,11 +181,11 @@ RaftConsensus::RaftConsensus(
     ConsensusOptions options,
     RaftPeerPB local_peer_pb,
     scoped_refptr<ConsensusMetadataManager> cmeta_manager,
-    ThreadPool* raft_pool)
+    ServerContext server_ctx)
     : options_(std::move(options)),
       local_peer_pb_(std::move(local_peer_pb)),
       cmeta_manager_(DCHECK_NOTNULL(std::move(cmeta_manager))),
-      raft_pool_(raft_pool),
+      server_ctx_(std::move(server_ctx)),
       state_(kNew),
       rng_(GetRandomSeed32()),
       leader_transfer_in_progress_(false),
@@ -211,12 +211,12 @@ RaftConsensus::~RaftConsensus() {
 Status RaftConsensus::Create(ConsensusOptions options,
                              RaftPeerPB local_peer_pb,
                              scoped_refptr<ConsensusMetadataManager> cmeta_manager,
-                             ThreadPool* raft_pool,
+                             ServerContext server_ctx,
                              shared_ptr<RaftConsensus>* consensus_out) {
   shared_ptr<RaftConsensus> consensus(RaftConsensus::make_shared(std::move(options),
                                                                  std::move(local_peer_pb),
                                                                  std::move(cmeta_manager),
-                                                                 raft_pool));
+                                                                 std::move(server_ctx)));
   RETURN_NOT_OK_PREPEND(consensus->Init(), "Unable to initialize Raft consensus");
   *consensus_out = std::move(consensus);
   return Status::OK();
@@ -257,7 +257,8 @@ Status RaftConsensus::Start(const ConsensusBootstrapInfo& info,
   // PeerManager. Because PeerManager is owned by RaftConsensus, it receives a
   // raw pointer to the token, to emphasize that RaftConsensus is responsible
   // for destroying the token.
-  raft_pool_token_ = raft_pool_->NewToken(ThreadPool::ExecutionMode::CONCURRENT);
+  ThreadPool* raft_pool = server_ctx_.raft_pool;
+  raft_pool_token_ = raft_pool->NewToken(ThreadPool::ExecutionMode::CONCURRENT);
 
   // The message queue that keeps track of which operations need to be replicated
   // where.
@@ -274,7 +275,7 @@ Status RaftConsensus::Start(const ConsensusBootstrapInfo& info,
       time_manager_,
       local_peer_pb_,
       options_.tablet_id,
-      raft_pool_->NewToken(ThreadPool::ExecutionMode::SERIAL),
+      raft_pool->NewToken(ThreadPool::ExecutionMode::SERIAL),
       info.last_id,
       info.last_committed_id));
 
@@ -642,6 +643,10 @@ scoped_refptr<ConsensusRound> RaftConsensus::NewRound(
 }
 
 void RaftConsensus::ReportFailureDetectedTask() {
+  if (server_ctx_.quiescing_func()) {
+    KLOG_EVERY_N_SECS(WARNING, 5) << "leader elections are disabled";
+    return;
+  }
   std::unique_lock<simple_spinlock> try_lock(failure_detector_election_lock_,
                                              std::try_to_lock);
   if (try_lock.owns_lock()) {
@@ -695,6 +700,7 @@ Status RaftConsensus::BecomeLeaderUnlocked() {
       std::placeholders::_1));
 
   last_leader_communication_time_micros_ = 0;
+  if (server_ctx_.num_leaders) server_ctx_.num_leaders->Increment();
 
   return AppendNewRoundToQueueUnlocked(round);
 }
@@ -2902,6 +2908,7 @@ Status RaftConsensus::HandleTermAdvanceUnlocked(ConsensusTerm new_term,
   if (cmeta_->active_role() == RaftPeerPB::LEADER) {
     LOG_WITH_PREFIX_UNLOCKED(INFO) << "Stepping down as leader of term "
                                    << CurrentTermUnlocked();
+    if (server_ctx_.num_leaders) server_ctx_.num_leaders->IncrementBy(-1);
     RETURN_NOT_OK(BecomeReplicaUnlocked());
   }
 

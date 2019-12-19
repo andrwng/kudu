@@ -67,6 +67,10 @@ class OpId;
 class StartTabletCopyRequestPB;
 } // namespace consensus
 
+namespace itest {
+class TServerQuiescingITest_TestDoesntCallElections_Test;
+}
+
 namespace master {
 class ReportedTabletPB;
 class TabletReportPB;
@@ -242,6 +246,7 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   void UpdateTabletStatsIfNecessary();
 
  private:
+  FRIEND_TEST(itest::TServerQuiescingITest, TestDoesntCallElections);
   FRIEND_TEST(LeadershipChangeReportingTest, TestReportStatsDuringLeadershipChange);
   FRIEND_TEST(TsTabletManagerTest, TestPersistBlocks);
   FRIEND_TEST(TsTabletManagerTest, TestTabletStatsReports);
@@ -406,6 +411,8 @@ class TSTabletManager : public tserver::TabletReplicaLookupIf {
   // Ensures that we only update stats from a single thread at a time.
   mutable rw_spinlock lock_update_;
   MonoTime next_update_time_;
+
+  scoped_refptr<AtomicGauge<int32_t>> num_leaders_;
 
   DISALLOW_COPY_AND_ASSIGN(TSTabletManager);
 };

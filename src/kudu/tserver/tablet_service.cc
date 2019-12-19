@@ -63,6 +63,7 @@
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/stringprintf.h"
 #include "kudu/gutil/strings/substitute.h"
+#include "kudu/kserver/kserver.h"
 #include "kudu/rpc/inbound_call.h"
 #include "kudu/rpc/remote_user.h"
 #include "kudu/rpc/rpc_context.h"
@@ -119,6 +120,9 @@ DEFINE_int32(scanner_max_batch_size_bytes, 8 * 1024 * 1024,
              "scan results.");
 TAG_FLAG(scanner_max_batch_size_bytes, advanced);
 TAG_FLAG(scanner_max_batch_size_bytes, runtime);
+
+DEFINE_bool(disable_new_scanners, false,
+            "Whether or not we should disable new scans.");
 
 // The default value is sized to a power of 2 to improve BitmapCopy performance
 // when copying a RowBlock (in ORDERED scans).
@@ -186,6 +190,7 @@ using kudu::consensus::UnsafeChangeConfigResponsePB;
 using kudu::consensus::VoteRequestPB;
 using kudu::consensus::VoteResponsePB;
 using kudu::fault_injection::MaybeTrue;
+using kudu::kserver::KuduServer;
 using kudu::pb_util::SecureDebugString;
 using kudu::pb_util::SecureShortDebugString;
 using kudu::rpc::ParseVerificationResult;
@@ -354,6 +359,18 @@ bool GetConsensusOrRespond(const scoped_refptr<TabletReplica>& replica,
     return false;
   }
   *consensus_out = std::move(tmp_consensus);
+  return true;
+}
+
+template<class RespClass>
+bool CheckTabletServerQuiescing(const KuduServer* server, RespClass* resp,
+                                rpc::RpcContext* context) {
+  if (PREDICT_FALSE(server->quiescing())) {
+    Status s = Status::ServiceUnavailable("Tablet server is quiescing");
+    SetupErrorAndRespond(resp->mutable_error(), s,
+                         TabletServerErrorPB::UNKNOWN_ERROR, context);
+    return false;
+  }
   return true;
 }
 
@@ -1223,7 +1240,7 @@ void TabletServiceImpl::Write(const WriteRequestPB* req,
   }
 }
 
-ConsensusServiceImpl::ConsensusServiceImpl(ServerBase* server,
+ConsensusServiceImpl::ConsensusServiceImpl(KuduServer* server,
                                            TabletReplicaLookupIf* tablet_manager)
     : ConsensusServiceIf(server->metric_entity(), server->result_tracker()),
       server_(server),
@@ -1570,7 +1587,8 @@ void ConsensusServiceImpl::GetConsensusState(const consensus::GetConsensusStateR
 void ConsensusServiceImpl::StartTabletCopy(const StartTabletCopyRequestPB* req,
                                            StartTabletCopyResponsePB* resp,
                                            rpc::RpcContext* context) {
-  if (!CheckUuidMatchOrRespond(tablet_manager_, "StartTabletCopy", req, resp, context)) {
+  if (!CheckTabletServerQuiescing(server_, resp, context) ||
+      !CheckUuidMatchOrRespond(tablet_manager_, "StartTabletCopy", req, resp, context)) {
     return;
   }
   auto response_callback = [context, resp](const Status& s, TabletServerErrorPB::Code code) {
@@ -1695,6 +1713,9 @@ void TabletServiceImpl::Scan(const ScanRequestPB* req,
   bool has_more_results = false;
   TabletServerErrorPB::Code error_code = TabletServerErrorPB::UNKNOWN_ERROR;
   if (req->has_new_scan_request()) {
+    if (!CheckTabletServerQuiescing(server_, resp, context)) {
+      return;
+    }
     const NewScanRequestPB& scan_pb = req->new_scan_request();
     scoped_refptr<TabletReplica> replica;
     if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), scan_pb.tablet_id(), resp,
@@ -2006,6 +2027,9 @@ void TabletServiceImpl::Checksum(const ChecksumRequestPB* req,
     }
   }
   if (req->has_new_request()) {
+    if (!CheckTabletServerQuiescing(server_, resp, context)) {
+      return;
+    }
     const NewScanRequestPB& new_req = req->new_request();
     scan_req.mutable_new_scan_request()->CopyFrom(req->new_request());
     scoped_refptr<TabletReplica> replica;

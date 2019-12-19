@@ -118,6 +118,7 @@ ADD_KUDU_TEST(table_locations-itest RUN_SERIAL true
   DATA_FILES ../scripts/first_argument.sh)
 ADD_KUDU_TEST(tablet_copy-itest NUM_SHARDS 6 PROCESSORS 4)
 ADD_KUDU_TEST(tablet_copy_client_session-itest)
+ADD_KUDU_TEST(tablet_server_quiescing-itest)
 ADD_KUDU_TEST(tablet_history_gc-itest)
 ADD_KUDU_TEST(tablet_replacement-itest)
 ADD_KUDU_TEST(timestamp_advancement-itest)

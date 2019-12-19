@@ -378,7 +378,9 @@ Status SysCatalogTable::SetupTablet(
       Bind(&SysCatalogTable::SysCatalogStateChanged,
            Unretained(this),
            metadata->tablet_id())));
-  RETURN_NOT_OK_SHUTDOWN(tablet_replica_->Init(master_->raft_pool()),
+  RETURN_NOT_OK_SHUTDOWN(tablet_replica_->Init({ [] { return /*quiescing*/ false; },
+                                                 /*num_leaders*/nullptr,
+                                                 master_->raft_pool() }),
                          "failed to initialize system catalog replica");
 
   shared_ptr<Tablet> tablet;

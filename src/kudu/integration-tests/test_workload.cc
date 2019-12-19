@@ -70,10 +70,12 @@ TestWorkload::TestWorkload(MiniCluster* cluster)
     write_batch_size_(50),
     write_interval_millis_(0),
     write_timeout_millis_(20000),
+    fault_tolerant_(false),
     timeout_allowed_(false),
     not_found_allowed_(false),
     network_error_allowed_(false),
     remote_error_allowed_(false),
+    selection_(client::KuduClient::CLOSEST_REPLICA),
     schema_(KuduSchema::FromSchema(GetSimpleTestSchema())),
     num_replicas_(3),
     num_tablets_(1),
@@ -219,7 +221,10 @@ void TestWorkload::ReadThread() {
 
     KuduScanner scanner(table.get());
     CHECK_OK(scanner.SetTimeoutMillis(read_timeout_millis_));
-    CHECK_OK(scanner.SetFaultTolerant());
+    CHECK_OK(scanner.SetSelection(selection_));
+    if (fault_tolerant_) {
+      CHECK_OK(scanner.SetFaultTolerant());
+    }
 
     // Note: when INSERT_RANDOM_ROWS_WITH_DELETE is used, ReadThread doesn't really verify
     // anything except that a scan works.

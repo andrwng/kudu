@@ -58,9 +58,8 @@ DECLARE_int32(num_client_threads);
 DECLARE_int32(num_replicas);
 DECLARE_int32(num_tablet_servers);
 
-METRIC_DECLARE_entity(tablet);
-METRIC_DECLARE_counter(transaction_memory_pressure_rejections);
-METRIC_DECLARE_gauge_int64(raft_term);
+METRIC_DECLARE_entity(server);
+METRIC_DECLARE_gauge_int32(num_leaders);
 
 using kudu::cluster::ExternalTabletServer;
 using kudu::consensus::COMMITTED_OPID;
@@ -70,6 +69,7 @@ using kudu::consensus::OpId;
 using kudu::consensus::RaftPeerPB;
 using kudu::itest::AddServer;
 using kudu::itest::GetConsensusState;
+using kudu::itest::GetInt64Metric;
 using kudu::itest::GetLastOpIdForReplica;
 using kudu::itest::GetReplicaStatusAndCheckIfLeader;
 using kudu::itest::LeaderStepDown;
@@ -342,6 +342,68 @@ TEST_F(RaftConsensusElectionITest, LeaderStepDown) {
                          kTestRowKey, kTestRowIntVal, "foo", kTimeout);
   ASSERT_TRUE(s.IsIllegalState()) << "TS #0 should not accept writes as follower: "
                                   << s.ToString();
+}
+
+TEST_F(RaftConsensusElectionITest, TestNumLeadersMetric) {
+  const int kNumTablets = 10;
+  FLAGS_num_replicas = 3;
+  FLAGS_num_tablet_servers = 3;
+  // We'll trigger elections manually, so turn off leader failure detection.
+  const vector<string> kTsFlags = {
+    "--enable_leader_failure_detection=false"
+  };
+  const vector<string> kMasterFlags = {
+    "--catalog_manager_wait_for_new_tablets_to_elect_leader=false"
+  };
+  NO_FATALS(BuildAndStart(kTsFlags, kMasterFlags, {}, false));
+
+  // Create some tablet replias.
+  TestWorkload workload(cluster_.get());
+  workload.set_num_tablets(kNumTablets);
+  workload.Setup();
+
+  vector<TServerDetails*> tservers;
+  AppendValuesFromMap(tablet_servers_, &tservers);
+  const auto kTimeout = MonoDelta::FromSeconds(10);
+  const auto* ts = tservers[0];
+  vector<string> tablet_ids;
+  ASSERT_EVENTUALLY([&] {
+    vector<string> tablets;
+    ASSERT_OK(ListRunningTabletIds(ts, kTimeout, &tablets));
+    ASSERT_EQ(kNumTablets, tablets.size());
+    tablet_ids = std::move(tablets);
+  });
+
+  // Do a sanity check that there are no leaders yet.
+  for (const auto& id : tablet_ids) {
+    Status s = GetReplicaStatusAndCheckIfLeader(ts, id, kTimeout);
+    ASSERT_TRUE(s.IsIllegalState()) << "TS #0 should not be leader yet: " << s.ToString();
+  }
+  const auto get_num_leaders_metric = [&] (int64_t* num_leaders) {
+    return GetInt64Metric(cluster_->tablet_server_by_uuid(ts->uuid())->bound_http_hostport(),
+                          &METRIC_ENTITY_server, nullptr, &METRIC_num_leaders, "value",
+                          num_leaders);
+  };
+  int64_t num_leaders_metric;
+  ASSERT_OK(get_num_leaders_metric(&num_leaders_metric));
+  ASSERT_EQ(0, num_leaders_metric);
+
+  // Begin triggering elections and ensure we get the correct values for the
+  // metric.
+  int num_leaders_expected = 0;
+  for (const auto& id : tablet_ids) {
+    ASSERT_OK(StartElection(ts, id, kTimeout));
+    ASSERT_OK(WaitUntilLeader(ts, id, kTimeout));
+    ASSERT_OK(get_num_leaders_metric(&num_leaders_metric));
+    ASSERT_EQ(++num_leaders_expected, num_leaders_metric);
+  }
+
+  // Now go in reverse.
+  for (const auto& id : tablet_ids) {
+    ASSERT_OK(LeaderStepDown(ts, id, kTimeout));
+    ASSERT_OK(get_num_leaders_metric(&num_leaders_metric));
+    ASSERT_EQ(--num_leaders_expected, num_leaders_metric);
+  }
 }
 
 // Test for KUDU-699: sets the consensus RPC timeout to be long,

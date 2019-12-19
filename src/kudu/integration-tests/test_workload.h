@@ -61,6 +61,14 @@ class TestWorkload {
   explicit TestWorkload(cluster::MiniCluster* cluster);
   ~TestWorkload();
 
+  void set_scanner_fault_tolerant(bool fault_tolerant) {
+    fault_tolerant_ = fault_tolerant;
+  }
+
+  void set_scanner_selection(client::KuduClient::ReplicaSelection selection) {
+    selection_ = selection;
+  }
+
   void set_payload_bytes(int n) {
     payload_bytes_ = n;
   }
@@ -245,12 +253,14 @@ class TestWorkload {
   int write_batch_size_;
   int write_interval_millis_;
   int write_timeout_millis_;
+  bool fault_tolerant_;
   bool timeout_allowed_;
   bool not_found_allowed_;
   bool already_present_allowed_;
   bool network_error_allowed_;
   bool remote_error_allowed_;
   WritePattern write_pattern_;
+  client::KuduClient::ReplicaSelection selection_;
   client::KuduSchema schema_;
 
   int num_replicas_;

@@ -60,6 +60,9 @@ class KuduServer : public server::ServerBase {
   ThreadPool* tablet_apply_pool() const { return tablet_apply_pool_.get(); }
   ThreadPool* raft_pool() const { return raft_pool_.get(); }
 
+  // Whether this KuduServer instance is in the process of quiescing.
+  virtual bool quiescing() const { return false; }
+
  private:
 
   // Thread pool for preparing transactions, shared between all tablets.

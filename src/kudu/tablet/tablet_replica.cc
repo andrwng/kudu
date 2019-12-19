@@ -111,6 +111,7 @@ using consensus::RaftConfigPB;
 using consensus::RaftPeerPB;
 using consensus::RaftConsensus;
 using consensus::RpcPeerProxyFactory;
+using consensus::ServerContext;
 using consensus::TimeManager;
 using consensus::ALTER_SCHEMA_OP;
 using consensus::WRITE_OP;
@@ -119,6 +120,7 @@ using log::LogAnchorRegistry;
 using pb_util::SecureDebugString;
 using rpc::Messenger;
 using rpc::ResultTracker;
+using std::function;
 using std::map;
 using std::shared_ptr;
 using std::string;
@@ -149,7 +151,7 @@ TabletReplica::~TabletReplica() {
       << TabletStatePB_Name(state_);
 }
 
-Status TabletReplica::Init(ThreadPool* raft_pool) {
+Status TabletReplica::Init(ServerContext server_ctx) {
   CHECK_EQ(NOT_INITIALIZED, state_);
   TRACE("Creating consensus instance");
   SetStatusMessage("Initializing consensus...");
@@ -159,7 +161,7 @@ Status TabletReplica::Init(ThreadPool* raft_pool) {
   RETURN_NOT_OK(RaftConsensus::Create(std::move(options),
                                       local_peer_pb_,
                                       cmeta_manager_,
-                                      raft_pool,
+                                      std::move(server_ctx),
                                       &consensus));
   consensus_ = std::move(consensus);
   set_state(INITIALIZED);

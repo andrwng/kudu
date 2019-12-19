@@ -59,8 +59,8 @@ class TabletServer : public kserver::KuduServer {
   // Waits for the tablet server to complete the initialization.
   Status WaitInited();
 
-  virtual Status Start() override;
-  virtual void Shutdown() override;
+  Status Start() override;
+  void Shutdown() override;
 
   std::string ToString() const;
 
@@ -82,6 +82,16 @@ class TabletServer : public kserver::KuduServer {
     return maintenance_manager_.get();
   }
 
+  bool quiescing() const override {
+    std::lock_guard<simple_spinlock> l(quiescing_lock_);
+    return quiescing_;
+  }
+
+  void set_quiescing(bool q) {
+    std::lock_guard<simple_spinlock> l(quiescing_lock_);
+    quiescing_ = q;
+  }
+
  private:
   friend class TabletServerTestBase;
 
@@ -92,6 +102,9 @@ class TabletServer : public kserver::KuduServer {
   };
 
   TabletServerState state_;
+
+  mutable simple_spinlock quiescing_lock_;
+  bool quiescing_;
 
   // If true, all heartbeats will be seen as failed.
   Atomic32 fail_heartbeats_for_tests_;
