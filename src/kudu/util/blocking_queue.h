@@ -143,7 +143,7 @@ class BlockingQueue {
   //   QUEUE_SUCCESS: if successfully inserted
   //   QUEUE_FULL: if the queue has reached max_size
   //   QUEUE_SHUTDOWN: if someone has already called Shutdown()
-  QueueStatus Put(const T &val) {
+  QueueStatus Put(T&& val) {
     MutexLock l(lock_);
     if (size_ >= max_size_) {
       return QUEUE_FULL;
@@ -151,11 +151,16 @@ class BlockingQueue {
     if (shutdown_) {
       return QUEUE_SHUTDOWN;
     }
-    list_.push_back(val);
+    list_.emplace_back(std::move(val));
     increment_size_unlocked(val);
     l.Unlock();
     not_empty_.Signal();
     return QUEUE_SUCCESS;
+
+  }
+
+  QueueStatus Put(const T &val) {
+    return Put(val);
   }
 
   // Returns the same as the other Put() overload above.

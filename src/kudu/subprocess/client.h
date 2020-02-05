@@ -50,12 +50,9 @@ class SubprocessClient {
   static const char* const kSubprocessName;
   std::shared_ptr<SubprocessServer> server_;
 
-  // A single-threaded thread pool for sending the request(s) and getting the
-  // response(s).
-  std::unique_ptr<ThreadPool> threadpool_;
+  // ID to assign to the next request.
+  AtomicInt<int64_t> next_id_;
 
-  // Timeout the request in case it passes the deadline.
-  CountDownLatch timer_;
 };
 
 } // namespace subprocess

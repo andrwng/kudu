@@ -31,6 +31,13 @@ class EchoProtocolHandler extends ProtocolHandler<EchoRequestPB, EchoResponsePB>
 
   @Override
   EchoResponsePB createResponse(EchoRequestPB request) {
+    if (request.hasSleepMs()) {
+      try {
+        Thread.sleep(request.getSleepMs());
+      } catch (Exception e) {
+        // no-op
+      }
+    }
     EchoResponsePB.Builder resBuilder = EchoResponsePB.newBuilder();
     resBuilder.setData(request.getData());
     return resBuilder.build();

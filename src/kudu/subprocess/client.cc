@@ -20,6 +20,7 @@
 #include <gflags/gflags.h>
 
 #include "kudu/common/wire_protocol.h"
+#include "kudu/subprocess/call.h"
 #include "kudu/subprocess/server.h"
 #include "kudu/subprocess/subprocess.pb.h"
 #include "kudu/util/async_util.h"
@@ -38,9 +39,10 @@ namespace subprocess {
 
 const char* const SubprocessClient::kSubprocessName = "subprocess";
 
+// XXX(awong): templatize the API with some kind of SubprocessProxy.
 SubprocessClient::SubprocessClient(shared_ptr<SubprocessServer> server)
     : server_(std::move(server)),
-      timer_(1) {
+      next_id_(1) {
 }
 
 SubprocessClient::~SubprocessClient() {
@@ -48,51 +50,34 @@ SubprocessClient::~SubprocessClient() {
 }
 
 Status SubprocessClient::Start() {
-  if (threadpool_) {
-    return Status::IllegalState("Subprocess client is already started");
-  }
-  return ThreadPoolBuilder(kSubprocessName)
-      .set_min_threads(1)
-      .set_max_threads(1)
-      .Build(&threadpool_);
+  return Status::OK();
 }
 
 void SubprocessClient::Stop() {
-  if (threadpool_) {
-    threadpool_->Shutdown();
-  }
 }
 
 Status SubprocessClient::Execute(SubprocessRequestPB* req,
-                                 SubprocessResponsePB* res) {
+                                 SubprocessResponsePB* resp) {
+  req->set_id(next_id_.Increment());
   Synchronizer synchronizer;
   auto callback = synchronizer.AsStdStatusCallback();
+  shared_ptr<SubprocessCall> call(new SubprocessCall(req, resp, &callback));
+  RETURN_NOT_OK(server_->QueueCall(call));
 
-  RETURN_NOT_OK(threadpool_->SubmitFunc([=] {
-    // TODO(hao): add retry logic
-
-    Status s;
-    SubprocessServer::ResponseCallback cb =
-      [&](const Status& status, SubprocessResponsePB response) {
-        if (status.ok()) {
-          *res = response;
-        } else {
-          s = status;
-        }
-        timer_.Reset(0);
-      };
-    int64_t id;
-    timer_.Reset(1);
-    s = server_->SendRequest(req, &cb, &id);
-    // Timeout the request if takes too long.
-    if (!timer_.WaitFor(MonoDelta::FromMilliseconds(FLAGS_subprocess_rpc_timeout_ms))) {
-      server_->UnregisterCallbackById(id);
-      return callback(
-          Status::TimedOut("unable to get the response from subprocess before time out "));
-    }
-    return callback(s);
-  }));
-
+  // XXX(awong): wrap the callback, request, and response in some OutboundCall
+  // object and put that on the queue
+  // - The writer thread will pull calls from the queue, put the callback
+  //   somewhere, and serialize the request bytes to the pipe. The deadline
+  //   tracking starts when the call is pulled from the queue.
+  // - The reader thread will serialize request bytes from the pipe and put it
+  //   onto the inbound response queue.
+  // - The deadline checker thread will look at the earliest deadlines and
+  //   check if any Calls need to be terminated, removing the callback for the
+  //   given call from the list, and calling it with a TimedOut error.
+  //   - The callback will be done in the responder threadpool.
+  // - Responder threads will take from the queue of responses, look for the
+  //   call (may be removed if the deadline passed), and call the callback.
+  //   These will live in a threadpool.
   return synchronizer.Wait();
 }
 

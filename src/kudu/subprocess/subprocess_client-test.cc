@@ -17,11 +17,17 @@
 
 #include "kudu/subprocess/client.h"
 
+#include <string>
+#include <thread>
+#include <vector>
+
 #include <gflags/gflags_declare.h>
 #include <google/protobuf/any.h>
 #include <gtest/gtest.h>
 
 #include "kudu/subprocess/subprocess.pb.h"
+#include "kudu/gutil/strings/substitute.h"
+#include "kudu/util/stopwatch.h"
 #include "kudu/util/test_macros.h"
 #include "kudu/util/test_util.h"
 
@@ -31,7 +37,10 @@ using google::protobuf::Any;
 using std::make_shared;
 using std::shared_ptr;
 using std::string;
+using std::thread;
 using std::unique_ptr;
+using std::vector;
+using strings::Substitute;
 
 namespace kudu {
 namespace subprocess {
@@ -50,7 +59,6 @@ class SubprocessClientTest : public KuduTest {
     if (client_) {
       client_->Stop();
     }
-    server_->Shutdown();
     KuduTest::TearDown();
   }
 
@@ -73,6 +81,51 @@ TEST_F(SubprocessClientTest, TestBasicCommmunication) {
   EchoResponsePB echo_response;
   ASSERT_TRUE(response.response().UnpackTo(&echo_response));
   ASSERT_EQ(echo_response.data(), kEchoData);
+}
+
+TEST_F(SubprocessClientTest, TestMultithreadedCommunication) {
+  constexpr int kNumThreads = 20;
+  constexpr int kNumPerThread = 10000;
+  const string kEchoData = "this is a long long long payload";
+  vector<vector<SubprocessRequestPB>> requests(kNumThreads,
+      vector<SubprocessRequestPB>(kNumPerThread));
+  vector<vector<SubprocessResponsePB>> responses(kNumThreads,
+      vector<SubprocessResponsePB>(kNumPerThread));
+  for (int t = 0; t < kNumThreads; t++) {
+    for (int i = 0; i < kNumPerThread; i++) {
+      unique_ptr<Any> any(new Any);
+      EchoRequestPB echo_request;
+      echo_request.set_data(kEchoData);
+      any->PackFrom(echo_request);
+      requests[t][i].set_allocated_request(any.release());
+    }
+  }
+  Stopwatch sw(Stopwatch::ALL_THREADS);
+  sw.start();
+    vector<thread> threads;
+    for (int t = 0; t < kNumThreads; t++) {
+      threads.emplace_back([&, t] {
+        for (int i = 0; i < kNumPerThread; i++) {
+          ASSERT_OK(client_->Execute(&requests[t][i], &responses[t][i]));
+        }
+      });
+    }
+    for (auto& t : threads) {
+      t.join();
+    }
+  sw.stop();
+  double reqs_sent = kNumThreads * kNumPerThread;
+  double elapsed_seconds = sw.elapsed().wall_seconds();
+  LOG(INFO) << Substitute("Sent $0 requests in $1 seconds: $2 rps",
+      reqs_sent, elapsed_seconds, reqs_sent / elapsed_seconds);
+  for (int t = 0; t < kNumThreads; t++) {
+    for (int i = 0; i < kNumPerThread; i++) {
+      EchoResponsePB echo_resp;
+      ASSERT_TRUE(responses[t][i].response().UnpackTo(&echo_resp));
+      ASSERT_EQ(echo_resp.data(), kEchoData);
+
+    }
+  }
 }
 
 } // namespace subprocess

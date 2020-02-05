@@ -17,6 +17,7 @@
 
 #include "kudu/subprocess/server.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,11 +28,13 @@
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/substitute.h"
+#include "kudu/subprocess/call.h"
 #include "kudu/subprocess/subprocess.pb.h"
 #include "kudu/subprocess/subprocess_protocol.h"
 #include "kudu/util/env.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/path_util.h"
+#include "kudu/util/pb_util.h"
 #include "kudu/util/status.h"
 #include "kudu/util/status_callback.h"
 #include "kudu/util/test_util.h"
@@ -46,6 +49,7 @@ DEFINE_int32(subprocess_thread_idle_threshold_ms, 1000,
              "log is idle, and considers shutting down. Used by tests.");
 TAG_FLAG(subprocess_thread_idle_threshold_ms, hidden);
 
+using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
 using std::vector;
@@ -54,80 +58,17 @@ using strings::Substitute;
 namespace kudu {
 namespace subprocess {
 
-const Status SubprocessServer::kShutdownStatus(
-    Status::ServiceUnavailable("Subprocess is shutting down", "", ESHUTDOWN));
-
 SubprocessServer::SubprocessServer()
-    : request_queue_(FLAGS_subprocess_request_queue_size_bytes),
-      id_(0),
-      closing_(false) {
+    : closing_(false),
+      request_queue_(FLAGS_subprocess_request_queue_size_bytes),
+      response_queue_(FLAGS_subprocess_request_queue_size_bytes) {
 }
 
 SubprocessServer::~SubprocessServer() {
-  if (!threads_.empty()) {
-    Shutdown();
-  }
+  Shutdown();
 }
 
 Status SubprocessServer::Init() {
-  RETURN_NOT_OK(StartProcess());
-
-  // Start the protocol interface.
-  CHECK(!proto_);
-  proto_.reset(new SubprocessProtocol(SubprocessProtocol::SerializationMode::PB,
-                                      SubprocessProtocol::CloseMode::CLOSE_ON_DESTROY,
-                                      process_->ReleaseChildStdoutFd(),
-                                      process_->ReleaseChildStdinFd()));
-  scoped_refptr<Thread> new_thread;
-  Status s = kudu::Thread::Create("subprocess", "subprocess-send-msg",
-                                  &SubprocessServer::SendMessages, this, &new_thread);
-  if (s.ok()) {
-    threads_.push_back(new_thread);
-    s = kudu::Thread::Create("subprocess", "subprocess-receive-msg",
-                             &SubprocessServer::ReceiveMessages, this, &new_thread);
-  }
-  if (!s.ok()) {
-    Shutdown();
-    return s;
-  }
-  threads_.push_back(new_thread);
-  return Status::OK();
-}
-
-void SubprocessServer::Shutdown() {
-  VLOG(2) << "Shutting down the subprocess";
-
-  // Shutdown the request queue.
-  request_queue()->Shutdown();
-
-  // Shutdown the subprocess.
-  ignore_result(StopProcess());
-
-  {
-    std::lock_guard<Mutex> l(lock_);
-    DCHECK(!closing_);
-    closing_ = true;
-
-    // Signal all the waiting requests.
-    for (const auto& entry : callbacks_) {
-      SubprocessResponsePB res;
-        (*entry.second)(kShutdownStatus, res);
-    }
-  }
-
-  for (const scoped_refptr<kudu::Thread>& thread : threads_) {
-    CHECK_OK(ThreadJoiner(thread.get()).Join());
-  }
-
-  if (proto_) {
-    proto_.reset();
-  }
-  threads_.clear();
-}
-
-Status SubprocessServer::StartProcess() {
-  CHECK(!process_);
-
   Env* env = Env::Default();
 
   string exe;
@@ -139,155 +80,171 @@ Status SubprocessServer::StartProcess() {
   RETURN_NOT_OK(FindHomeDir("subprocess", bin_dir, &subprocess_home));
   RETURN_NOT_OK(FindHomeDir("java", bin_dir, &java_home));
 
-  if (data_root_.empty()) {
-    data_root_ = GetTestDataDirectory();
-  }
-
-  RETURN_NOT_OK(CreateConfigs(data_root_));
-
   vector<string> argv;
   process_.reset(new Subprocess({
       Substitute("$0/bin/java", java_home),
-      "-jar",
-      Substitute("$0/kudu-subprocess.jar", subprocess_home),
-      "--conffile", JoinPathSegments(data_root_, "subprocess-site.xml"),
+      "-jar", Substitute("$0/kudu-subprocess.jar", subprocess_home),
   }));
 
   process_->ShareParentStdin(false);
   process_->ShareParentStdout(false);
   VLOG(2) << "Starting the subprocess";
   RETURN_NOT_OK_PREPEND(process_->Start(), "Failed to start subprocess");
-  return Status::OK();
-}
 
-Status SubprocessServer::StopProcess() {
-  if (process_) {
-    VLOG(2) << "Shutting down the subprocess";
-    unique_ptr<Subprocess> proc = std::move(process_);
-    RETURN_NOT_OK_PREPEND(proc->KillAndWait(SIGTERM), "failed to stop the subprocess");
+  // Start the message protocol.
+  CHECK(!message_protocol_);
+  message_protocol_.reset(new SubprocessProtocol(SubprocessProtocol::SerializationMode::PB,
+                                                 SubprocessProtocol::CloseMode::CLOSE_ON_DESTROY,
+                                                 process_->ReleaseChildStdoutFd(),
+                                                 process_->ReleaseChildStdinFd()));
+  int num_threads = 20;
+  responder_threads_.resize(num_threads);
+  for (int i = 0; i < num_threads; i++) {
+    RETURN_NOT_OK(Thread::Create("subprocess", "responder", &SubprocessServer::Respond,
+                                 this, &responder_threads_[i]));
   }
+  RETURN_NOT_OK(Thread::Create("subprocess", "read", &SubprocessServer::ReceiveMessages,
+                               this, &read_thread_));
+  RETURN_NOT_OK(Thread::Create("subprocess", "write", &SubprocessServer::SendMessages,
+                               this, &write_thread_));
+  RETURN_NOT_OK(Thread::Create("subprocess", "deadline-checker", &SubprocessServer::CheckDeadlines,
+                               this, &deadline_checker_));
   return Status::OK();
 }
 
-// Retrieve the message from the queue and write to the subprocess stdin
-void SubprocessServer::SendMessages() {
-  CHECK(proto_) << "Subprocess protocol is not initialized";
+void SubprocessServer::Shutdown() {
+  // Stop further work from happening by killing the subprocess and shutting
+  // down the queues.
+  closing_.store(true);
+  WARN_NOT_OK(process_->KillAndWait(SIGTERM), "failed to stop subprocess");
+  response_queue_.Shutdown();
+  request_queue_.Shutdown();
 
-  while (true) {
-    SubprocessRequestPB* request;
-    // Block on getting a request.
-    bool isAvailable = request_queue()->BlockingGet(&request);
-    if (isAvailable) {
-      Status s = proto_->SendMessage(*request);
-      if (!s.IsEndOfFile()) {
-        WARN_NOT_OK(s, "failed to send message to the subprocess");
-      }
-    } else {
-      // The request queue is shutdown.
-      break;
-    }
+  // Clean up our threads.
+  write_thread_->Join();
+  read_thread_->Join();
+  deadline_checker_->Join();
+  for (auto t : responder_threads_) {
+    t->Join();
   }
 }
 
 // Read from the subprocess stdout and put it on the queue.
 void SubprocessServer::ReceiveMessages() {
-  CHECK(proto_) << "Subprocess protocol is not initialized";
+  DCHECK(message_protocol_) << "Subprocess protocol is not initialized";
 
-  while (true) {
+  while (!closing_.load()) {
     // Receive a new request, blocking until one is received.
     SubprocessResponsePB response;
-    Status s = proto_->ReceiveMessage(&response);
-    if (!s.IsEndOfFile()) {
-      WARN_NOT_OK(s, "failed to receive message from the subprocess");
+    Status s = message_protocol_->ReceiveMessage(&response);
+    if (s.IsEndOfFile()) {
+      // The underlying pipe was closed. We're likely shutting down.
+      return;
     }
-
-    if (s.ok()) {
-      // Get the id from the response and notify the callback based
-      // on the id. If the response has no ID, skip it.
-      if (response.has_id()) {
-        // Process error response.
-        if (response.has_error()) {
-          s = StatusFromPB(response.error());
-        }
-        int64_t id = response.id();
-        {
-          std::lock_guard<Mutex> l(lock_);
-          if (!closing_) {
-            auto cb = EraseKeyReturnValuePtr(&callbacks_, id);
-            if (cb) {
-              (*cb)(s, std::move(response));
-            }
-          }
-        }
-      }
+    WARN_NOT_OK(s, "failed to receive message from the subprocess");
+    if (s.ok() &&
+        !response_queue_.BlockingPut(std::move(response))) {
+      // The queue is shut down and we should too.
+      VLOG(2) << "put failed, inbound queue shut down";
+      return;
     }
+  }
+}
 
-    // Check if shutdown was signaled while in the loop.
+void SubprocessServer::Respond() {
+  while (!closing_.load()) {
+    SubprocessResponsePB resp;
+    if (!response_queue_.BlockingGet(&resp)) {
+      VLOG(2) << "get failed, inbound queue shut down";
+      return;
+    }
+    if (!resp.has_id()) {
+      LOG(WARNING) << Substitute("Received invalid response: $0",
+                                 pb_util::SecureDebugString(resp));
+      continue;
+    }
+    shared_ptr<SubprocessCall> call;
     {
-      std::lock_guard<Mutex> l(lock_);
-      if (closing_) {
-        break;
+      std::lock_guard<simple_spinlock> l(call_lock_);
+      call = EraseKeyReturnValuePtr(&call_by_id_, resp.id());
+    }
+    if (call) {
+      call->SetResponse(std::move(resp));
+      const auto& cb = *call->cb();
+      cb(Status::OK());
+    }
+  }
+}
+
+void SubprocessServer::CheckDeadlines() {
+  while (!closing_.load()) {
+    MonoTime now = MonoTime::Now();
+    shared_ptr<SubprocessCall> timed_out_call;
+    {
+      std::lock_guard<simple_spinlock> l(call_lock_);
+      if (!call_by_id_.empty()) {
+        const auto& id_and_call = call_by_id_.begin();
+        const auto& oldest_call = id_and_call->second;
+        if (now > oldest_call->start_time() + MonoDelta::FromSeconds(15)) {
+          call_by_id_.erase(id_and_call);
+          timed_out_call = oldest_call;
+        }
       }
     }
-  }
-}
-
-Status SubprocessServer::SendRequest(SubprocessRequestPB* request,
-                                     ResponseCallback* callback,
-                                     int64_t* id) {
-  DCHECK(request);
-  DCHECK(callback);
-  DCHECK(id);
-
-  *id = id_.Increment();
-  request->set_id(*id);
-
-  QueueStatus queue_status = request_queue()->Put(request);
-  if (queue_status == QUEUE_SHUTDOWN) {
-    return kShutdownStatus;
-  }
-
-  if (queue_status == QUEUE_FULL) {
-    return Status::ServiceUnavailable("Subprocess queue is full");
-  }
-
-  // Register callback by request ID.
-  {
-    std::lock_guard<Mutex> l(lock_);
-    if (!closing_) {
-      EmplaceOrDie(&callbacks_, *id, callback);
-    } else {
-      return kShutdownStatus;
+    if (timed_out_call) {
+      const auto& cb = *timed_out_call->cb();
+      cb(Status::TimedOut("Timed out while in flight"));
     }
   }
-
-  return Status::OK();
 }
 
-void SubprocessServer::UnregisterCallbackById(int64_t id) {
-  std::lock_guard<Mutex> l(lock_);
-  EraseKeyReturnValuePtr(&callbacks_, id);
+void SubprocessServer::SendMessages() {
+  while (!closing_.load()) {
+    const SubprocessRequestPB* req;
+    if (!request_queue_.BlockingGet(&req)) {
+      VLOG(2) << "outbound queue shut down";
+      return;
+    }
+    WARN_NOT_OK(message_protocol_->SendMessage(*req), "failed to send message");
+  }
 }
 
-Status SubprocessServer::CreateConfigs(const string& tmp_dir) const {
+Status SubprocessServer::QueueCall(const shared_ptr<SubprocessCall>& call) {
+  if (MonoTime::Now() > call->start_time() + MonoDelta::FromSeconds(15)) {
+    return Status::TimedOut("timed out before queueing call");
+  }
 
-  static const string kFileTemplate = R"(
-<configuration>
+  // XXX(awong):
+  // Start tracking this call. It's possible that the callback will be called
+  // before even putting the request on the queue.
+  //
+  // That's bad -- we might reference deleted state.
+  //
+  // Alternatively, we could Put() first, but then we run into the possibility
+  // of finishing really quickly and our callback not being registered yet. If
+  // that happens, we'll look for our callback and assume the deadline-checker
+  // killed it; but when we _do_ add the call to the queue, it'll time out even
+  // though we may have had a valid response.
+  {
+    std::lock_guard<simple_spinlock> l(call_lock_);
+    EmplaceOrDie(&call_by_id_, call->req()->id(), call);
+  }
+  do {
+    QueueStatus queue_status = request_queue_.Put(call->req());
+    switch (queue_status) {
+      case QUEUE_SUCCESS: return Status::OK();
+      case QUEUE_SHUTDOWN: return Status::ServiceUnavailable("outbound queue shutting down");
+      case QUEUE_FULL: {
+        // If we still have more time allotted for this call, wait for a bit
+        // and try again; otherwise, time out.
+        if (MonoTime::Now() > call->start_time() + MonoDelta::FromSeconds(15)) {
+          return Status::TimedOut("outbound queue is full");
+        }
+        SleepFor(MonoDelta::FromMilliseconds(50));
+      }
+    }
+  } while (true);
 
-  <property>
-    <name>kudu.subprocess.message.type</name>
-    <value>$0</value>
-  </property>
-
-</configuration>
-  )";
-
-  string file_contents = Substitute(
-      kFileTemplate,
-      "echo");
-  RETURN_NOT_OK(WriteStringToFile(Env::Default(),
-                file_contents,
-                JoinPathSegments(tmp_dir, "subprocess-site.xml")));
   return Status::OK();
 }
 
