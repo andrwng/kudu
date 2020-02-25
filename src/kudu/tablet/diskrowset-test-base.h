@@ -326,7 +326,7 @@ class TestRowSet : public KuduRowSetTest {
   }
 
   Status OpenTestRowSet(std::shared_ptr<DiskRowSet> *rowset) {
-    return DiskRowSet::Open(rowset_meta_,
+    return DiskRowSet::Open(rowset_meta_, nullptr,
                             log_anchor_registry_.get(),
                             TabletMemTrackers(),
                             nullptr,

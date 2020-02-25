@@ -1033,7 +1033,7 @@ Status ApplyMutationsAndGenerateUndos(const MvccSnapshot& snap,
         break;
       }
       case RowChangeList::kDelete: {
-        CHECK(redo_delete == nullptr);
+        CHECK(redo_delete == nullptr) << ERROR_LOG_CONTEXT;
         redo_decoder.TwiddleDeleteStatus(&is_deleted);
         // Delete mutations are left as redos. Encode the DELETE as a redo.
         undo_encoder.SetToDelete();

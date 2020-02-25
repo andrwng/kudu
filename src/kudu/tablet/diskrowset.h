@@ -84,6 +84,7 @@ class DeltaStats;
 class HistoryGcOpts;
 class MultiColumnWriter;
 class Mutation;
+class MvccManager;
 class MvccSnapshot;
 class OperationResultPB;
 
@@ -315,6 +316,7 @@ class DiskRowSet : public RowSet {
   // Open a rowset from disk.
   // If successful, sets *rowset to the newly open rowset
   static Status Open(const std::shared_ptr<RowSetMetadata>& rowset_metadata,
+                     MvccManager* mvcc,
                      log::LogAnchorRegistry* log_anchor_registry,
                      const TabletMemTrackers& mem_trackers,
                      const fs::IOContext* io_context,
@@ -454,6 +456,7 @@ class DiskRowSet : public RowSet {
   friend class Tablet;
 
   DiskRowSet(std::shared_ptr<RowSetMetadata> rowset_metadata,
+             MvccManager* mvcc,
              log::LogAnchorRegistry* log_anchor_registry,
              TabletMemTrackers mem_trackers);
 
@@ -471,6 +474,8 @@ class DiskRowSet : public RowSet {
                                               HistoryGcOpts history_gc_opts);
 
   std::shared_ptr<RowSetMetadata> rowset_metadata_;
+
+  MvccManager* mvcc_;
 
   bool open_;
 

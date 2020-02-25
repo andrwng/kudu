@@ -303,7 +303,7 @@ class TestCompaction : public KuduRowSetTest {
       // Re-open the outputs
       for (const shared_ptr<RowSetMetadata>& meta : metas) {
         shared_ptr<DiskRowSet> rs;
-        ASSERT_OK(DiskRowSet::Open(meta, log_anchor_registry_.get(),
+        ASSERT_OK(DiskRowSet::Open(meta, nullptr, log_anchor_registry_.get(),
                                    mem_trackers_, nullptr, &rs));
         result_rowsets->push_back(rs);
       }
@@ -448,7 +448,7 @@ class TestCompaction : public KuduRowSetTest {
 
       for (const shared_ptr<RowSetMetadata>& meta : input_meta->rowsets()) {
         shared_ptr<DiskRowSet> rs;
-        CHECK_OK(DiskRowSet::Open(meta, log_anchor_registry_.get(),
+        CHECK_OK(DiskRowSet::Open(meta, nullptr, log_anchor_registry_.get(),
                                   mem_trackers_, nullptr, &rs));
         rowsets.push_back(rs);
       }

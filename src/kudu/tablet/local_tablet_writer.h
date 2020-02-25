@@ -30,6 +30,8 @@
 #include "kudu/tablet/tablet_replica.h"
 #include "kudu/tablet/transactions/write_transaction.h"
 
+#include "kudu/util/random.h"
+
 namespace kudu {
 namespace tablet {
 
@@ -107,6 +109,7 @@ class LocalTabletWriter {
     // Create a "fake" OpId and set it in the TransactionState for anchoring.
     tx_state_->mutable_op_id()->CopyFrom(consensus::MaximumOpId());
     RETURN_NOT_OK(tablet_->ApplyRowOperations(tx_state_.get()));
+
 
     tx_state_->ReleaseTxResultPB(&result_);
     tablet_->mvcc_manager()->AdjustNewTransactionLowerBound(tx_state_->timestamp());

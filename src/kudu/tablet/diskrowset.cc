@@ -40,6 +40,7 @@
 #include "kudu/fs/block_manager.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/gscoped_ptr.h"
+#include "kudu/gutil/strings/substitute.h"
 #include "kudu/gutil/port.h"
 #include "kudu/tablet/cfile_set.h"
 #include "kudu/tablet/compaction.h"
@@ -101,6 +102,7 @@ using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
 using std::vector;
+using strings::Substitute;
 
 const char *DiskRowSet::kMinKeyMetaEntryName = "min_key";
 const char *DiskRowSet::kMaxKeyMetaEntryName = "max_key";
@@ -508,11 +510,12 @@ RollingDiskRowSetWriter::~RollingDiskRowSetWriter() {
 ////////////////////////////////////////////////////////////
 
 Status DiskRowSet::Open(const shared_ptr<RowSetMetadata>& rowset_metadata,
+                        MvccManager* mvcc,
                         log::LogAnchorRegistry* log_anchor_registry,
                         const TabletMemTrackers& mem_trackers,
                         const IOContext* io_context,
                         shared_ptr<DiskRowSet> *rowset) {
-  shared_ptr<DiskRowSet> rs(new DiskRowSet(rowset_metadata,
+  shared_ptr<DiskRowSet> rs(new DiskRowSet(rowset_metadata, mvcc,
                                            log_anchor_registry,
                                            mem_trackers));
 
@@ -523,9 +526,11 @@ Status DiskRowSet::Open(const shared_ptr<RowSetMetadata>& rowset_metadata,
 }
 
 DiskRowSet::DiskRowSet(shared_ptr<RowSetMetadata> rowset_metadata,
+                       MvccManager* mvcc,
                        LogAnchorRegistry* log_anchor_registry,
                        TabletMemTrackers mem_trackers)
     : rowset_metadata_(std::move(rowset_metadata)),
+      mvcc_(mvcc),
       open_(false),
       log_anchor_registry_(log_anchor_registry),
       mem_trackers_(std::move(mem_trackers)),
@@ -541,6 +546,7 @@ Status DiskRowSet::Open(const IOContext* io_context) {
                                &base_data_));
 
   RETURN_NOT_OK(DeltaTracker::Open(rowset_metadata_,
+                                   mvcc_,
                                    log_anchor_registry_,
                                    mem_trackers_,
                                    io_context,

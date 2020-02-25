@@ -192,7 +192,7 @@ TEST_F(TestRowSet, TestRowSetUpdate) {
   unordered_set<uint32_t> updated;
   UpdateExistingRows(rs.get(), FLAGS_update_fraction, &updated);
   ASSERT_EQ(static_cast<int>(n_rows_ * FLAGS_update_fraction),
-            rs->delta_tracker_->dms_->Count());
+            rs->delta_tracker_->cur_dms_.new_dms()->Count());
 
   // Try to add a mutation for a key not in the file (but which falls
   // between two valid keys)
@@ -349,12 +349,12 @@ TEST_F(TestRowSet, TestDMSFlush) {
     // equal idx*5 (whereas in the original data, value = idx)
     UpdateExistingRows(rs.get(), FLAGS_update_fraction, &updated);
     ASSERT_EQ(static_cast<int>(n_rows_ * FLAGS_update_fraction),
-              rs->delta_tracker_->dms_->Count());
+              rs->delta_tracker_->cur_dms_.new_dms()->Count());
 
     ASSERT_OK(rs->FlushDeltas(nullptr));
 
     // Check that the DiskRowSet's DMS has not been initialized.
-    ASSERT_FALSE(rs->delta_tracker_->dms_);
+    ASSERT_FALSE(rs->delta_tracker_->cur_dms_.new_dms());
 
     // Now read back the value column, and verify that the updates
     // are visible.
@@ -756,7 +756,7 @@ TEST_P(DiffScanRowSetTest, TestFuzz) {
       ASSERT_OK(WriteRow(rb.data(), &drsw));
     }
     ASSERT_OK(drsw.Finish());
-    ASSERT_OK(DiskRowSet::Open(rowset_meta_, log_anchor_registry.get(),
+    ASSERT_OK(DiskRowSet::Open(rowset_meta_, nullptr, log_anchor_registry.get(),
                                TabletMemTrackers(), &test_context, &rs));
   }
 

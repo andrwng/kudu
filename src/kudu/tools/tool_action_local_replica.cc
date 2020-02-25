@@ -653,7 +653,7 @@ Status DumpRowSetInternal(const IOContext& ctx,
 
   scoped_refptr<log::LogAnchorRegistry> log_reg(new log::LogAnchorRegistry());
   shared_ptr<DiskRowSet> rs;
-  RETURN_NOT_OK(DiskRowSet::Open(rs_meta,
+  RETURN_NOT_OK(DiskRowSet::Open(rs_meta, nullptr,
                                  log_reg.get(),
                                  tablet::TabletMemTrackers(),
                                  &ctx,

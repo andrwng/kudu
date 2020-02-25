@@ -14,8 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_TABLET_DELTATRACKER_H
-#define KUDU_TABLET_DELTATRACKER_H
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -23,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include <boost/optional/optional.hpp>
 #include <gtest/gtest_prod.h>
 
 #include "kudu/common/rowid.h"
@@ -31,6 +31,7 @@
 #include "kudu/tablet/cfile_set.h"
 #include "kudu/tablet/delta_key.h"
 #include "kudu/tablet/delta_store.h"
+#include "kudu/tablet/deltamemstore.h"
 #include "kudu/tablet/tablet_mem_trackers.h"
 #include "kudu/util/atomic.h"
 #include "kudu/util/locks.h"
@@ -64,11 +65,67 @@ namespace tablet {
 
 class DeltaFileReader;
 class DeltaMemStore;
+class MvccManager;
 class OperationResultPB;
 class RowSetMetadata;
 class RowSetMetadataUpdate;
 struct ProbeStats;
 struct RowIteratorOptions;
+
+// Wrapper around one or two DeltaMemStore that represents the current DMS of a
+// DeltaTracker. This layer of indirection makes it easier to transition from
+// one DMS to the next during a flush.
+// The following states exist:
+// - old_dms only: we're in the middle of a flush
+// - old_dms and new_dms: we're in the middle of a flush and we've begun writing
+// - new_dms only: we're writing and aren't flushing
+class CurrentDeltaMemStore {
+ public:
+  CurrentDeltaMemStore()
+      : splitting_timestamp_(Timestamp::kMin) {}
+
+  void CreateNewDMS(std::shared_ptr<DeltaMemStore> dms) {
+    DCHECK(!new_dms_);
+    new_dms_ = std::move(dms);
+  }
+
+  // Updates at or below 'ts' are sent to 'old_dms_'.
+  // Guarded by flush lock.
+  void BeginRedirectingOldUpdates(Timestamp ts) {
+    DCHECK_GT(ts, Timestamp::kMin);
+    old_dms_ = std::move(new_dms_);
+    splitting_timestamp_ = ts;
+  }
+
+  // Guarded by flush lock.
+  void RetireOldDMS() {
+    old_dms_ = nullptr;
+    splitting_timestamp_ = Timestamp::kMin;
+  }
+
+  Status Update(Timestamp timestamp,
+                rowid_t row_idx,
+                const RowChangeList& update,
+                const consensus::OpId& op_id,
+                int64_t* dms_id);
+
+  void CollectStores(std::vector<std::shared_ptr<DeltaStore>>* deltas) const;
+
+  Status CheckRowDeleted(rowid_t row_idx,
+                         const fs::IOContext* io_context,
+                         bool* deleted) const;
+  int64_t Count() const;
+  int64_t deleted_row_count() const;
+  int64_t EstimateSize() const;
+  int64_t MinLogIndex() const;
+  std::shared_ptr<DeltaMemStore> new_dms() const {
+    return new_dms_;
+  }
+ private:
+  std::shared_ptr<DeltaMemStore> old_dms_;
+  std::shared_ptr<DeltaMemStore> new_dms_;
+  Timestamp splitting_timestamp_;
+};
 
 // The DeltaTracker is the part of a DiskRowSet which is responsible for
 // tracking modifications against the base data. It consists of a set of
@@ -84,6 +141,7 @@ class DeltaTracker {
   };
 
   static Status Open(const std::shared_ptr<RowSetMetadata>& rowset_metadata,
+                     MvccManager* mvcc,
                      log::LogAnchorRegistry* log_anchor_registry,
                      const TabletMemTrackers& mem_trackers,
                      const fs::IOContext* io_context,
@@ -232,7 +290,8 @@ class DeltaTracker {
 
   // Returns true if the DMS doesn't exist. This doesn't rely on the size.
   bool DeltaMemStoreEmpty() const {
-    return !dms_exists_.Load();
+    std::lock_guard<rw_spinlock> l(component_lock_);
+    return !cur_dms_.new_dms() || cur_dms_.new_dms()->Empty();
   }
 
   // Get the minimum log index for this tracker's DMS, -1 if it wasn't set.
@@ -278,6 +337,7 @@ class DeltaTracker {
   FRIEND_TEST(TestMajorDeltaCompaction, TestCompact);
 
   DeltaTracker(std::shared_ptr<RowSetMetadata> rowset_metadata,
+               MvccManager* mvcc,
                log::LogAnchorRegistry* log_anchor_registry,
                TabletMemTrackers mem_trackers);
 
@@ -325,6 +385,7 @@ class DeltaTracker {
   Status CreateAndInitDMSUnlocked(const fs::IOContext* io_context);
 
   std::shared_ptr<RowSetMetadata> rowset_metadata_;
+  MvccManager* mvcc_;
 
   bool open_;
 
@@ -342,7 +403,8 @@ class DeltaTracker {
   int64_t next_dms_id_;
 
   // The current DeltaMemStore into which updates should be written.
-  std::shared_ptr<DeltaMemStore> dms_;
+  CurrentDeltaMemStore cur_dms_;
+
   // The set of tracked REDO delta stores, in increasing timestamp order.
   SharedDeltaStoreVector redo_delta_stores_;
   // The set of tracked UNDO delta stores, in decreasing timestamp order.
@@ -385,4 +447,3 @@ class DeltaTracker {
 } // namespace tablet
 } // namespace kudu
 
-#endif

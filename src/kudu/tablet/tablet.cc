@@ -85,6 +85,7 @@
 #include "kudu/util/maintenance_manager.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/monotime.h"
+#include "kudu/util/pb_util.h"
 #include "kudu/util/process_memory.h"
 #include "kudu/util/slice.h"
 #include "kudu/util/status_callback.h"
@@ -292,6 +293,7 @@ Status Tablet::Open() {
   for (const shared_ptr<RowSetMetadata>& rowset_meta : metadata_->rowsets()) {
     shared_ptr<DiskRowSet> rowset;
     Status s = DiskRowSet::Open(rowset_meta,
+                                mvcc_manager(),
                                 log_anchor_registry_.get(),
                                 mem_trackers_,
                                 &io_context,
@@ -620,6 +622,8 @@ Status Tablet::InsertOrUpsertUnlocked(const IOContext* io_context,
         op->SetErrorIgnored();
         return Status::OK();
       case RowOperationsPB::INSERT: {
+        LOG(INFO) << Substitute("ALREADY PRESENT $0: $1", op->present_in_rowset->ToString(),
+            op->decoded_op.ToString(*schema()));
         Status s = Status::AlreadyPresent("key already present");
         if (metrics_) {
           metrics_->insertions_failed_dup_key->Increment();
@@ -641,6 +645,7 @@ Status Tablet::InsertOrUpsertUnlocked(const IOContext* io_context,
   // Now try to op into memrowset. The memrowset itself will return
   // AlreadyPresent if it has already been oped there.
   Status s = comps->memrowset->Insert(ts, row, tx_state->op_id());
+  LOG(INFO) << Substitute("$0 mrs_id: $1", op->decoded_op.ToString(*schema()), comps->memrowset->mrs_id());
   if (s.ok()) {
     op->SetInsertSucceeded(comps->memrowset->mrs_id());
   } else {
@@ -779,6 +784,8 @@ Status Tablet::MutateRowUnlocked(const IOContext* io_context,
                                       io_context,
                                       stats,
                                       result.get());
+  LOG(INFO) << Substitute("$0: $1", mutate->decoded_op.ToString(*schema()),
+      pb_util::SecureShortDebugString(*result));
   if (PREDICT_TRUE(s.ok())) {
     mutate->SetMutateSucceeded(std::move(result));
   } else {
@@ -1582,6 +1589,7 @@ Status Tablet::DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
     for (const shared_ptr<RowSetMetadata>& meta : new_drs_metas) {
       shared_ptr<DiskRowSet> new_rowset;
       Status s = DiskRowSet::Open(meta,
+                                  mvcc_manager(),
                                   log_anchor_registry_.get(),
                                   mem_trackers_,
                                   &io_context,

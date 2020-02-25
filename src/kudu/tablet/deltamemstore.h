@@ -150,6 +150,11 @@ class DeltaMemStore : public DeltaStore,
   // Returns the number of deleted rows in this DMS.
   int64_t deleted_row_count() const;
 
+  Timestamp highest_timestamp() const {
+    std::lock_guard<simple_spinlock> l(ts_lock_);
+    return highest_timestamp_;
+  }
+
  private:
   friend class DMSIterator;
 
@@ -164,6 +169,9 @@ class DeltaMemStore : public DeltaStore,
 
   const int64_t id_;    // DeltaMemStore ID.
   const int64_t rs_id_; // Rowset ID.
+
+  mutable simple_spinlock ts_lock_;
+  Timestamp highest_timestamp_;
 
   std::shared_ptr<MemoryTrackingBufferAllocator> allocator_;
 
