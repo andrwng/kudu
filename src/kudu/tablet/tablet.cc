@@ -784,8 +784,10 @@ Status Tablet::MutateRowUnlocked(const IOContext* io_context,
                                       io_context,
                                       stats,
                                       result.get());
+  if (s.ok()) {
   LOG(INFO) << Substitute("$0: $1", mutate->decoded_op.ToString(*schema()),
       pb_util::SecureShortDebugString(*result));
+  }
   if (PREDICT_TRUE(s.ok())) {
     mutate->SetMutateSucceeded(std::move(result));
   } else {
@@ -1145,12 +1147,14 @@ Status Tablet::FlushUnlocked() {
     std::lock_guard<rw_spinlock> lock(component_lock_);
     RETURN_NOT_OK(ReplaceMemRowSetUnlocked(&input, &old_mrs));
   }
+  // Take a snapshot now so we can wait for the in-flights to finish?
 
   // Wait for any in-flight transactions to finish against the old MRS
   // before we flush it.
   //
   // This may fail if the tablet has been stopped.
   RETURN_NOT_OK(mvcc_.WaitForApplyingTransactionsToCommit());
+  LOG(INFO) << "FLUSHING MRS " << old_mrs->mrs_id();
 
   // Note: "input" should only contain old_mrs.
   return FlushInternal(input, old_mrs);
@@ -1599,6 +1603,7 @@ Status Tablet::DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
                                  << meta->ToString() << ": " << s.ToString();
         return s;
       }
+      LOG(INFO) << "OPENED DRS " << new_rowset->metadata()->id();
       new_disk_rowsets.push_back(new_rowset);
     }
   }

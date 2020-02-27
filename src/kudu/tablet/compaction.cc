@@ -1282,6 +1282,9 @@ Status ReupdateMissedDeltas(const IOContext* io_context,
           // Therefore, it's already present in the output rowset, and we don't need
           // to copy it in.
 
+          LOG(INFO) << "SKIPPING REUPDATE OF " << schema->DebugRow(row.row)
+              << ": " << mut->changelist().ToString(*schema) << " " <<
+              schema->DebugRow(row.row);
           DVLOG(3) << "Skipping already-duplicated delta for row " << output_row_offset
                    << " @" << mut->timestamp() << ": " << mut->changelist().ToString(*schema);
           continue;
@@ -1314,6 +1317,9 @@ Status ReupdateMissedDeltas(const IOContext* io_context,
           RETURN_NOT_OK(cur_drs->CountRows(io_context, &num_rows));
         }
 
+        LOG(INFO) << "REUPDATING DRS " << cur_drs->metadata()->id()
+            << ": " << mut->changelist().ToString(*schema) << " "
+            << schema->DebugRow(row.row);
         DeltaTracker* cur_tracker = cur_drs->delta_tracker();
         gscoped_ptr<OperationResultPB> result(new OperationResultPB);
         DCHECK_LT(idx_in_delta_tracker, num_rows);

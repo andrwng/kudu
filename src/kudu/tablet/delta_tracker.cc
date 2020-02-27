@@ -862,7 +862,7 @@ Status DeltaTracker::Flush(const IOContext* io_context, MetadataFlushType flush_
     old_dms = cur_dms_.new_dms();
     old_dms_timestamp = old_dms->highest_timestamp();
     cur_dms_.BeginRedirectingOldUpdates(old_dms_timestamp);
-    LOG(INFO) << "FLUSH DMS: " << old_dms->id();
+    LOG(INFO) << "FLUSHING DMS " << rowset_metadata_->id() << " " << old_dms->id();
   }
 
   // Wait for operations that may have landed in the old DMS to finish

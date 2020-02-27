@@ -708,6 +708,12 @@ Status DiskRowSet::MutateRow(Timestamp timestamp,
   CHECK_LT(*row_idx, num_rows);
 #endif
 
+  // XXX(awong): a series of deletes and reinserts could put an update into the
+  // delta tracker when it shouldn't have?
+
+  // check row deleted returns that the row isn't deleted
+  //
+
   // It's possible that the row key exists in this DiskRowSet, but it has
   // in fact been Deleted already. Check with the delta tracker to be sure.
   bool deleted;
