@@ -32,9 +32,22 @@ target_link_libraries(ranger_proto
   protobuf
 )
 
-##############################
+#######################################
 # kudu_ranger
-##############################
+#######################################
+
+set(RANGER_JAR ${EXECUTABLE_OUTPUT_PATH}/kudu-ranger.jar)
+# Add the EXTRA_GRADLE_FLAGS environment variable to a cmake list and calls `separate_arguments`.
+# This solves the problem of escaped spaces in the EXTRA_GRADLE_FLAGS environment variable.
+list(APPEND EXTRA_GRADLE_FLAGS $ENV{EXTRA_GRADLE_FLAGS})
+separate_arguments(EXTRA_GRADLE_FLAGS)
+add_custom_command(OUTPUT ${RANGER_JAR}
+  COMMAND ./gradlew :kudu-ranger:jar ${EXTRA_GRADLE_FLAGS}
+  COMMAND ln -nsf
+    "${JAVA_DIR}/kudu-ranger/build/libs/kudu-ranger-${KUDU_VERSION_NUMBER}.jar"
+    "${RANGER_JAR}"
+  WORKING_DIRECTORY "${JAVA_DIR}")
+add_custom_target(ranger_subprocess DEPENDS ${RANGER_JAR})
 
 set(RANGER_SRCS
   ranger_client.cc)
@@ -47,10 +60,43 @@ add_library(kudu_ranger ${RANGER_SRCS})
 target_link_libraries(kudu_ranger ${RANGER_DEPS})
 
 #######################################
+# mini_ranger
+#######################################
+
+execute_process(COMMAND ln -nsf
+  "${CMAKE_SOURCE_DIR}/thirdparty/installed/common/bin"
+  "${EXECUTABLE_OUTPUT_PATH}/postgres")
+
+execute_process(COMMAND ln -nsf
+  "${CMAKE_SOURCE_DIR}/thirdparty/installed/common/opt/jdbc/postgresql.jar"
+  "${EXECUTABLE_OUTPUT_PATH}/postgres/")
+
+execute_process(COMMAND ln -nsf
+  "${CMAKE_SOURCE_DIR}/thirdparty/installed/common/opt/ranger"
+  "${EXECUTABLE_OUTPUT_PATH}/ranger-home")
+execute_process(COMMAND ln -nsf
+  "${CMAKE_SOURCE_DIR}/thirdparty/installed/common/opt/hadoop"
+  "${EXECUTABLE_OUTPUT_PATH}/hadoop-home")
+execute_process(COMMAND ln -nsf
+  "${JAVA_HOME}"
+  "${EXECUTABLE_OUTPUT_PATH}/java-home")
+
+set(MINI_RANGER_SRCS
+  mini_ranger.cc)
+set(MINI_RANGER_DEPS
+  kudu_test_util
+  kudu_util)
+
+add_library(mini_ranger ${MINI_RANGER_SRCS})
+target_link_libraries(mini_ranger ${MINI_RANGER_DEPS})
+
+#######################################
 # Unit tests
 #######################################
 
 SET_KUDU_TEST_LINK_LIBS(
+  mini_ranger
   kudu_ranger)
 
+ADD_KUDU_TEST(mini_ranger-test)
 ADD_KUDU_TEST(ranger_client-test)
