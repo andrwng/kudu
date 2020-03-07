@@ -32,6 +32,14 @@ target_link_libraries(ranger_proto
   protobuf
 )
 
+add_library(mini_postgres
+  mini_postgres.cc)
+target_link_libraries(mini_postgres
+  gutil
+  kudu_test_util
+  kudu_util
+)
+
 #######################################
 # kudu_ranger
 #######################################
@@ -67,6 +75,7 @@ execute_process(COMMAND ln -nsf
   "${CMAKE_SOURCE_DIR}/thirdparty/installed/common/bin"
   "${EXECUTABLE_OUTPUT_PATH}/postgres")
 
+# need to chmod +x thirdparty/src/postgresql-42.2.10/postgresql-42.2.10.jar
 execute_process(COMMAND ln -nsf
   "${CMAKE_SOURCE_DIR}/thirdparty/installed/common/opt/jdbc/postgresql.jar"
   "${EXECUTABLE_OUTPUT_PATH}/postgres/")
@@ -85,8 +94,8 @@ set(MINI_RANGER_SRCS
   mini_ranger.cc)
 set(MINI_RANGER_DEPS
   kudu_test_util
-  kudu_util)
-
+  kudu_util
+  mini_postgres)
 add_library(mini_ranger ${MINI_RANGER_SRCS})
 target_link_libraries(mini_ranger ${MINI_RANGER_DEPS})
 
@@ -96,7 +105,8 @@ target_link_libraries(mini_ranger ${MINI_RANGER_DEPS})
 
 SET_KUDU_TEST_LINK_LIBS(
   mini_ranger
-  kudu_ranger)
+  kudu_ranger
+  mini_postgres)
 
 ADD_KUDU_TEST(mini_ranger-test)
 ADD_KUDU_TEST(ranger_client-test)

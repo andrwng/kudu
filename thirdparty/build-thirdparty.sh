@@ -261,7 +261,7 @@ fi
 
 if [ -n "$F_COMMON" -o -n "$F_POSTGRES_JDBC" ]; then
   mkdir -p $PREFIX/opt/jdbc
-  ln -nsf $POSTGRES_JDBC_SOURCE/$POSTGRES_NAME.jar $PREFIX/opt/jdbc/postgresql.jar
+  ln -nsf $POSTGRES_JDBC_SOURCE/$POSTGRES_JDBC_NAME.jar $PREFIX/opt/jdbc/postgresql.jar
 fi
 
 # Install Hadoop, Hive, and Sentry by symlinking their source directories (which

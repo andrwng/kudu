@@ -14,58 +14,53 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "kudu/util/status.h"
-#include "kudu/ranger/mini_postgres.h"
 #include "kudu/util/path_util.h"
-#include "kudu/util/subprocess.h"
 
 namespace kudu {
 
-class MiniPostgres;
+class Subprocess;
 
-namespace ranger {
-
-class MiniRanger {
+class MiniPostgres {
  public:
-  Status Start() WARN_UNUSED_RESULT;
+  Status Start();
+  Status Stop();
 
-  Status Stop() WARN_UNUSED_RESULT;
+  Status AddUser(const std::string& user, bool super);
+  Status CreateDb(const std::string& db, const std::string& owner);
 
- private:
-  Status StartRanger() WARN_UNUSED_RESULT;
-
-  Status StopRanger() WARN_UNUSED_RESULT;
-
-  Status CreateRangerConfigs(const std::string& config_string,
-                             const std::string& file_path);
-
-  std::string ranger_admin_home() const {
+  uint16_t bound_port() const {
+    CHECK_NE(0, port_);
+    return port_;
+  }
+  std::string pg_root() const {
     DCHECK(!data_root_.empty());
-    return JoinPathSegments(data_root_, "ranger-admin");
+    return JoinPathSegments(data_root_, "postgres");
   }
 
-  int GetRandomPort();
-
-  MiniPostgres mini_pg_;
-  std::unique_ptr<Subprocess> ranger_process_;
+  std::string pg_bin_dir() const {
+    DCHECK(!bin_dir_.empty());
+    return JoinPathSegments(bin_dir_, "postgres");
+  }
+ private:
+  // 'pg_root' is the subdirectory in which Postgres will live.
+  Status CreateConfigs(const std::string& pg_root);
 
   // Directory in which to put all our stuff.
   std::string data_root_;
 
-  // Locations in which to find Hadoop, Ranger, and Java.
-  // These may be in the thirdparty build, or may be shared across tests. As
-  // such, their contents should be treated as read-only.
-  std::string hadoop_home_;
-  std::string ranger_home_;
-  std::string java_home_;
+  // Directory that has the Postgres binary.
+  // This may be in the thirdparty build, or may be shared across tests. As
+  // suhc, its contents should be treated as read-only.
+  std::string bin_dir_;
 
-  uint16_t ranger_port_;
+  std::unique_ptr<Subprocess> pg_process_;
+  uint16_t port_ = 0;
 };
 
-} // namespace ranger
 } // namespace kudu

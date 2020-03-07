@@ -16,6 +16,7 @@
 // under the License.
 
 #include "kudu/ranger/mini_ranger.h"
+#include "kudu/ranger/mini_postgres.h"
 
 #include "kudu/util/test_macros.h"
 #include "kudu/util/test_util.h"
@@ -27,9 +28,14 @@ class MiniRangerTest : public KuduTest {};
 
 TEST_F(MiniRangerTest, TestStartStopRanger) {
   MiniRanger ranger;
-
   ASSERT_OK(ranger.Start());
   ASSERT_OK(ranger.Stop());
+}
+
+TEST_F(MiniRangerTest, TestStartStopPostgres) {
+  MiniPostgres pg;
+  ASSERT_OK(pg.Start());
+  ASSERT_OK(pg.Stop());
 }
 
 } // namespace ranger
