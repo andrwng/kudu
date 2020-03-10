@@ -100,9 +100,25 @@ SubprocessServer::~SubprocessServer() {
   Shutdown();
 }
 
+void SubprocessServer::StartSubprocessThread(const StdStatusCallback& cb) {
+  Status s = process_->Start();
+  cb(s);
+  if (s.ok()) {
+    // If we successfully started the process, we should stay alive until we
+    // shut down.
+    while (!closing_.WaitFor(MonoDelta::FromSeconds(60))) {}
+  }
+}
+
 Status SubprocessServer::Init() {
   VLOG(2) << "Starting the subprocess";
-  RETURN_NOT_OK_PREPEND(process_->Start(), "Failed to start subprocess");
+  // Synchronizer sync;
+  // auto cb = sync.AsStdStatusCallback();
+  // RETURN_NOT_OK(Thread::Create("subprocess", "start", &SubprocessServer::StartSubprocessThread,
+  //                              this, cb, &read_thread_));
+  // RETURN_NOT_OK_PREPEND(sync.Wait(), "Failed to start subprocess");
+  Status s = process_->Start();
+  RETURN_NOT_OK(s);
 
   // Start the message protocol.
   CHECK(!message_protocol_);
@@ -171,6 +187,9 @@ void SubprocessServer::Shutdown() {
   }
   if (deadline_checker_) {
     deadline_checker_->Join();
+  }
+  if (start_thread_) {
+    start_thread_->Join();
   }
   for (const auto& t : responder_threads_) {
     t->Join();

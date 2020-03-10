@@ -260,6 +260,26 @@ TEST_F(SubprocessServerTest, TestCallsReturnWhenShuttingDown) {
   ASSERT_FALSE(s.ok());
 }
 
+// Some usage of a subprocess warrants calling Init() from a short-lived
+// thread. Let's ensure there's no funny business when that happens (e.g.
+// ensure the OS doesn't reap the underlying process when the parent thread
+// exits).
+TEST_F(SubprocessServerTest, TestInitFromThread) {
+  Status s;
+  thread t([&] {
+    s = ResetSubprocessServer();
+  });
+  t.join();
+  ASSERT_OK(s);
+
+  // Wait a bit. This gives time for the OS to wreak havoc (though it
+  // shouldn't).
+  SleepFor(MonoDelta::FromSeconds(5));
+  SubprocessRequestPB request = CreateEchoSubprocessRequestPB(kHello);
+  SubprocessResponsePB response;
+  ASSERT_OK(server_->Execute(&request, &response));
+}
+
 } // namespace subprocess
 } // namespace kudu
 
