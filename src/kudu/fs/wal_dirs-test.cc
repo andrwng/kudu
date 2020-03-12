@@ -37,7 +37,6 @@
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/strings/join.h"
 #include "kudu/gutil/strings/substitute.h"
-#include "kudu/util/barrier.h"
 #include "kudu/util/env.h"
 #include "kudu/util/env_util.h"
 #include "kudu/util/metrics.h"
@@ -67,8 +66,12 @@ METRIC_DECLARE_gauge_uint64(wal_dirs_failed);
 namespace kudu {
 namespace fs {
 
-static const char* kDirNamePrefix = "test_wal_dir";
-static const int kNumDirs = 10;
+namespace {
+
+const char* kDirNamePrefix = "test_wal_dir";
+const int kNumDirs = 10;
+
+} // anonymous namespace
 
 class WalDirManagerTest : public KuduTest {
  public:
@@ -89,24 +92,26 @@ class WalDirManagerTest : public KuduTest {
   }
 
  protected:
+  // Returns the paths for the given number of WAL directories.
   vector<string> GetDirNames(int num_dirs) {
     vector<string> ret;
     for (int i = 0; i < num_dirs; ++i) {
-      string dir_name = Substitute("$0-$1", kDirNamePrefix, i);
-      ret.push_back(GetTestPath(dir_name));
+      ret.emplace_back(GetTestPath(Substitute("$0-$1", kDirNamePrefix, i)));
       bool created;
       CHECK_OK(env_util::CreateDirIfMissing(env_, ret[i], &created));
     }
     return ret;
   }
+
+  // Returns fake tablet IDs for the given number of tablets.
   vector<string> GetTabletIds(int num_tablets) {
     vector<string> ret;
     for (int i = 0; i < num_tablets; ++i) {
-      string tablet_id = Substitute("$0-$1", test_tablet_name_, i);
-      ret.push_back(tablet_id);
+      ret.emplace_back(Substitute("$0-$1", test_tablet_name_, i));
     }
     return ret;
   }
+
   vector<string> test_roots_;
   const string test_tablet_name_;
   MetricRegistry registry_;
@@ -116,10 +121,10 @@ class WalDirManagerTest : public KuduTest {
 
 TEST_F(WalDirManagerTest, TestOpenExisted) {
   ASSERT_OK(WalDirManager::OpenExistingForTests(env_, test_roots_,
-      WalDirManagerOptions(), &wd_manager_));
-  ASSERT_EQ(wd_manager_->GetRoots().size(), kNumDirs);
-  ASSERT_EQ(wd_manager_->dirs().size(), kNumDirs);
-  ASSERT_EQ(wd_manager_->GetFailedDirs().size(), 0);
+                                                WalDirManagerOptions(), &wd_manager_));
+  ASSERT_EQ(kNumDirs, wd_manager_->GetRoots().size());
+  ASSERT_EQ(kNumDirs, wd_manager_->dirs().size());
+  ASSERT_EQ(0, wd_manager_->GetFailedDirs().size());
 }
 
 // Test ensuring that the directory manager can be opened with failed disks,
@@ -186,92 +191,99 @@ TEST_F(WalDirManagerTest, TestTestUpdateDirsWithFailedDirs) {
       WalDirManagerOptions(), &wd_manager_));
   ASSERT_EQ(1, wd_manager_->GetFailedDirs().size());
 
-  // Now remove the second directory and fail almost all of the other directories,
-  // leaving the last intact.
+  // Remove a directory; a new directory should be populated here upon opening.
+  string orig_empty_uuid;
+  ASSERT_TRUE(wd_manager_->FindUuidByRoot(test_roots_[1], &orig_empty_uuid));
+  ASSERT_FALSE(orig_empty_uuid.empty());
   ASSERT_OK(env_->DeleteRecursively(JoinPathSegments(test_roots_[1], kWalDirName)));
+
+  // Fail almost all the other directories.
   for (int i = 2; i < kNumDirs - 1; ++i) {
     FLAGS_env_inject_eio_globs = Substitute("$0,$1", FLAGS_env_inject_eio_globs,
                                             JoinPathSegments(test_roots_[i], "**"));
   }
   WalDirManagerOptions opts;
   opts.update_instances = UpdateInstanceBehavior::UPDATE_AND_ERROR_ON_FAILURE;
-  ASSERT_OK(WalDirManager::OpenExistingForTests(env_, test_roots_,
-      opts, &wd_manager_));
+  ASSERT_OK(WalDirManager::OpenExistingForTests(env_, test_roots_, opts, &wd_manager_));
+
+  // Only two directories should be healthy: the remaining healthy directory,
+  // and the empty one that was repopulated.
+  ASSERT_EQ(kNumDirs - 2, wd_manager_->GetFailedDirs().size());
+
+  // The repopulated directory should have been assigned a new UUID since it's
+  // effectively a new directory.
+  string new_uuid;
+  ASSERT_TRUE(wd_manager_->FindUuidByRoot(test_roots_[1], &new_uuid));
+  ASSERT_NE(orig_empty_uuid, new_uuid);
 }
 
 TEST_F(WalDirManagerTest, TestLoadFromPB) {
+  ASSERT_OK(wd_manager_->RegisterWalDir(test_tablet_name_));
+
   // Create a PB, delete the dir, then load the dir from the PB.
   WalDirPB orig_pb;
-  ASSERT_OK(wd_manager_->CreateWalDir(test_tablet_name_));
-  string tablet_dir;
+  string orig_tablet_dir;
   ASSERT_OK(wd_manager_->GetWalDirPB(test_tablet_name_, &orig_pb));
-  ASSERT_OK(wd_manager_->FindWalDirByTabletId(test_tablet_name_, &tablet_dir));
-  wd_manager_->DeleteWalDir(test_tablet_name_);
-  ASSERT_TRUE(wd_manager_->FindWalDirByTabletId(
-      test_tablet_name_, &tablet_dir).IsNotFound());
+  ASSERT_OK(wd_manager_->FindWalDirByTabletId(test_tablet_name_, &orig_tablet_dir));
+  wd_manager_->UnregisterWalDir(test_tablet_name_);
+
+  string loaded_tablet_dir;
+  Status s = wd_manager_->FindWalDirByTabletId(test_tablet_name_, &loaded_tablet_dir);
+  ASSERT_TRUE(s.IsNotFound()) << s.ToString();
   ASSERT_OK(wd_manager_->LoadWalDirFromPB(test_tablet_name_, orig_pb));
-  ASSERT_OK(wd_manager_->FindWalDirByTabletId(test_tablet_name_, &tablet_dir));
+  ASSERT_OK(wd_manager_->FindWalDirByTabletId(test_tablet_name_, &loaded_tablet_dir));
+  ASSERT_EQ(orig_tablet_dir, loaded_tablet_dir);
 
   // Ensure that loading from a PB will fail if the WalDirManager already
   // knows about the tablet.
-  Status s = wd_manager_->LoadWalDirFromPB(test_tablet_name_, orig_pb);
+  s = wd_manager_->LoadWalDirFromPB(test_tablet_name_, orig_pb);
   ASSERT_TRUE(s.IsAlreadyPresent()) << s.ToString();
   ASSERT_STR_CONTAINS(s.ToString(), "tried to load directory for tablet");
 }
 
 TEST_F(WalDirManagerTest, TestFindAndRegisterWalDir) {
-  // create a tablet directory under each wal dir.
-  for (int i = 0; i < kNumDirs; ++i) {
-    ASSERT_OK(env_->CreateDir(JoinPathSegments(test_roots_[i], Substitute(
-        "wals/$0-$1", test_tablet_name_, i))));
+  // Create a tablet directory under each wal dir.
+  vector<string> tablet_ids = GetTabletIds(kNumDirs);
+  vector<string> wal_subdirs = JoinPathSegmentsV(test_roots_, "wals");
+  for (int i = 0; i < kNumDirs; i++) {
+    ASSERT_OK(env_->CreateDir(JoinPathSegments(wal_subdirs[i], tablet_ids[i])));
+    ASSERT_OK(wd_manager_->FindOnDiskDirAndRegister(tablet_ids[i]));
   }
+  Status s = wd_manager_->FindOnDiskDirAndRegister("fake_tablet");
+  ASSERT_TRUE(s.IsNotFound()) << s.ToString();
 
-  for (int i = 0; i < kNumDirs; ++i) {
-    ASSERT_OK(wd_manager_->FindAndRegisterWalDirOnDisk(Substitute(
-        "$0-$1", test_tablet_name_, i)));
+  // Create another on-disk WAL for each tablet.
+  for (int i = 0; i < kNumDirs; i++) {
+    ASSERT_OK(env_->CreateDir(JoinPathSegments(wal_subdirs[(i + 1) % kNumDirs],
+                                               tablet_ids[i])));
   }
-  Status s = wd_manager_->FindAndRegisterWalDirOnDisk("no_existed_tablet");
-  ASSERT_TRUE(s.IsNotFound());
+  for (int i = 0; i < kNumDirs; ++i) {
+    // Our tablet is already registered, so trying to register a new directory
+    // should fail.
+    Status s = wd_manager_->FindOnDiskDirAndRegister(tablet_ids[i]);
+    ASSERT_TRUE(s.IsAlreadyPresent()) << s.ToString();
 
-  for (int i = 0; i < kNumDirs; ++i) {
-    ASSERT_OK(env_->CreateDir(JoinPathSegments(test_roots_[kNumDirs - i - 1],
-        Substitute("wals/$0-$1", test_tablet_name_, i))));
-    wd_manager_->DeleteWalDir(Substitute("$0-$1", test_tablet_name_, i));
-  }
-  for (int i = 0; i < kNumDirs; ++i) {
-    Status s = wd_manager_->FindAndRegisterWalDirOnDisk(Substitute(
-        "$0-$1", test_tablet_name_, i));
-    ASSERT_STR_CONTAINS(s.ToString(), "has at least two WAL directories");
+    // Now unregister and try again. This will fail too because there are
+    // multiple directories for each tablet.
+    wd_manager_->UnregisterWalDir(tablet_ids[i]);
+    s = wd_manager_->FindOnDiskDirAndRegister(tablet_ids[i]);
+    ASSERT_STR_CONTAINS(s.ToString(), "has multiple registered WAL directories");
     ASSERT_TRUE(s.IsCorruption());
-  }
-  for (int i = 0; i < kNumDirs; ++i) {
-    InsertOrDie(&wd_manager_->uuid_idx_by_tablet_, Substitute(
-        "$0-$1", test_tablet_name_, i), i);
-  }
-  for (int i = 0; i < kNumDirs; ++i) {
-    Status s = wd_manager_->FindAndRegisterWalDirOnDisk(Substitute(
-        "$0-$1", test_tablet_name_, i));
-    ASSERT_TRUE(s.IsAlreadyPresent());
   }
 }
 
-// Test that concurrently find and register wal dirs for tablets yields the
-// expected number of dirs found.
-TEST_F(WalDirManagerTest, TestFindAndRegisterDirInParallel) {
-  // In parallel, try find and register directories for tablets.
-  for (int i = 0; i < kNumDirs; ++i) {
-    ASSERT_OK(env_->CreateDir(JoinPathSegments(test_roots_[i], Substitute(
-        "wals/$0-$1", test_tablet_name_, i))));
-  }
+// Test that concurrently create wal dirs for tablets yields the expected
+// number of dirs added.
+TEST_F(WalDirManagerTest, TestCreateDirInParallel) {
+  // In parallel, try creating directories for tablets.
+  const int kNumThreads = 32;
   vector<thread> threads;
-  threads.reserve(kNumDirs);
-  vector<Status> statuses(kNumDirs);
-  vector<string> tablet_ids = GetTabletIds(kNumDirs);
-  Barrier b(kNumDirs);
-  for (int i = 0; i < kNumDirs; ++i) {
+  threads.reserve(kNumThreads);
+  vector<Status> statuses(kNumThreads);
+  vector<string> tablet_ids = GetTabletIds(kNumThreads);
+  for (int i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&, i] {
-      b.Wait();
-      statuses[i] = wd_manager_->FindAndRegisterWalDirOnDisk(tablet_ids[i]);
+      statuses[i] = wd_manager_->RegisterWalDir(tablet_ids[i]);
     });
   }
   for (auto& t : threads) {
@@ -282,14 +294,39 @@ TEST_F(WalDirManagerTest, TestFindAndRegisterDirInParallel) {
   }
 }
 
-TEST_F(WalDirManagerTest, TestCreateWalDir) {
+// Test that concurrently find and register wal dirs for tablets yields the
+// expected number of dirs found.
+TEST_F(WalDirManagerTest, TestFindAndRegisterDirInParallel) {
+  vector<string> tablet_ids = GetTabletIds(kNumDirs);
+  for (int i = 0; i < kNumDirs; ++i) {
+    ASSERT_OK(env_->CreateDir(JoinPathSegments(
+        JoinPathSegments(test_roots_[i], "wals"), tablet_ids[i])));
+  }
+  vector<thread> threads;
+  threads.reserve(kNumDirs);
+  vector<Status> statuses(kNumDirs);
+  // In parallel, try find and register directories for tablets.
+  for (int i = 0; i < kNumDirs; ++i) {
+    threads.emplace_back([&, i] {
+      statuses[i] = wd_manager_->FindOnDiskDirAndRegister(tablet_ids[i]);
+    });
+  }
+  for (auto& t : threads) {
+    t.join();
+  }
+  for (const auto& s : statuses) {
+    EXPECT_OK(s);
+  }
+}
+
+TEST_F(WalDirManagerTest, TestRegisterWalDir) {
   WalDirPB orig_pb;
-  ASSERT_OK(wd_manager_->CreateWalDir(test_tablet_name_));
+  ASSERT_OK(wd_manager_->RegisterWalDir(test_tablet_name_));
   ASSERT_OK(wd_manager_->GetWalDirPB(test_tablet_name_, &orig_pb));
 
   // Ensure that the WalDirManager will not create a dir for a tablet that
   // it already knows about.
-  Status s = wd_manager_->CreateWalDir(test_tablet_name_);
+  Status s = wd_manager_->RegisterWalDir(test_tablet_name_);
   ASSERT_TRUE(s.IsAlreadyPresent()) << s.ToString();
   ASSERT_STR_CONTAINS(s.ToString(), "Tried to create WAL directory for tablet "
                                     "but one is already registered");
@@ -313,11 +350,13 @@ TEST_F(WalDirManagerTest, TestCreateWalDir) {
   ASSERT_OK(wd_manager_->FindWalDirByTabletId(test_tablet_name_, &tablet_wal_dir));
 }
 
-TEST_F(WalDirManagerTest, TestDeleteWalDir) {
-  ASSERT_OK(wd_manager_->CreateWalDir(test_tablet_name_));
+TEST_F(WalDirManagerTest, TestUnregisterWalDir) {
+  ASSERT_OK(wd_manager_->RegisterWalDir(test_tablet_name_));
   string tablet_wal_dir;
   ASSERT_OK(wd_manager_->FindWalDirByTabletId(test_tablet_name_, &tablet_wal_dir));
-  wd_manager_->DeleteWalDir(test_tablet_name_);
+
+  // Once the tablet is unregistered in memory, subsequent lookups should fail.
+  wd_manager_->UnregisterWalDir(test_tablet_name_);
   Status s = wd_manager_->FindWalDirByTabletId(test_tablet_name_, &tablet_wal_dir);
   ASSERT_TRUE(s.IsNotFound()) << s.ToString();
   ASSERT_STR_CONTAINS(s.ToString(), "could not find wal dir for tablet");
@@ -327,7 +366,7 @@ TEST_F(WalDirManagerTest, TestDeleteWalDir) {
 // create wal directory.
 TEST_F(WalDirManagerTest, TestFullDisk) {
   FLAGS_env_inject_full = 1.0;
-  Status s = wd_manager_->CreateWalDir(test_tablet_name_);
+  Status s = wd_manager_->RegisterWalDir(test_tablet_name_);
   ASSERT_TRUE(s.IsNotFound()) << s.ToString();
   ASSERT_STR_CONTAINS(s.ToString(), "could not find a healthy path for new tablet");
   FLAGS_env_inject_full = 0;
@@ -338,110 +377,38 @@ TEST_F(WalDirManagerTest, TestFullDisk) {
   // Free space.
   FLAGS_disk_reserved_bytes_free_for_testing = 0;
 
-  s = wd_manager_->CreateWalDir(test_tablet_name_);
+  s = wd_manager_->RegisterWalDir(test_tablet_name_);
   ASSERT_TRUE(s.IsNotFound()) << s.ToString();
   ASSERT_STR_CONTAINS(s.ToString(), "could not find a healthy path for new tablet");
 }
 
-// Test that concurrently create wal dirs for tablets yields the expected
-// number of dirs added.
-TEST_F(WalDirManagerTest, TestCreateDirInParallel) {
-  // In parallel, try creating directories for tablets.
-  const int kNumThreads = 32;
-  vector<thread> threads;
-  threads.reserve(kNumThreads);
-  vector<Status> statuses(kNumThreads);
-  vector<string> tablet_ids = GetTabletIds(kNumThreads);
-  Barrier b(kNumThreads);
-  for (int i = 0; i < kNumThreads; ++i) {
-    threads.emplace_back([&, i] {
-      b.Wait();
-      statuses[i] = wd_manager_->CreateWalDir(tablet_ids[i]);
-    });
-  }
-  for (auto& t : threads) {
-    t.join();
-  }
-  for (const auto& s : statuses) {
-    EXPECT_OK(s);
-  }
-}
-
 TEST_F(WalDirManagerTest, TestFailedDirNotSelected) {
-  ASSERT_OK(wd_manager_->CreateWalDir(test_tablet_name_));
+  ASSERT_OK(wd_manager_->RegisterWalDir(test_tablet_name_));
   // Fail one of the directories that it is used.
-  string tablet_wal_dir;
-  ASSERT_OK(wd_manager_->FindWalDirByTabletId(test_tablet_name_, &tablet_wal_dir));
+  string failed_dir;
+  ASSERT_OK(wd_manager_->FindWalDirByTabletId(test_tablet_name_, &failed_dir));
   const int* uuid_idx = FindOrNull(wd_manager_->uuid_idx_by_tablet_, test_tablet_name_);
-  ASSERT_TRUE(uuid_idx != nullptr);
-  // These calls are idempotent.
+  ASSERT_NE(nullptr, uuid_idx);
   ASSERT_OK(wd_manager_->MarkDirFailed(*uuid_idx));
-  ASSERT_OK(wd_manager_->MarkDirFailed(*uuid_idx));
-  ASSERT_OK(wd_manager_->MarkDirFailed(*uuid_idx));
-  ASSERT_EQ(1, down_cast<AtomicGauge<uint64_t>*>(
-        entity_->FindOrNull(METRIC_wal_dirs_failed).get())->value());
 
-  // Fail the other directory and verify that neither will be used.
   vector<string> tablet_ids = GetTabletIds(kNumDirs);
-  for (int i = 0; i < kNumDirs; ++i) {
-    ASSERT_OK(wd_manager_->CreateWalDir(tablet_ids[i]));
-  }
-  string new_wal_dir;
-  for (int i = 0; i < kNumDirs; ++i) {
-    ASSERT_OK(wd_manager_->FindWalDirByTabletId(tablet_ids[i], &new_wal_dir));
-    ASSERT_NE(new_wal_dir, tablet_wal_dir);
+  string new_dir;
+  for (int i = 0; i < kNumDirs; i++) {
+    ASSERT_OK(wd_manager_->RegisterWalDir(tablet_ids[i]));
+    ASSERT_OK(wd_manager_->FindWalDirByTabletId(tablet_ids[i], &new_dir));
+    ASSERT_NE(new_dir, failed_dir);
   }
 }
 
-TEST_F(WalDirManagerTest, TestLoadBalancingDistribution) {
-  const double kNumTablets = 20;
-
-  // Add 'kNumTablets' tablets, each with groups of size
-  // 'FLAGS_fs_target_data_dirs_per_tablet'.
-  for (int tablet_idx = 0; tablet_idx < kNumTablets; ++tablet_idx) {
-    ASSERT_OK(wd_manager_->CreateWalDir(Substitute("$0-$1", test_tablet_name_,
-        tablet_idx)));
+// WAL directory selection will favor placement into directories with fewer
+// tablets. Our tablets should be evenly distributed across disks.
+TEST_F(WalDirManagerTest, TestSpreadTabletsAcrossDirs) {
+  vector<string> tablet_ids = GetTabletIds(kNumDirs * 2);
+  for (const auto& tablet_id : tablet_ids) {
+    ASSERT_OK(wd_manager_->RegisterWalDir(tablet_id));
   }
-  const double kMeanTabletsPerDir = kNumTablets / kNumDirs;
-
-  // Calculate the standard deviation of the number of tablets per disk.
-  // If tablets are evenly spread across directories, this should be small.
-  for (const auto& e : wd_manager_->tablets_by_uuid_idx_map_) {
-    ASSERT_EQ(kMeanTabletsPerDir, e.second.size());
-  }
-}
-
-TEST_F(WalDirManagerTest, TestLoadBalancingBias) {
-  // Shows that block placement will tend to favor directories with less load.
-  // First add a set of tablets for skew. Then add more tablets and check that
-  // there's still roughly a uniform distribution.
-
-  // Start with some wal directories that has some tablets.
-  // Number of tablets (pre-replication) added after the skew tablets.
-  // This configuration will proceed with 5 directories, total 10 tablets.
-  const int kTabletsSkewedDir = 10;
-  const int kNumSkewedDirs = 5;
-  const string kSkewTabletPrefix = "skew_tablet";
-
-  // Add tablets to each skewed directory.
-  for (int skew_tablet_idx = 0; skew_tablet_idx < kTabletsSkewedDir; ++skew_tablet_idx) {
-    int uuid_idx = skew_tablet_idx % kNumSkewedDirs;
-    string skew_tablet = Substitute("$0-$1", kSkewTabletPrefix, skew_tablet_idx);
-    InsertOrDie(&wd_manager_->uuid_idx_by_tablet_, skew_tablet, uuid_idx);
-    InsertOrDie(&FindOrDie(wd_manager_->tablets_by_uuid_idx_map_, uuid_idx), skew_tablet);
-  }
-
-  const double kNumAdditionalTablets = 10;
-  // Add the additional tablets.
-  for (int tablet_idx = 0; tablet_idx < kNumAdditionalTablets; ++tablet_idx) {
-    ASSERT_OK(wd_manager_->CreateWalDir(Substitute("$0-$1", test_tablet_name_, tablet_idx)));
-  }
-
-  // Calculate the standard deviation of the number of tablets per disk.
-  const double kMeanTabletsPerDir = (kTabletsSkewedDir +
-      kNumAdditionalTablets) / kNumDirs;
-  for (const auto& e : wd_manager_->tablets_by_uuid_idx_map_) {
-    ASSERT_EQ(kMeanTabletsPerDir, e.second.size());
+  for (int i = 0; i < kNumDirs; i++) {
+    ASSERT_EQ(2, wd_manager_->FindTabletsByDirUuidIdx(i).size());
   }
 }
 

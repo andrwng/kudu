@@ -345,7 +345,7 @@ Status TabletCopyClient::Start(const HostPort& copy_source_addr,
 
     RETURN_NOT_OK_PREPEND(fs_manager_->dd_manager()->CreateDataDirGroup(tablet_id_),
         "Could not create a new data directory group for tablet copy");
-    RETURN_NOT_OK_PREPEND(fs_manager_->wd_manager()->CreateWalDir(tablet_id_),
+    RETURN_NOT_OK_PREPEND(fs_manager_->wd_manager()->RegisterWalDir(tablet_id_),
         "Could not create a new WAL directory for tablet copy");
   } else {
     // HACK: Set the initial tombstoned last-logged OpId to 1.0 when copying a

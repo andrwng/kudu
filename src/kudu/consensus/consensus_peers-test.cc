@@ -89,7 +89,7 @@ class ConsensusPeersTest : public KuduTest {
     fs_manager_.reset(new FsManager(env_, FsManagerOpts(GetTestPath("fs_root"))));
     ASSERT_OK(fs_manager_->CreateInitialFileSystemLayout());
     ASSERT_OK(fs_manager_->Open());
-    ASSERT_OK(fs_manager_->wd_manager()->CreateWalDir(kTabletId));
+    ASSERT_OK(fs_manager_->wd_manager()->RegisterWalDir(kTabletId));
     ASSERT_OK(Log::Open(options_,
                         fs_manager_.get(),
                         /*file_cache*/nullptr,

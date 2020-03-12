@@ -204,7 +204,7 @@ TEST_F(TsRecoveryITest, TestTabletRecoveryAfterSegmentDelete) {
     unique_ptr<FsManager> fs_manager(new FsManager(env_, opts));
 
     ASSERT_OK(fs_manager->Open());
-    ASSERT_OK(fs_manager->wd_manager()->FindAndRegisterWalDirOnDisk(tablet_id));
+    ASSERT_OK(fs_manager->wd_manager()->FindOnDiskDirAndRegister(tablet_id));
 
     string wal_dir;
     ASSERT_OK(fs_manager->GetTabletWalDir(tablet_id, &wal_dir));
@@ -590,7 +590,7 @@ TEST_P(TsRecoveryITestDeathTest, TestRecoverFromOpIdOverflow) {
     opts.data_roots = ets->data_dirs();
     unique_ptr<FsManager> fs_manager(new FsManager(env_, opts));
     ASSERT_OK(fs_manager->Open());
-    ASSERT_OK(fs_manager->wd_manager()->CreateWalDir(tablet_id));
+    ASSERT_OK(fs_manager->wd_manager()->RegisterWalDir(tablet_id));
     scoped_refptr<ConsensusMetadataManager> cmeta_manager(
         new ConsensusMetadataManager(fs_manager.get()));
     MetricRegistry metric_registry;

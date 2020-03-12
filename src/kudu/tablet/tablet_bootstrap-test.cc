@@ -109,7 +109,7 @@ class BootstrapTest : public LogTestBase {
   Status LoadTestTabletMetadata(int mrs_id, int delta_id, scoped_refptr<TabletMetadata>* meta) {
     Schema schema = SchemaBuilder(schema_).Build();
     std::pair<PartitionSchema, Partition> partition = CreateDefaultPartition(schema);
-    fs_manager_->wd_manager()->DeleteWalDir(log::kTestTablet);
+    fs_manager_->wd_manager()->UnregisterWalDir(log::kTestTablet);
     RETURN_NOT_OK(TabletMetadata::LoadOrCreate(fs_manager_.get(),
                                                log::kTestTablet,
                                                log::kTestTable,
@@ -260,7 +260,7 @@ TEST_F(BootstrapTest, TestBootstrapMissingWalInMeta) {
     ASSERT_OK(CreateConsensusMetadata(meta));
 
     // Delete WAL dir from metadata.
-    fs_manager_->wd_manager()->DeleteWalDir(log::kTestTablet);
+    fs_manager_->wd_manager()->UnregisterWalDir(log::kTestTablet);
     ASSERT_OK(meta->Flush());
     TabletSuperBlockPB superblock_pb;
     ASSERT_OK(meta->ToSuperBlock(&superblock_pb));
@@ -310,7 +310,7 @@ TEST_F(BootstrapTest, TestBootstrapMissingWalOnDisk) {
         log::kTestTablet, &tablet_wal_dir));
 
     // Delete WAL dir from metadata.
-    fs_manager_->wd_manager()->DeleteWalDir(log::kTestTablet);
+    fs_manager_->wd_manager()->UnregisterWalDir(log::kTestTablet);
     ASSERT_OK(meta->Flush());
     TabletSuperBlockPB superblock_pb;
     ASSERT_OK(meta->ToSuperBlock(&superblock_pb));

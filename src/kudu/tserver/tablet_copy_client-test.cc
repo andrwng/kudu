@@ -503,7 +503,7 @@ TEST_P(TabletCopyClientAbortTest, TestAbort) {
   vector<BlockId> new_local_block_ids;
   ASSERT_OK(fs_manager_->block_manager()->GetAllBlockIds(&new_local_block_ids));
   ASSERT_EQ(kNumBlocksToCreate + num_blocks_downloaded, new_local_block_ids.size());
-  fs_manager_->wd_manager()->CreateWalDir(GetTabletId());
+  fs_manager_->wd_manager()->RegisterWalDir(GetTabletId());
   // Download a WAL segment.
   string wal_dir;
   ASSERT_OK(fs_manager_->GetTabletWalDir(GetTabletId(), &wal_dir));

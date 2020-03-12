@@ -168,7 +168,7 @@ class LogTestBase : public KuduTest {
     ASSERT_OK(file_cache_->Init());
     ASSERT_OK(fs_manager_->CreateInitialFileSystemLayout());
     ASSERT_OK(fs_manager_->Open());
-    ASSERT_OK(fs_manager_->wd_manager()->CreateWalDir(kTestTablet));
+    ASSERT_OK(fs_manager_->wd_manager()->RegisterWalDir(kTestTablet));
     clock_.reset(new clock::HybridClock(metric_entity_server_));
     ASSERT_OK(clock_->Init());
   }

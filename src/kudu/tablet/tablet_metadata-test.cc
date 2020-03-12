@@ -190,7 +190,7 @@ TEST_F(TestTabletMetadata, TestLoadWalDirFromDisk) {
       harness_->tablet()->tablet_id(), &tablet_wal_dir));
 
   // We delete the wal dir from superblock.
-  harness_->fs_manager()->wd_manager()->DeleteWalDir(harness_->tablet()->tablet_id());
+  harness_->fs_manager()->wd_manager()->UnregisterWalDir(harness_->tablet()->tablet_id());
   ASSERT_OK(harness_->tablet()->Flush());
   TabletSuperBlockPB superblock_pb_1;
   TabletMetadata* meta1 = harness_->tablet()->metadata();
@@ -230,7 +230,7 @@ TEST_F(TestTabletMetadata, TestLoadWalDirFailed) {
       harness_->tablet()->tablet_id(), &tablet_wal_dir));
 
   // We delete the wal dir from superblock.
-  harness_->fs_manager()->wd_manager()->DeleteWalDir(harness_->tablet()->tablet_id());
+  harness_->fs_manager()->wd_manager()->UnregisterWalDir(harness_->tablet()->tablet_id());
   ASSERT_OK(harness_->tablet()->Flush());
   TabletSuperBlockPB superblock_pb_1;
   TabletMetadata* meta1 = harness_->tablet()->metadata();

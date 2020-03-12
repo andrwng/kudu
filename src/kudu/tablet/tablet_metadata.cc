@@ -103,10 +103,10 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
 
   RETURN_NOT_OK_PREPEND(fs_manager->dd_manager()->CreateDataDirGroup(tablet_id),
       "Failed to create a new directory group for tablet data");
-  RETURN_NOT_OK_PREPEND(fs_manager->wd_manager()->CreateWalDir(tablet_id),
+  RETURN_NOT_OK_PREPEND(fs_manager->wd_manager()->RegisterWalDir(tablet_id),
       "Failed to create a new directory for tablet WAL");
   auto dir_group_cleanup = MakeScopedCleanup([&]() {
-    fs_manager->wd_manager()->DeleteWalDir(tablet_id);
+    fs_manager->wd_manager()->UnregisterWalDir(tablet_id);
     fs_manager->dd_manager()->DeleteDataDirGroup(tablet_id);
   });
   scoped_refptr<TabletMetadata> ret(new TabletMetadata(fs_manager,
@@ -231,11 +231,11 @@ Status TabletMetadata::DeleteTabletData(TabletDataState delete_type,
   }
 
   // Unregister the tablet's data dir group and WAL dir in memory (it is stored
-  // on disk in the superblock). Even if we fail to flush below, the expectation
-  // is that we will no longer be writing to the tablet, and therefore don't need
-  // its data dir group.
+  // on disk in the superblock). Even if we fail to flush below, the
+  // expectation is that we will no longer be writing to the tablet, and
+  // therefore don't need them.
   fs_manager_->dd_manager()->DeleteDataDirGroup(tablet_id_);
-  fs_manager_->wd_manager()->DeleteWalDir(tablet_id_);
+  fs_manager_->wd_manager()->UnregisterWalDir(tablet_id_);
 
   // Flushing will sync the new tablet_data_state_ to disk and will now also
   // delete all the data.
@@ -461,17 +461,16 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
     if (superblock.has_wal_dir()) {
       // An error loading the WAL dir is non-fatal, it just means the
       // tablet will fail to bootstrap later.
-      WARN_NOT_OK(fs_manager_->wd_manager()->LoadWalDirFromPB(
-          tablet_id_, superblock.wal_dir()),
-          Substitute("failed to load tablet $0 WalDir from superblock", tablet_id_));
+      WARN_NOT_OK(fs_manager_->wd_manager()->LoadWalDirFromPB(tablet_id_, superblock.wal_dir()),
+          Substitute("failed to load tablet $0 WAL directory from superblock", tablet_id_));
     } else if (tablet_data_state_ == TABLET_DATA_READY) {
       // If the superblock does not contain a WalDirPB, this server has
       // likely been upgraded from before 1.12.0. Try to find tablet's WalDir from
       // WAL directories. If the data state is not TABLET_DATA_READY, dir creation is
       // pointless, as the tablet metadata will be deleted anyway.
-      WARN_NOT_OK(fs_manager_->wd_manager()->FindAndRegisterWalDirOnDisk(tablet_id_),
-          Substitute("tablet $0 WAL directory is empty in superblock, and cannot "
-                     "be found in WAL directories", tablet_id_));
+      WARN_NOT_OK(fs_manager_->wd_manager()->FindOnDiskDirAndRegister(tablet_id_),
+          Substitute("tablet $0's WAL directory is empty in superblock, and no directory "
+                     "exists for it on-disk", tablet_id_));
     }
 
     // Note: Previous versions of Kudu used MinimumOpId() as a "null" value on
@@ -651,7 +650,7 @@ Status TabletMetadata::ReplaceSuperBlock(const TabletSuperBlockPB &pb) {
     MutexLock l(flush_lock_);
     RETURN_NOT_OK_PREPEND(ReplaceSuperBlockUnlocked(pb), "Unable to replace superblock");
     fs_manager_->dd_manager()->DeleteDataDirGroup(tablet_id_);
-    fs_manager_->wd_manager()->DeleteWalDir(tablet_id_);
+    fs_manager_->wd_manager()->UnregisterWalDir(tablet_id_);
   }
 
   RETURN_NOT_OK_PREPEND(LoadFromSuperBlock(pb),

@@ -1591,7 +1591,7 @@ TEST_F(ToolTest, TestWalDump) {
   FsManager fs(env_, FsManagerOpts(kTestDir));
   ASSERT_OK(fs.CreateInitialFileSystemLayout());
   ASSERT_OK(fs.Open());
-  ASSERT_OK(fs.wd_manager()->CreateWalDir(kTestTablet));
+  ASSERT_OK(fs.wd_manager()->RegisterWalDir(kTestTablet));
 
   {
     scoped_refptr<Log> log;

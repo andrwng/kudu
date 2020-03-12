@@ -1226,27 +1226,29 @@ Status Log::RemoveRecoveryDirIfExists(FsManager* fs_manager,
                                       const string& wal_recovery_dir,
                                       const string& tablet_id) {
   string recovery_path;
-  const auto kLogPrefix = Substitute("T $0 P $1: ", tablet_id, fs_manager->uuid());
-  //Status s = fs_manager->GetTabletWalRecoveryDir(dir_uuid, tablet_id, &recovery_path);
+  const auto kLogPrefix = Substitute("T $0 P $1", tablet_id, fs_manager->uuid());
   if (wal_recovery_dir.empty()) {
     Status s = fs_manager->GetWalRecoveryDirFromDisk(tablet_id, &recovery_path);
-    if (!s.ok()) {
+    if (s.IsNotFound()) {
+      // If there isn't a WAL recovery directory on disk, mission accomplished.
       return Status::OK();
     }
+    RETURN_NOT_OK(s);
   } else {
     if (!fs_manager->Exists(wal_recovery_dir)) {
-      VLOG(1) << kLogPrefix << "Tablet WAL recovery dir " << recovery_path <<
-            " does not exist.";
+      VLOG(1) << Substitute("$0: Tablet WAL recovery dir $1 does not exist.",
+                            kLogPrefix, recovery_path);
       return Status::OK();
     }
     recovery_path = wal_recovery_dir;
   }
 
-  VLOG(1) << kLogPrefix << "Preparing to delete log recovery files and directory " << recovery_path;
+  VLOG(1) << Substitute("$0: Preparing to delete log recovery files in directory $1",
+                        kLogPrefix, recovery_path);
 
   string tmp_path = Substitute("$0-$1", recovery_path, GetCurrentTimeMicros());
-  VLOG(1) << kLogPrefix << "Renaming log recovery dir from "  << recovery_path
-          << " to " << tmp_path;
+  VLOG(1) << Substitute("$0: Renaming log recovery dir from $1 to $2",
+                        kLogPrefix, recovery_path, tmp_path);
   RETURN_NOT_OK_PREPEND(fs_manager->env()->RenameFile(recovery_path, tmp_path),
                         Substitute("Could not rename old recovery dir from: $0 to: $1",
                                    recovery_path, tmp_path));
@@ -1255,14 +1257,15 @@ Status Log::RemoveRecoveryDirIfExists(FsManager* fs_manager,
     LOG(INFO) << kLogPrefix << "--skip_remove_old_recovery_dir enabled. NOT deleting " << tmp_path;
     return Status::OK();
   }
-  VLOG(1) << kLogPrefix << "Deleting all files from renamed log recovery directory " << tmp_path;
+  VLOG(1) << Substitute("$0: Deleting all files from renamed log recovery dir $1",
+                        kLogPrefix, tmp_path);
   // We don't need to delete through the file cache; we're guaranteed that
   // the log has been closed (though this invariant isn't verifiable here
   // without additional plumbing).
   RETURN_NOT_OK_PREPEND(fs_manager->env()->DeleteRecursively(tmp_path),
                         "Could not remove renamed recovery dir " + tmp_path);
-  VLOG(1) << kLogPrefix << "Completed deletion of old log recovery files and directory "
-          << tmp_path;
+  VLOG(1) << Substitute("$0: Completed deletion of old log recovery files in directory $1",
+                        kLogPrefix, tmp_path);
   return Status::OK();
 }
 

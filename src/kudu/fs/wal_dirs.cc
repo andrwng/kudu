@@ -36,6 +36,7 @@
 #include "kudu/gutil/integral_types.h"
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/map-util.h"
+#include "kudu/gutil/strings/join.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/env.h"
 #include "kudu/util/flag_tags.h"
@@ -64,11 +65,6 @@ DEFINE_bool(fs_lock_wal_dirs, true,
             "Note that read-only concurrent usage is still allowed.");
 TAG_FLAG(fs_lock_wal_dirs, unsafe);
 TAG_FLAG(fs_lock_wal_dirs, evolving);
-DEFINE_bool(fs_wal_dirs_consider_available_space, true,
-            "Whether to consider available space when selecting a WAL "
-            "directory during tablet creation.");
-TAG_FLAG(fs_wal_dirs_consider_available_space, runtime);
-TAG_FLAG(fs_wal_dirs_consider_available_space, evolving);
 
 METRIC_DEFINE_gauge_uint64(server, wal_dirs_failed,
                            "WAL Directories Failed",
@@ -122,7 +118,7 @@ std::unique_ptr<Dir> WalDirManager::CreateNewDir(
     std::string dir, std::unique_ptr<DirInstanceMetadataFile> metadata_file,
     std::unique_ptr<ThreadPool> pool) {
   return unique_ptr<Dir>(new WalDir(env, metrics, fs_type, std::move(dir),
-                                     std::move(metadata_file), std::move(pool)));
+                                    std::move(metadata_file), std::move(pool)));
 }
 
 WalDirManager::WalDirManager(Env* env,
@@ -147,10 +143,9 @@ Status WalDirManager::OpenExistingForTests(Env* env,
 Status WalDirManager::OpenExisting(Env* env, CanonicalizedRootsList wal_fs_roots,
                                    const WalDirManagerOptions& opts,
                                    unique_ptr<WalDirManager>* wd_manager) {
-  unique_ptr<WalDirManager> wm;
-  wm.reset(new WalDirManager(env, opts, std::move(wal_fs_roots)));
+  unique_ptr<WalDirManager> wm(new WalDirManager(env, opts, std::move(wal_fs_roots)));
   RETURN_NOT_OK(wm->Open());
-  wd_manager->swap(wm);
+  *wd_manager = std::move(wm);
   return Status::OK();
 }
 
@@ -216,72 +211,74 @@ Status WalDirManager::LoadWalDirFromPB(const std::string& tablet_id,
   return Status::OK();
 }
 
-Status WalDirManager::FindAndRegisterWalDirOnDisk(const string& tablet_id) {
-  {
-    shared_lock<rw_spinlock> lock(dir_group_lock_.get_lock());
-    if (ContainsKey(uuid_idx_by_tablet_, tablet_id)) {
-      return Status::AlreadyPresent(Substitute("Tried to create WAL directory for tablet $0"
-                                    "but one is already registered", tablet_id));
-    }
-  }
-
-  // Check to see if any of our WAL directories have the given tablet ID.
-  string wd_uuid;
-  int dir_number = 0;
-  for (const auto& wd : dirs_) {
-    string tablet_path = JoinPathSegments(wd->dir(), tablet_id);
-    if (env_->FileExists(tablet_path)) {
-      ++dir_number;
-      if (wd->instance()->healthy()) {
-        wd_uuid = wd->instance()->uuid();
-      }
-    }
-  }
-  if (wd_uuid.empty()) {
-    return Status::NotFound(Substitute(
-        "could not find a healthy WAL dir for tablet $0", tablet_id));
-  }
-  if (dir_number != 1) {
-    return Status::Corruption(Substitute("Tablet $0 has at least two WAL directories.",
-                                          tablet_id));
-  }
-  {
-    std::lock_guard<percpu_rwlock> write_lock(dir_group_lock_);
-    int uuid_idx;
-    if (!FindCopy(idx_by_uuid_, wd_uuid, &uuid_idx)) {
-      return Status::NotFound(Substitute(
-          "could not find WAL dir with uuid $0", wd_uuid));
-    }
-    InsertOrDie(&uuid_idx_by_tablet_, tablet_id, uuid_idx);
-    InsertOrDie(&FindOrDie(tablets_by_uuid_idx_map_, uuid_idx), tablet_id);
-  }
-  LOG(INFO) << Substitute("Tablet $0 find a WAL directory UUID: $1", tablet_id,
-      wd_uuid);
-  return Status::OK();
-}
-
-Status WalDirManager::FindTabletDirFromDisk(
-    const string& tablet_id, const string& suffix, string* wal_dir) {
-  {
-    shared_lock<rw_spinlock> lock(dir_group_lock_.get_lock());
-    if (ContainsKey(uuid_idx_by_tablet_, tablet_id)) {
-      return Status::AlreadyPresent(Substitute("Tried to create WAL directory for tablet $0"
-                                    "but one is already registered", tablet_id));
-    }
-  }
-  string wd_uuid;
+Status WalDirManager::FindOnDiskDir(const string& tablet_id, const string& suffix, Dir** wal_dir) {
+  // Check to see if any WAL subdirectories have the given tablet ID.
+  vector<Dir*> wds;
   for (const auto& wd : dirs_) {
     string tablet_path = JoinPathSegments(wd->dir(), tablet_id);
     tablet_path.append(suffix);
     if (env_->FileExists(tablet_path)) {
-      *wal_dir = tablet_path;
-      return Status::OK();
+      if (wd->instance()->healthy()) {
+        wds.emplace_back(wd.get());
+      }
     }
   }
-  return Status::NotFound("could not find a path for tablet on disk");
+  if (wds.empty()) {
+    return Status::NotFound(Substitute(
+        "could not find a WAL dir for tablet $0", tablet_id));
+  }
+  if (wds.size() > 1) {
+    vector<string> wd_strs;
+    for (const auto* wd : wds) {
+      wd_strs.emplace_back(Substitute("$0 ($1)", wd->instance()->uuid(), wd->dir()));
+    }
+    return Status::Corruption(Substitute("Tablet $0 has multiple registered WAL directories: $1",
+                                         tablet_id, JoinStrings(wd_strs, ",")));
+  }
+  *wal_dir = wds[0];
+  return Status::OK();
 }
 
-Status WalDirManager::CreateWalDir(const string& tablet_id) {
+Status WalDirManager::FindOnDiskDirWithSuffix(const string& tablet_id, const string& suffix,
+                                              string* wal_dir) {
+  Dir* dir = nullptr;
+  RETURN_NOT_OK(FindOnDiskDir(tablet_id, suffix, &dir));
+  DCHECK(dir);
+  string suffixed_dir = JoinPathSegments(dir->dir(), tablet_id);
+  suffixed_dir.append(suffix);
+  *wal_dir = std::move(suffixed_dir);
+  return Status::OK();
+}
+
+Status WalDirManager::FindOnDiskDirAndRegister(const string& tablet_id) {
+  const auto& kAlreadyPresentMsg = Substitute("Tried to register WAL directory for tablet $0 "
+                                              "but one is already registered", tablet_id);
+  {
+    shared_lock<rw_spinlock> lock(dir_group_lock_.get_lock());
+    if (ContainsKey(uuid_idx_by_tablet_, tablet_id)) {
+      return Status::AlreadyPresent(kAlreadyPresentMsg);
+    }
+  }
+  Dir* dir = nullptr;
+  RETURN_NOT_OK(FindOnDiskDir(tablet_id, /*suffix*/"", &dir));
+  DCHECK(dir);
+  const string& wd_uuid = dir->instance()->uuid();
+  {
+    std::lock_guard<percpu_rwlock> write_lock(dir_group_lock_);
+    // Check for presence again in case we registered a directory while we were
+    // looking on disk.
+    if (ContainsKey(uuid_idx_by_tablet_, tablet_id)) {
+      return Status::AlreadyPresent(kAlreadyPresentMsg);
+    }
+    int uuid_idx = FindOrDie(idx_by_uuid_, wd_uuid);
+    InsertOrDie(&uuid_idx_by_tablet_, tablet_id, uuid_idx);
+    InsertOrDie(&FindOrDie(tablets_by_uuid_idx_map_, uuid_idx), tablet_id);
+  }
+  LOG(INFO) << Substitute("Registered WAL directory for tablet $0: $1", tablet_id, wd_uuid);
+  return Status::OK();
+}
+
+Status WalDirManager::RegisterWalDir(const string& tablet_id) {
   std::lock_guard<percpu_rwlock> write_lock(dir_group_lock_);
   if (ContainsKey(uuid_idx_by_tablet_, tablet_id)) {
     return Status::AlreadyPresent("Tried to create WAL directory for tablet but one is already "
@@ -291,10 +288,9 @@ Status WalDirManager::CreateWalDir(const string& tablet_id) {
     return Status::IOError("No healthy wal directories available", "", ENODEV);
   }
   vector<int> candidate_indices;
-  int min_tablets_num = kint32max;
-  int target_uuid_idx = -1;
-  for (const auto& tablets_by_uuid : tablets_by_uuid_idx_map_) {
-    int uuid_idx = tablets_by_uuid.first;
+  int min_tablets_in_dir = kint32max;
+  for (const auto& idx_and_tablet : tablets_by_uuid_idx_map_) {
+    int uuid_idx = idx_and_tablet.first;
     if (ContainsKey(failed_dirs_, uuid_idx)) {
       continue;
     }
@@ -302,48 +298,52 @@ Status WalDirManager::CreateWalDir(const string& tablet_id) {
     CHECK(candidate);
     Status s = candidate->RefreshAvailableSpace(Dir::RefreshMode::ALWAYS);
     WARN_NOT_OK(s, Substitute("failed to refresh fullness of $0", candidate->dir()));
-    // Maybe we should check the "available_bytes_", it should larger than 8M or 128M.
     if (!s.ok() || candidate->is_full()) {
       continue;
     }
-    if (tablets_by_uuid.second.size() < min_tablets_num) {
-      min_tablets_num = tablets_by_uuid.second.size();
-      candidate_indices.clear();
-      candidate_indices.emplace_back(tablets_by_uuid.first);
-    } else if (tablets_by_uuid.second.size() == min_tablets_num) {
-      candidate_indices.emplace_back(tablets_by_uuid.first);
+    // TODO(awong): we should probably check to see that the directory has
+    // enough space to store some WAL segments.
+    // Find the directories that have the least number of tablets in them.
+    if (idx_and_tablet.second.size() < min_tablets_in_dir) {
+      min_tablets_in_dir = idx_and_tablet.second.size();
+      candidate_indices = { idx_and_tablet.first };
+    } else if (idx_and_tablet.second.size() == min_tablets_in_dir) {
+      candidate_indices.emplace_back(idx_and_tablet.first);
     }
   }
   if (candidate_indices.empty()) {
     return Status::NotFound("could not find a healthy path for new tablet");
   }
-  if (FLAGS_fs_wal_dirs_consider_available_space) {
-    int64_t max_available_space = -1;
-    for (auto i : candidate_indices) {
-      int64_t space_i = FindOrDie(dir_by_uuid_idx_, i)->available_bytes();
-      if (space_i > max_available_space) {
-        max_available_space = space_i;
-        target_uuid_idx = i;
-      }
+  // Select the candidate with the most space available.
+  int64_t max_space = -1;
+  Dir* selected_dir = nullptr;
+  int selected_idx = -1;
+  for (auto idx : candidate_indices) {
+    Dir* dir = FindDirByUuidIndex(idx);
+    DCHECK(dir);
+    int64_t space_bytes = dir->available_bytes();
+    if (space_bytes > max_space) {
+      max_space = space_bytes;
+      selected_dir = dir;
+      selected_idx = idx;
     }
-  } else {
-    target_uuid_idx = candidate_indices[0];
   }
-
-  LOG(INFO) << Substitute("Tablet $0 get a WAL directory UUID index: $1",
-      tablet_id, target_uuid_idx);
-  InsertOrDie(&uuid_idx_by_tablet_, tablet_id, target_uuid_idx);
-  InsertOrDie(&FindOrDie(tablets_by_uuid_idx_map_, target_uuid_idx), tablet_id);
+  DCHECK_GE(selected_idx, 0);
+  DCHECK(selected_dir);
+  LOG(INFO) << Substitute("Tablet $0 was assigned WAL directory $1 ($2)",
+      tablet_id, selected_dir->instance()->uuid(), selected_dir->dir());
+  InsertOrDie(&uuid_idx_by_tablet_, tablet_id, selected_idx);
+  InsertOrDie(&FindOrDie(tablets_by_uuid_idx_map_, selected_idx), tablet_id);
   return Status::OK();
 }
 
-void WalDirManager::DeleteWalDir(const std::string& tablet_id) {
+void WalDirManager::UnregisterWalDir(const std::string& tablet_id) {
   std::lock_guard<percpu_rwlock> lock(dir_group_lock_);
   const int* uuid_idx = FindOrNull(uuid_idx_by_tablet_, tablet_id);
   if (!uuid_idx) {
     return;
   }
-  // Remove the tablet_id from every wal dir in its group.
+  // Remove the tablet_id from every map.
   FindOrDie(tablets_by_uuid_idx_map_, *uuid_idx).erase(tablet_id);
   uuid_idx_by_tablet_.erase(tablet_id);
 }
@@ -374,12 +374,7 @@ Status WalDirManager::FindWalDirByTabletId(
     return Status::NotFound(Substitute(
         "could not find wal dir for tablet $0", tablet_id));
   }
-  Dir* wd = FindPtrOrNull(dir_by_uuid_idx_, *uuid_idx);
-  if (!wd) {
-    return Status::NotFound(Substitute(
-        "could not find wal dir for tablet $0", tablet_id));
-  }
-  *wal_dir = wd->dir();
+  *wal_dir = FindOrDie(dir_by_uuid_idx_, *uuid_idx)->dir();
   return Status::OK();
 }
 

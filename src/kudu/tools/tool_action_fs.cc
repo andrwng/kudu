@@ -338,15 +338,16 @@ Status CheckForTabletsThatWillFailWithUpdate() {
   for (const auto& t : tablet_ids) {
     scoped_refptr<TabletMetadata> meta;
     RETURN_NOT_OK(TabletMetadata::Load(&fs, t, &meta));
-    DataDirGroupPB group;
-    Status s1 = fs.dd_manager()->GetDataDirGroupPB(t, &group);
-    WalDirPB dir;
-    Status s2 = fs.wd_manager()->GetWalDirPB(t, &dir);
+    DataDirGroupPB data_group;
+    WalDirPB wal_dir;
+    Status s1 = fs.dd_manager()->GetDataDirGroupPB(t, &data_group);
+    Status s2 = fs.wd_manager()->GetWalDirPB(t, &wal_dir);
     if (meta->tablet_data_state() == TabletDataState::TABLET_DATA_TOMBSTONED) {
       // If we just loaded a tombstoned tablet, there should be no in-memory
-      // data dir group for the tablet, and the staged directory config won't
-      // affect this tablet.
-      DCHECK(s1.IsNotFound() || s2.IsNotFound()) << s1.ToString();
+      // data dir group or WAL directory for the tablet, and the staged
+      // directory config won't affect this tablet.
+      DCHECK(s1.IsNotFound()) << s1.ToString();
+      DCHECK(s2.IsNotFound()) << s2.ToString();
       continue;
     }
     RETURN_NOT_OK_PREPEND(s1, "at least one tablet is configured to use removed data directory. "

@@ -424,7 +424,7 @@ Status FsManager::Open(FsReport* report) {
     static const string kUnableToCreateMsg = "unable to create missing filesystem roots";
     if (opts_.update_instances == UpdateInstanceBehavior::UPDATE_AND_IGNORE_FAILURES) {
       // We only warn on error here -- regardless of errors, we might be in
-      // good enough shape to open the DataDirManager.
+      // good enough shape to open the directory managers.
       WARN_NOT_OK(s, kUnableToCreateMsg);
     } else if (opts_.update_instances == UpdateInstanceBehavior::UPDATE_AND_ERROR_ON_FAILURE) {
       RETURN_NOT_OK_PREPEND(s, kUnableToCreateMsg);
@@ -679,7 +679,7 @@ vector<string> FsManager::GetDataRootDirs() const {
 }
 
 vector<string> FsManager::GetWalRootDirs() const {
-  // Get the data subdirectory for each Wal root.
+  // Get the WAL subdirectory for each WAL root.
   return wd_manager_->GetDirs();
 }
 
@@ -740,7 +740,7 @@ string FsManager::GetInstanceMetadataPath(const string& root) const {
 
 Status FsManager::GetWalDirFromDisk(const string& tablet_id, string* wal_dir) {
   CHECK(wal_dir);
-  Status s = wd_manager_->FindTabletDirFromDisk(tablet_id, "", wal_dir);
+  Status s = wd_manager_->FindOnDiskDirWithSuffix(tablet_id, "", wal_dir);
   if (!s.ok()) {
     LOG(WARNING) << Substitute("cannot find tablet:$0 wal directory. $1", tablet_id,
                  s.message().ToString());
@@ -749,10 +749,10 @@ Status FsManager::GetWalDirFromDisk(const string& tablet_id, string* wal_dir) {
 }
 
 Status FsManager::GetWalRecoveryDirFromDisk(const string& tablet_id,
-                                       string* wal_recovery_dir) {
+                                            string* wal_recovery_dir) {
   CHECK(wal_recovery_dir);
-  Status s = wd_manager_->FindTabletDirFromDisk(tablet_id, kWalsRecoveryDirSuffix,
-      wal_recovery_dir);
+  Status s = wd_manager_->FindOnDiskDirWithSuffix(tablet_id, kWalsRecoveryDirSuffix,
+                                                  wal_recovery_dir);
   if (!s.ok()) {
     LOG(WARNING) << Substitute("cannot find tablet:$0 wal directory. $1", tablet_id,
                  s.message().ToString());
@@ -792,16 +792,12 @@ Status FsManager::GetWalSegmentFileName(const string& tablet_id,
 
 void FsManager::CleanTmpFiles() {
   DCHECK(!opts_.read_only);
-  // Temporary files in the Block Manager directories are cleaned during
-  // Block Manager startup.
+  // NOTE: Temporary files in the data and WAL directories are cleaned during
+  // their respective managers' startups.
   vector<string> meta_roots;
   meta_roots.emplace_back(GetTabletMetadataDir());
   meta_roots.emplace_back(GetConsensusMetadataDir());
   for (const auto& s : meta_roots) {
-    WARN_NOT_OK(env_util::DeleteTmpFilesRecursively(env_, s),
-                Substitute("Error deleting tmp files in $0", s));
-  }
-  for (const auto& s : GetWalRootDirs()) {
     WARN_NOT_OK(env_util::DeleteTmpFilesRecursively(env_, s),
                 Substitute("Error deleting tmp files in $0", s));
   }

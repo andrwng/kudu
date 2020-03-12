@@ -526,9 +526,8 @@ Status DumpWals(const RunnerContext& context) {
   unique_ptr<FsManager> fs_manager;
   RETURN_NOT_OK(FsInit(&fs_manager));
   const string& tablet_id = FindOrDie(context.required_args, kTabletIdArg);
-  // For new version, need load metadata, find directory from metadata.
-  // But we just find the wal dir for tablet from disk first.
-  RETURN_NOT_OK(fs_manager->wd_manager()->FindAndRegisterWalDirOnDisk(tablet_id));
+  // Look for a WAL directory, consulting disk if necessary.
+  RETURN_NOT_OK(fs_manager->wd_manager()->FindOnDiskDirAndRegister(tablet_id));
 
   shared_ptr<LogReader> reader;
   RETURN_NOT_OK(LogReader::Open(fs_manager.get(),

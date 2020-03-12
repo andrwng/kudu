@@ -148,7 +148,7 @@ class RaftConsensusQuorumTest : public KuduTest {
       unique_ptr<FsManager> fs_manager(new FsManager(env_, opts));
       RETURN_NOT_OK(fs_manager->CreateInitialFileSystemLayout());
       RETURN_NOT_OK(fs_manager->Open());
-      RETURN_NOT_OK(fs_manager->wd_manager()->CreateWalDir(kTestTablet));
+      RETURN_NOT_OK(fs_manager->wd_manager()->RegisterWalDir(kTestTablet));
       scoped_refptr<Log> log;
       RETURN_NOT_OK(Log::Open(LogOptions(),
                               fs_manager.get(),

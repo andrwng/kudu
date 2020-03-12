@@ -322,6 +322,10 @@ class Log : public RefCountedThreadSafe<Log> {
 
   // Removes the recovery directory and all files contained therein, if it exists.
   // Intended to be invoked after log replay successfully completes.
+  //
+  // If 'wal_recovery_dir' is empty, e.g. because the tablet metadata is from
+  // an older version of Kudu that doesn't have a WAL directory persisted, this
+  // will look on disk for a WAL directory that matches and delete it.
   static Status RemoveRecoveryDirIfExists(FsManager* fs_manager,
                                           const std::string& wal_recovery_dir,
                                           const std::string& tablet_id);

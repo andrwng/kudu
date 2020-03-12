@@ -94,10 +94,6 @@ class WalDirManager : public DirManager {
                              const WalDirManagerOptions& opts,
                              std::unique_ptr<WalDirManager>* wd_manager);
 
-  // ==========================================================================
-  // Tablet Placement
-  // ==========================================================================
-
   // Deserializes a WalDirPB and associates the resulting WalDirPB
   // with a tablet_id.
   //
@@ -115,34 +111,29 @@ class WalDirManager : public DirManager {
   // cannot find a WAL directory for the tablet from disk. If "suffix" is ".recovery",
   // it's used to find WAL recovery directory, if it's empty, it's used to find WAL
   // directory.
-  Status FindTabletDirFromDisk(const std::string& tablet_id,
-                               const std::string& suffix,
-                               std::string* wal_dir);
+  Status FindOnDiskDirWithSuffix(const std::string& tablet_id,
+                                 const std::string& suffix,
+                                 std::string* wal_dir);
 
   // Results in an error if the tablet has no WAL dir associated with it. If
   // returning with an error, the WalDirManager will be unchanged.
-  Status FindAndRegisterWalDirOnDisk(const std::string& tablet_id);
+  Status FindOnDiskDirAndRegister(const std::string& tablet_id);
 
   // Results in an error if all disks are full or if the tablet already has a
   // WAL dir associated with it. If returning with an error, the
   // WalDirManager will be unchanged.
-  Status CreateWalDir(const std::string& tablet_id);
+  Status RegisterWalDir(const std::string& tablet_id);
 
-  // Deletes the WAL directory for the specified tablet. Maps from tablet_id to
-  // WAL dir to tablet set are cleared of all references to the tablet.
-  void DeleteWalDir(const std::string& tablet_id);
+  // Unregisters the WAL directory for the specified tablet. Maps from
+  // tablet_id to WAL dir to tablet set are cleared of all references to the
+  // given ID
+  void UnregisterWalDir(const std::string& tablet_id);
 
   // Finds a WAL directory by uuid, returning null if it can't be found.
   WalDir* FindWalDirByUuid(const std::string& uuid) const;
 
-  // Finds the set of tablet_ids in the WAL dir specified by 'uuid' and
-  // returns a copy, returning an empty set if none are found.
-  std::set<std::string> FindTabletsByWalDirUuid(const std::string& uuid) const;
-
-  // Looks into each WAL directory for an existing WAL for 'tablet_id'. Results
-  // in an error if no such WAL exists, or if there are multiple associated with
-  // the given tablet ID. Returns 'wal_dir' the directory name for the WAL dir of
-  // the tablet specified by 'tablet_id'.
+  // Returns the WAL directory associated with the given tablet ID, returning
+  // an error if one doesn't exist.
   Status FindWalDirByTabletId(const std::string& tablet_id,
                               std::string* wal_dir) const;
 
@@ -156,10 +147,14 @@ class WalDirManager : public DirManager {
 
  private:
   FRIEND_TEST(WalDirManagerTest, TestFindAndRegisterWalDir);
-  FRIEND_TEST(WalDirManagerTest, TestCreateWalDir);
+  FRIEND_TEST(WalDirManagerTest, TestRegisterWalDir);
   FRIEND_TEST(WalDirManagerTest, TestFailedDirNotSelected);
   FRIEND_TEST(WalDirManagerTest, TestLoadBalancingBias);
   FRIEND_TEST(WalDirManagerTest, TestLoadBalancingDistribution);
+
+  // Probes the WAL directories for a subdirectory associated with the given
+  // tablet ID, retuning an error if none or multiple are found.
+  Status FindOnDiskDir(const std::string& tablet_id, const std::string& suffix, Dir** wal_dir);
 
   const char* dir_name() const override {
     return kWalDirName;

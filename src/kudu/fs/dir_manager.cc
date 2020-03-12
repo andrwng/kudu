@@ -513,6 +513,9 @@ Status DirManager::Open() {
   RETURN_NOT_OK_PREPEND(LoadInstances(&loaded_instances, &has_existing_instances),
       "failed to load instance files");
   if (!has_existing_instances) {
+    // TODO(awong): if this is a WalDirManager being upgraded from one in which
+    // there are no dir instnace metadata files, we should determine that the
+    // specified directories aren't empty and then create files.
     return Status::NotFound(
         "could not open directory manager, no healthy directories found");
   }

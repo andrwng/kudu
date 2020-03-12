@@ -90,7 +90,7 @@ class LogCacheTest : public KuduTest {
     fs_manager_.reset(new FsManager(env_, FsManagerOpts(GetTestPath("fs_root"))));
     ASSERT_OK(fs_manager_->CreateInitialFileSystemLayout());
     ASSERT_OK(fs_manager_->Open());
-    ASSERT_OK(fs_manager_->wd_manager()->CreateWalDir(kTestTablet));
+    ASSERT_OK(fs_manager_->wd_manager()->RegisterWalDir(kTestTablet));
     CHECK_OK(log::Log::Open(log::LogOptions(),
                             fs_manager_.get(),
                             /*file_cache*/nullptr,
