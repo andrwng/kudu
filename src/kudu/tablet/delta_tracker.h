@@ -28,10 +28,12 @@
 #include "kudu/common/rowid.h"
 #include "kudu/fs/block_id.h"
 #include "kudu/gutil/macros.h"
+#include "kudu/tablet/atomic_deltas.h"
 #include "kudu/tablet/cfile_set.h"
 #include "kudu/tablet/delta_key.h"
 #include "kudu/tablet/delta_stats.h"
 #include "kudu/tablet/delta_store.h"
+#include "kudu/tablet/deltamemstore.h"
 #include "kudu/tablet/tablet_mem_trackers.h"
 #include "kudu/util/atomic.h"
 #include "kudu/util/locks.h"
@@ -71,6 +73,7 @@ struct ProbeStats;
 struct RowIteratorOptions;
 
 typedef std::pair<BlockId, std::unique_ptr<DeltaStats>> DeltaBlockIdAndStats;
+typedef int64_t TransactionId;
 
 // The DeltaTracker is the part of a DiskRowSet which is responsible for
 // tracking modifications against the base data. It consists of a set of
@@ -145,6 +148,13 @@ class DeltaTracker {
                 const RowChangeList &update,
                 const consensus::OpId& op_id,
                 OperationResultPB* result);
+
+  Status UpdateForTransaction(TransactionId txn_id,
+                              Timestamp timestamp,
+                              rowid_t row_idx,
+                              const RowChangeList& update,
+                              const consensus::OpId& op_id,
+                              OperationResultPB* result);
 
   // Check if the given row has been deleted -- i.e if the most recent
   // delta for this row is a deletion.
@@ -355,8 +365,14 @@ class DeltaTracker {
   std::shared_ptr<DeltaMemStore> dms_;
   // The set of tracked REDO delta stores, in increasing timestamp order.
   SharedDeltaStoreVector redo_delta_stores_;
+
   // The set of tracked UNDO delta stores, in decreasing timestamp order.
   SharedDeltaStoreVector undo_delta_stores_;
+
+  typedef std::pair<std::unique_ptr<AtomicUndoStores>,
+                    std::unique_ptr<AtomicRedoStores>> AtomicDeltas;
+  std::map<TransactionId, AtomicDeltas> uncommitted_atomic_deltas_;
+  std::map<Timestamp::val_type, AtomicDeltas> committed_atomic_deltas_;
 
   // The maintenance scheduler calls DeltaMemStoreEmpty() a lot.
   // We use an atomic variable to indicate whether DMS exists or not and

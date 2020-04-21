@@ -1722,6 +1722,8 @@ bool FlushedStoresSnapshot::IsMemStoreActive(const MemStoreTargetPB& target) con
       return false;
     }
 
+    // XXX(awong): we should have a separate count per transaction.
+
     // If the original rowset that we applied the edit to exists, check whether
     // the edit was in a flushed DMS or a live one.
     return target.dms_id() > last_durable_dms_id;

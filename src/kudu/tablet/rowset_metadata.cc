@@ -119,6 +119,16 @@ void RowSetMetadata::LoadFromPB(const RowSetDataPB& pb) {
     undo_delta_blocks_.push_back(BlockId::FromPB(undo_delta_pb.block()));
   }
 
+  atomic_redo_blocks_.clear();
+  for (const auto& atomic_redo_pb : pb.atomic_redo_deltas()) {
+    atomic_redo_blocks_.emplace_back(atomic_redo_pb);
+  }
+
+  atomic_undo_blocks_.clear();
+  for (const auto& atomic_undo_pb : pb.atomic_undo_deltas()) {
+    atomic_undo_blocks_.emplace_back(atomic_undo_pb);
+  }
+
   // Load live row count.
   if (tablet_metadata_->supports_live_row_count()) {
     live_row_count_ = pb.live_row_count();
@@ -151,6 +161,14 @@ void RowSetMetadata::ToProtobuf(RowSetDataPB *pb) {
   for (const BlockId& undo_delta_block : undo_delta_blocks_) {
     DeltaDataPB *undo_delta_pb = pb->add_undo_deltas();
     undo_delta_block.CopyToPB(undo_delta_pb->mutable_block());
+  }
+
+  // Serialize the deltas.
+  for (const auto& atomic_redos : atomic_redo_blocks_) {
+    *pb->add_atomic_redo_deltas() = atomic_redos.ToPB();
+  }
+  for (const auto& atomic_undos : atomic_undo_blocks_) {
+    *pb->add_atomic_undo_deltas() = atomic_undos.ToPB();
   }
 
   // Write Bloom File

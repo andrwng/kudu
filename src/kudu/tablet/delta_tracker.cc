@@ -38,6 +38,7 @@
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/basictypes.h"
 #include "kudu/gutil/casts.h"
+#include "kudu/gutil/map-util.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/strings/join.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -164,6 +165,25 @@ Status DeltaTracker::DoOpen(const IOContext* io_context) {
                                  io_context,
                                  &undo_delta_stores_,
                                  UNDO));
+
+  for (const auto& atomic_redos : rowset_metadata_->atomic_redo_blocks()) {
+    unique_ptr<AtomicRedoStores> atomic_stores;
+    RETURN_NOT_OK(AtomicRedoStores::Open(rowset_metadata_->fs_manager(),
+                                          atomic_redos, log_anchor_registry_, mem_trackers_,
+                                          io_context, &atomic_stores));
+    if (atomic_redos.commit_timestamp) {
+      DCHECK(!atomic_redos.uncommitted_txn_id);
+      EmplaceOrDie(&committed_atomic_deltas_, atomic_redos.commit_timestamp->value(),
+          std::make_pair(nullptr, std::move(atomic_stores)));
+    } else if (atomic_redos.uncommitted_txn_id) {
+      EmplaceOrDie(&uncommitted_atomic_deltas_, *atomic_redos.uncommitted_txn_id,
+          std::make_pair(nullptr, std::move(atomic_stores)));
+    } else {
+      return Status::Corruption("atomic redo must have either a transaction ID "
+                                "or commit timestamp");
+    }
+  }
+  // XXX(awong): do undos
 
   open_ = true;
   return Status::OK();
@@ -679,9 +699,41 @@ Status DeltaTracker::WrapIterator(const shared_ptr<CFileSet::Iterator> &base,
   return Status::OK();
 }
 
+Status DeltaTracker::UpdateForTransaction(TransactionId txn_id,
+                                          Timestamp timestamp,
+                                          rowid_t row_idx,
+                                          const RowChangeList& update,
+                                          const consensus::OpId& op_id,
+                                          OperationResultPB* result) {
+  std::lock_guard<rw_spinlock> lock(component_lock_);
+  auto* undos_and_redos = FindOrNull(uncommitted_atomic_deltas_, txn_id);
+  shared_ptr<DeltaMemStore> dms;
+  AtomicRedoStores* atomic_redos;
+  if (undos_and_redos) {
+    DCHECK(undos_and_redos->second);
+    atomic_redos = undos_and_redos->second.get();
+  } else {
+    std::unique_ptr<AtomicRedoStores> redos;
+    RETURN_NOT_OK(AtomicRedoStores::Create(rowset_metadata_->id(),
+                                           log_anchor_registry_, &redos));
+    atomic_redos = redos.get();
+    EmplaceOrDie(&uncommitted_atomic_deltas_, txn_id, std::make_pair(nullptr, std::move(redos)));
+  }
+  RETURN_NOT_OK(atomic_redos->GetOrCreateDMS(rowset_metadata_->id(),
+                                             log_anchor_registry_,
+                                             &dms));
+  Status s = dms->Update(timestamp, row_idx, update, op_id);
+  if (s.ok()) {
+    MemStoreTargetPB* target = result->add_mutated_stores();
+    target->set_rs_id(rowset_metadata_->id());
+    target->set_dms_id(dms_->id());
+  }
+  return Status::OK();
+}
+
 Status DeltaTracker::Update(Timestamp timestamp,
                             rowid_t row_idx,
-                            const RowChangeList &update,
+                            const RowChangeList& update,
                             const consensus::OpId& op_id,
                             OperationResultPB* result) {
   Status s;

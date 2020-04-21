@@ -66,7 +66,8 @@ Status DeltaIteratorMerger::PrepareBatch(size_t nrows, int prepare_flags) {
 
 Status DeltaIteratorMerger::ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
                                          const SelectionVector& filter) {
-  for (const unique_ptr<DeltaIterator> &iter : iters_) {
+  // XXX(awong):
+  for (const unique_ptr<DeltaIterator>& iter : iters_) {
     RETURN_NOT_OK(iter->ApplyUpdates(col_to_apply, dst, filter));
   }
   return Status::OK();

@@ -31,6 +31,7 @@
 #include <glog/logging.h>
 
 #include "kudu/common/schema.h"
+#include "kudu/common/timestamp.h"
 #include "kudu/fs/block_id.h"
 #include "kudu/fs/fs_manager.h"
 #include "kudu/gutil/macros.h"
@@ -45,6 +46,42 @@ namespace tablet {
 
 class RowSetDataPB;
 class RowSetMetadataUpdate;
+
+struct AtomicDeltaBlocks {
+  AtomicDeltaBlocks(const AtomicDeltasPB& pb)
+      : commit_timestamp(pb.has_commit_timestamp() ?
+                         boost::make_optional(Timestamp(pb.commit_timestamp())) : boost::none),
+        uncommitted_txn_id(pb.has_uncommitted_txn_id() ?
+                           boost::make_optional(pb.uncommitted_txn_id()) : boost::none),
+        last_flushed_dms_id(pb.has_last_flushed_dms_id() ?
+                            boost::make_optional(pb.last_flushed_dms_id()) : boost::none) {
+  }
+
+  AtomicDeltasPB ToPB() const {
+    AtomicDeltasPB pb;
+    for (const auto& block_id : delta_blocks) {
+      block_id.CopyToPB(pb.add_deltas()->mutable_block());
+    }
+    if (commit_timestamp) {
+      pb.set_commit_timestamp(commit_timestamp->value());
+    }
+    if (uncommitted_txn_id) {
+      pb.set_uncommitted_txn_id(*uncommitted_txn_id);
+    }
+    if (last_flushed_dms_id) {
+      pb.set_last_flushed_dms_id(*last_flushed_dms_id);
+    }
+    return pb;
+  }
+
+  boost::optional<Timestamp> commit_timestamp;
+  boost::optional<int64_t> uncommitted_txn_id;
+
+  // Only used if these are redo stores.
+  boost::optional<int64_t> last_flushed_dms_id;
+
+  std::vector<BlockId> delta_blocks;
+};
 
 // Keeps track of the RowSet data blocks.
 //
@@ -191,6 +228,16 @@ class RowSetMetadata {
     return undo_delta_blocks_;
   }
 
+  std::vector<AtomicDeltaBlocks> atomic_redo_blocks() const {
+    std::lock_guard<LockType> l(lock_);
+    return atomic_redo_blocks_;
+  }
+
+  std::vector<AtomicDeltaBlocks> atomic_undo_blocks() const {
+    std::lock_guard<LockType> l(lock_);
+    return atomic_undo_blocks_;
+  }
+
   TabletMetadata *tablet_metadata() const { return tablet_metadata_; }
 
   int64_t last_durable_redo_dms_id() const {
@@ -278,8 +325,12 @@ class RowSetMetadata {
 
   // Map of column ID to block ID.
   ColumnIdToBlockIdMap blocks_by_col_id_;
+
   std::vector<BlockId> redo_delta_blocks_;
   std::vector<BlockId> undo_delta_blocks_;
+
+  std::vector<AtomicDeltaBlocks> atomic_redo_blocks_;
+  std::vector<AtomicDeltaBlocks> atomic_undo_blocks_;
 
   int64_t last_durable_redo_dms_id_;
 

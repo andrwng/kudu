@@ -45,6 +45,7 @@ set(TABLET_SRCS
   svg_dump.cc
   tablet_metadata.cc
   rowset_metadata.cc
+  atomic_deltas.cc
   deltafile.cc
   deltamemstore.cc
   delta_applier.cc
@@ -53,6 +54,7 @@ set(TABLET_SRCS
   delta_stats.cc
   delta_store.cc
   delta_tracker.cc
+  ordered_delta_iter_merger.cc
 )
 
 PROTOBUF_GENERATE_CPP(
