@@ -29,9 +29,11 @@
 #include <glog/logging.h>
 
 #include "kudu/cfile/block_handle.h"
+#include "kudu/cfile/binary_plain_block.h"
 #include "kudu/cfile/block_pointer.h"
 #include "kudu/cfile/cfile_reader.h"
 #include "kudu/cfile/cfile_writer.h"
+#include "kudu/cfile/index_btree.h"
 #include "kudu/common/rowid.h"
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -207,6 +209,7 @@ class DeltaFileReader : public DeltaStore,
  private:
   template<DeltaType Type>
   friend class DeltaFileIterator;
+  friend class DeltaFileStoreIterator;
 
   DISALLOW_COPY_AND_ASSIGN(DeltaFileReader);
 
@@ -234,6 +237,91 @@ class DeltaFileReader : public DeltaStore,
   const DeltaType delta_type_;
 
   KuduOnceLambda init_once_;
+};
+
+// PrepareBatch() will read forward all blocks from the deltafile
+// which overlap with the block being prepared, enqueueing them onto
+// the 'delta_blocks_' deque. The prepared blocks are then used to
+// actually apply deltas in ApplyUpdates().
+struct PreparedDeltaBlock {
+  // The pointer from which this block was read. This is only used for
+  // logging, etc.
+  cfile::BlockPointer block_ptr_;
+
+  // Handle to the block, so it doesn't get freed from underneath us.
+  cfile::BlockHandle block_;
+
+  // The block decoder, to avoid having to re-parse the block header
+  // on every ApplyUpdates() call
+  std::unique_ptr<cfile::BinaryPlainBlockDecoder> decoder_;
+
+  // The first row index for which there is an update in this delta block.
+  rowid_t first_updated_idx_;
+
+  // The last row index for which there is an update in this delta block.
+  rowid_t last_updated_idx_;
+
+  // Within this block, the positional index of the first update that needs to
+  // be consulted. This allows deltas to be skipped at the beginning of the
+  // block when the row block starts towards the end of the delta block.
+  // For example:
+  // <-- delta block ---->
+  //                   <--- prepared row block --->
+  // Here, we can skip a bunch of deltas at the beginning of the delta block
+  // which we know don't apply to the prepared row block.
+  rowid_t prepared_block_start_idx_;
+
+  // Return a string description of this prepared block, for logging.
+  std::string ToString() const;
+};
+
+class DeltaFileStoreIterator : public DeltaStoreIterator {
+ public:
+  DeltaFileStoreIterator(RowIteratorOptions opts,
+                         std::shared_ptr<DeltaFileReader> dfr)
+      : opts_(std::move(opts)),
+        cache_blocks_(cfile::CFileReader::CACHE_BLOCK),
+        initted_(false),
+        dfr_(std::move(dfr)) {}
+  Status Init(ScanSpec* spec) override;
+  Status SeekToOrdinal(rowid_t idx) override;
+  Status PrepareForBatch(size_t nrows) override;
+  bool HasMoreBatches() const override;
+  bool HasNext() const override;
+  Status GetNextDelta(DeltaKey* key, Slice* slice) override;
+  void Finish(size_t nrows) override;
+ private:
+  // Determine the row index of the first update in the block currently
+  // pointed to by index_iter_.
+  Status GetFirstRowIndexInCurrentBlock(rowid_t *idx);
+
+  // Determine the last updated row index contained in the given decoded block.
+  static Status GetLastRowIndexInDecodedBlock(
+      const cfile::BinaryPlainBlockDecoder& dec, rowid_t *idx);
+
+  // Read the current block of data from the current position in the file
+  // onto the end of the load_blocks_.
+  Status LoadCurrentBlock();
+
+  const RowIteratorOptions opts_;
+  cfile::CFileReader::CacheControl cache_blocks_;
+  bool initted_;
+
+  std::shared_ptr<DeltaFileReader> dfr_;
+  std::unique_ptr<cfile::IndexTreeIterator> index_iter_;
+
+  // Indicates whether the index iter has more blocks available to be prepared.
+  bool index_has_more_blocks_ = false;
+
+  // Set when initially seeking and finishing a batch.
+  rowid_t cur_batch_start_idx_;
+
+  int cur_block_idx_ = 0;
+
+  // The default is an invalid value.
+  int idx_in_cur_block_ = -1;
+
+  std::deque<std::unique_ptr<PreparedDeltaBlock>> loaded_blocks_;
 };
 
 // Iterator over the deltas contained in a delta file.
@@ -272,83 +360,18 @@ class DeltaFileIterator : public DeltaIterator {
 
   DISALLOW_COPY_AND_ASSIGN(DeltaFileIterator);
 
-  // PrepareBatch() will read forward all blocks from the deltafile
-  // which overlap with the block being prepared, enqueueing them onto
-  // the 'delta_blocks_' deque. The prepared blocks are then used to
-  // actually apply deltas in ApplyUpdates().
-  struct PreparedDeltaBlock {
-    // The pointer from which this block was read. This is only used for
-    // logging, etc.
-    cfile::BlockPointer block_ptr_;
-
-    // Handle to the block, so it doesn't get freed from underneath us.
-    cfile::BlockHandle block_;
-
-    // The block decoder, to avoid having to re-parse the block header
-    // on every ApplyUpdates() call
-    std::unique_ptr<cfile::BinaryPlainBlockDecoder> decoder_;
-
-    // The first row index for which there is an update in this delta block.
-    rowid_t first_updated_idx_;
-
-    // The last row index for which there is an update in this delta block.
-    rowid_t last_updated_idx_;
-
-    // Within this block, the index of the update which is the first one that
-    // needs to be consulted. This allows deltas to be skipped at the beginning
-    // of the block when the row block starts towards the end of the delta block.
-    // For example:
-    // <-- delta block ---->
-    //                   <--- prepared row block --->
-    // Here, we can skip a bunch of deltas at the beginning of the delta block
-    // which we know don't apply to the prepared row block.
-    rowid_t prepared_block_start_idx_;
-
-    // Return a string description of this prepared block, for logging.
-    std::string ToString() const;
-  };
 
 
   // The pointers in 'opts' and 'dfr' must remain valid for the lifetime of the iterator.
   DeltaFileIterator(std::shared_ptr<DeltaFileReader> dfr,
                     RowIteratorOptions opts);
 
-  // Determine the row index of the first update in the block currently
-  // pointed to by index_iter_.
-  Status GetFirstRowIndexInCurrentBlock(rowid_t *idx);
-
-  // Determine the last updated row index contained in the given decoded block.
-  static Status GetLastRowIndexInDecodedBlock(
-    const cfile::BinaryPlainBlockDecoder &dec, rowid_t *idx);
-
-  // Read the current block of data from the current position in the file
-  // onto the end of the delta_blocks_ queue.
-  Status ReadCurrentBlockOntoQueue();
-
   Status AddDeltas(rowid_t start_row, rowid_t stop_row);
 
-  // Log a FATAL error message about a bad delta.
-  void FatalUnexpectedDelta(const DeltaKey &key, const Slice &deltas,
-                            const std::string &msg);
-
-  std::shared_ptr<DeltaFileReader> dfr_;
-
+  DeltaFileStoreIterator store_iter_;
   DeltaPreparer<DeltaFilePreparerTraits<Type>> preparer_;
 
-  std::unique_ptr<cfile::IndexTreeIterator> index_iter_;
-
   bool prepared_;
-  bool exhausted_;
-  bool initted_;
-
-  // After PrepareBatch(), the set of delta blocks in the delta file
-  // which correspond to prepared_block_.
-  std::deque<std::unique_ptr<PreparedDeltaBlock>> delta_blocks_;
-
-  // Temporary buffer used in seeking.
-  faststring tmp_buf_;
-
-  cfile::CFileReader::CacheControl cache_blocks_;
 };
 
 

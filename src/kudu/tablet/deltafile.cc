@@ -412,62 +412,42 @@ uint64_t DeltaFileReader::EstimateSize() const {
 }
 
 
-////////////////////////////////////////////////////////////
-// DeltaFileIterator
-////////////////////////////////////////////////////////////
-
-template<DeltaType Type>
-DeltaFileIterator<Type>::DeltaFileIterator(shared_ptr<DeltaFileReader> dfr,
-                                           RowIteratorOptions opts)
-    : dfr_(std::move(dfr)),
-      preparer_(std::move(opts)),
-      prepared_(false),
-      exhausted_(false),
-      initted_(false),
-      cache_blocks_(CFileReader::CACHE_BLOCK) {}
-
-template<DeltaType Type>
-Status DeltaFileIterator<Type>::Init(ScanSpec* spec) {
+Status DeltaFileStoreIterator::Init(ScanSpec* spec) {
   DCHECK(!initted_) << "Already initted";
-
   if (spec) {
     cache_blocks_ = spec->cache_blocks() ? CFileReader::CACHE_BLOCK :
                                            CFileReader::DONT_CACHE_BLOCK;
   }
-
   initted_ = true;
   return Status::OK();
 }
 
-template<DeltaType Type>
-Status DeltaFileIterator<Type>::SeekToOrdinal(rowid_t idx) {
+Status DeltaFileStoreIterator::SeekToOrdinal(rowid_t idx) {
   DCHECK(initted_) << "Must call Init()";
 
   // Finish the initialization of any lazily-initialized state.
-  RETURN_NOT_OK(dfr_->Init(preparer_.opts().io_context));
+  RETURN_NOT_OK(dfr_->Init(opts_.io_context));
 
   // Check again whether this delta file is relevant given the snapshots
   // that we are querying. We did this already before creating the
   // DeltaFileIterator, but due to lazy initialization, it's possible
   // that we weren't able to check at that time.
-  if (!dfr_->IsRelevantForSnapshots(preparer_.opts().snap_to_exclude,
-                                    preparer_.opts().snap_to_include)) {
-    exhausted_ = true;
-    delta_blocks_.clear();
+  if (!dfr_->IsRelevantForSnapshots(opts_.snap_to_exclude,
+                                    opts_.snap_to_include)) {
+    index_has_more_blocks_ = false;
+    loaded_blocks_.clear();
     return Status::OK();
   }
 
   if (!index_iter_) {
     index_iter_.reset(IndexTreeIterator::Create(
-        preparer_.opts().io_context,
+        opts_.io_context,
         dfr_->cfile_reader().get(),
         dfr_->cfile_reader()->validx_root()));
   }
-
-  tmp_buf_.clear();
-  DeltaKey(idx, Timestamp(0)).EncodeTo(&tmp_buf_);
-  Slice key_slice(tmp_buf_);
-
+  faststring seek_buf;
+  DeltaKey(idx, Timestamp(0)).EncodeTo(&seek_buf);
+  Slice key_slice(seek_buf);
   Status s = index_iter_->SeekAtOrBefore(key_slice);
   if (PREDICT_FALSE(s.IsNotFound())) {
     // Seeking to a value before the first value in the file
@@ -479,22 +459,39 @@ Status DeltaFileIterator<Type>::SeekToOrdinal(rowid_t idx) {
   }
   RETURN_NOT_OK(s);
 
-  preparer_.Seek(idx);
-  prepared_ = false;
-  delta_blocks_.clear();
-  exhausted_ = false;
+  cur_batch_start_idx_ = idx;
+  loaded_blocks_.clear();
+  index_has_more_blocks_ = true;
   return Status::OK();
 }
 
-template<DeltaType Type>
-Status DeltaFileIterator<Type>::ReadCurrentBlockOntoQueue() {
+Status DeltaFileStoreIterator::GetFirstRowIndexInCurrentBlock(rowid_t* idx) {
+  DCHECK(index_iter_) << "Must call SeekToOrdinal()";
+  Slice index_entry = index_iter_->GetCurrentKey();
+  DeltaKey k;
+  RETURN_NOT_OK(k.DecodeFrom(&index_entry));
+  *idx = k.row_idx();
+  return Status::OK();
+}
+
+Status DeltaFileStoreIterator::GetLastRowIndexInDecodedBlock(const BinaryPlainBlockDecoder& dec,
+                                                             rowid_t* idx) {
+  DCHECK_GT(dec.Count(), 0);
+  Slice s(dec.string_at_index(dec.Count() - 1));
+  DeltaKey k;
+  RETURN_NOT_OK(k.DecodeFrom(&s));
+  *idx = k.row_idx();
+  return Status::OK();
+}
+
+Status DeltaFileStoreIterator::LoadCurrentBlock() {
   DCHECK(initted_) << "Must call Init()";
   DCHECK(index_iter_) << "Must call SeekToOrdinal()";
 
   unique_ptr<PreparedDeltaBlock> pdb(new PreparedDeltaBlock());
   BlockPointer dblk_ptr = index_iter_->GetCurrentBlockPointer();
   shared_ptr<CFileReader> reader = dfr_->cfile_reader();
-  RETURN_NOT_OK(reader->ReadBlock(preparer_.opts().io_context,
+  RETURN_NOT_OK(reader->ReadBlock(opts_.io_context,
                                   dblk_ptr, cache_blocks_, &pdb->block_));
 
   // The data has been successfully read. Finish creating the decoder.
@@ -517,96 +514,147 @@ Status DeltaFileIterator<Type>::ReadCurrentBlockOntoQueue() {
     pdb->last_updated_idx_;
   #endif
 
-  delta_blocks_.emplace_back(std::move(pdb));
+  loaded_blocks_.emplace_back(std::move(pdb));
   return Status::OK();
 }
 
-template<DeltaType Type>
-Status DeltaFileIterator<Type>::GetFirstRowIndexInCurrentBlock(rowid_t *idx) {
-  DCHECK(index_iter_) << "Must call SeekToOrdinal()";
-
-  Slice index_entry = index_iter_->GetCurrentKey();
-  DeltaKey k;
-  RETURN_NOT_OK(k.DecodeFrom(&index_entry));
-  *idx = k.row_idx();
-  return Status::OK();
-}
-
-template<DeltaType Type>
-Status DeltaFileIterator<Type>::GetLastRowIndexInDecodedBlock(const BinaryPlainBlockDecoder &dec,
-                                                              rowid_t *idx) {
-  DCHECK_GT(dec.Count(), 0);
-  Slice s(dec.string_at_index(dec.Count() - 1));
-  DeltaKey k;
-  RETURN_NOT_OK(k.DecodeFrom(&s));
-  *idx = k.row_idx();
-  return Status::OK();
-}
-
-template<DeltaType Type>
-string DeltaFileIterator<Type>::PreparedDeltaBlock::ToString() const {
-  return StringPrintf("%d-%d (%s)", first_updated_idx_, last_updated_idx_,
-                      block_ptr_.ToString().c_str());
-}
-
-template<DeltaType Type>
-Status DeltaFileIterator<Type>::PrepareBatch(size_t nrows, int prepare_flags) {
+Status DeltaFileStoreIterator::PrepareForBatch(size_t nrows) {
   DCHECK(initted_) << "Must call Init()";
-  DCHECK(exhausted_ || index_iter_) << "Must call SeekToOrdinal()";
-
+  DCHECK(!index_has_more_blocks_ || index_iter_) << "Must call SeekToOrdinal()";
+  DCHECK_EQ(0, cur_block_idx_) << "Must not already be iterating";
+  DCHECK_EQ(-1, idx_in_cur_block_) << "Must not already be iterating";
   CHECK_GT(nrows, 0);
-
-  rowid_t start_row = preparer_.cur_prepared_idx();
+  rowid_t start_row = cur_batch_start_idx_;
   rowid_t stop_row = start_row + nrows - 1;
 
-  // Remove blocks from our list which are no longer relevant to the range
-  // being prepared.
-  while (!delta_blocks_.empty() &&
-         delta_blocks_.front()->last_updated_idx_ < start_row) {
-    delta_blocks_.pop_front();
-  }
-
-  while (!exhausted_) {
+  LOG(INFO) << Substitute("Preparing from $0 to $1", start_row, stop_row);
+  while (index_has_more_blocks_) {
     rowid_t next_block_rowidx = 0;
     RETURN_NOT_OK(GetFirstRowIndexInCurrentBlock(&next_block_rowidx));
     VLOG(2) << "Current delta block starting at row " << next_block_rowidx;
 
+    LOG(INFO) << Substitute("Current block starts at row idx $0", next_block_rowidx);
     if (next_block_rowidx > stop_row) {
+      LOG(INFO) << "Stopping at stop row " << stop_row;
       break;
     }
-
-    RETURN_NOT_OK(ReadCurrentBlockOntoQueue());
+    RETURN_NOT_OK(LoadCurrentBlock());
 
     Status s = index_iter_->Next();
     if (s.IsNotFound()) {
-      exhausted_ = true;
+      LOG(INFO) << "Index is done";
+      index_has_more_blocks_ = false;
       break;
     }
     RETURN_NOT_OK(s);
   }
-
-  if (!delta_blocks_.empty()) {
-    PreparedDeltaBlock& block = *delta_blocks_.front();
+  // Pop off any initial blocks that we may have just loaded that are
+  // irrelevant to this batch's range of rows.
+  while (!loaded_blocks_.empty() &&
+         loaded_blocks_.front()->last_updated_idx_ < start_row) {
+    LOG(INFO) << Substitute("Dropping block with last updated idx $0",
+                            loaded_blocks_.front()->last_updated_idx_);
+    loaded_blocks_.pop_front();
+  }
+  if (!loaded_blocks_.empty()) {
+    // Iterate in our first block until we get to the right row range.
+    PreparedDeltaBlock& block = *loaded_blocks_.front();
     int i = 0;
-    for (i = block.prepared_block_start_idx_;
-         i < block.decoder_->Count();
-         i++) {
+    for (i = block.prepared_block_start_idx_; i < block.decoder_->Count(); i++) {
       Slice s(block.decoder_->string_at_index(i));
       DeltaKey key;
       RETURN_NOT_OK(key.DecodeFrom(&s));
       if (key.row_idx() >= start_row) break;
     }
     block.prepared_block_start_idx_ = i;
+    // We'll start iterating at the first block, so keep track of the valud idx
+    // at which it starts.
+    idx_in_cur_block_ = i;
   }
 
   #ifndef NDEBUG
-  VLOG(2) << "Done preparing deltas for " << start_row << "-" << stop_row
-          << ": row block spans " << delta_blocks_.size() << " delta blocks";
+  // V2
+  LOG(INFO) << "Done preparing deltas for " << start_row << "-" << stop_row
+          << ": row block spans " << loaded_blocks_.size() << " delta blocks";
   #endif
+  return Status::OK();
+}
+
+bool DeltaFileStoreIterator::HasMoreBatches() const {
+  return index_has_more_blocks_ || HasNext();
+}
+
+bool DeltaFileStoreIterator::HasNext() const {
+  return !loaded_blocks_.empty() && cur_block_idx_ < loaded_blocks_.size();
+}
+
+Status DeltaFileStoreIterator::GetNextDelta(DeltaKey* key, Slice* slice) {
+  DCHECK_LT(cur_block_idx_, loaded_blocks_.size());
+  DCHECK_NE(-1, idx_in_cur_block_);
+
+  // Then materialize the delta.
+  const auto& block_decoder = *loaded_blocks_[cur_block_idx_]->decoder_;
+  Slice delta_slice = block_decoder.string_at_index(idx_in_cur_block_);
+  DeltaKey delta_key;
+  RETURN_NOT_OK(delta_key.DecodeFrom(&delta_slice));
+  *key = delta_key;
+  *slice = delta_slice;
+
+  // If we iterated to the end of the current block, go to the next block.
+  if (++idx_in_cur_block_ >= block_decoder.Count()) {
+    idx_in_cur_block_ = -1;
+    cur_block_idx_++;
+    if (cur_block_idx_ < loaded_blocks_.size()) {
+      idx_in_cur_block_ = loaded_blocks_[cur_block_idx_]->prepared_block_start_idx_;
+    }
+  }
+  return Status::OK();
+}
+
+void DeltaFileStoreIterator::Finish(size_t nrows) {
+  cur_batch_start_idx_ += nrows;
+  cur_block_idx_ = 0;
+  idx_in_cur_block_ = -1;
+}
+
+////////////////////////////////////////////////////////////
+// DeltaFileIterator
+////////////////////////////////////////////////////////////
+
+template<DeltaType Type>
+DeltaFileIterator<Type>::DeltaFileIterator(shared_ptr<DeltaFileReader> dfr,
+                                           RowIteratorOptions opts)
+    : store_iter_(opts, std::move(dfr)),
+      preparer_(std::move(opts)),
+      prepared_(false) {}
+
+template<DeltaType Type>
+Status DeltaFileIterator<Type>::Init(ScanSpec* spec) {
+  return store_iter_.Init(spec);
+}
+
+template<DeltaType Type>
+Status DeltaFileIterator<Type>::SeekToOrdinal(rowid_t idx) {
+  RETURN_NOT_OK(store_iter_.SeekToOrdinal(idx));
+  preparer_.Seek(idx);
+  return Status::OK();
+}
+
+string PreparedDeltaBlock::ToString() const {
+  return StringPrintf("%d-%d (%s)", first_updated_idx_, last_updated_idx_,
+                      block_ptr_.ToString().c_str());
+}
+
+template<DeltaType Type>
+Status DeltaFileIterator<Type>::PrepareBatch(size_t nrows, int prepare_flags) {
+  RETURN_NOT_OK(store_iter_.PrepareForBatch(nrows));
   prepared_ = true;
 
   preparer_.Start(nrows, prepare_flags);
+  rowid_t start_row = preparer_.cur_prepared_idx();
+  rowid_t stop_row = start_row + nrows - 1;
   RETURN_NOT_OK(AddDeltas(start_row, stop_row));
+  store_iter_.Finish(nrows);
   preparer_.Finish(nrows);
   return Status::OK();
 }
@@ -615,66 +663,57 @@ template<DeltaType Type>
 Status DeltaFileIterator<Type>::AddDeltas(rowid_t start_row, rowid_t stop_row) {
   DCHECK(prepared_) << "must Prepare";
 
-  for (auto& block : delta_blocks_) {
-    const BinaryPlainBlockDecoder& bpd = *block->decoder_;
-    DVLOG(2) << "Adding deltas from delta block " << block->first_updated_idx_ << "-"
-             << block->last_updated_idx_ << " for row block starting at " << start_row;
+  bool finished_row = false;
+  LOG(INFO) << "Adding deltas";
+  while (store_iter_.HasNext()) {
+    LOG(INFO) << "there is something here";
+    DeltaKey key;
+    Slice slice;
+    Status s = store_iter_.GetNextDelta(&key, &slice);
+    if (s.IsNotFound()) {
+      LOG(INFO) << s.ToString();
+      // We've exhausted our blocks.
+      break;
+    }
+    RETURN_NOT_OK(s);
+    LOG(INFO) << "Got delta for key: " << key.ToString();
 
-    if (PREDICT_FALSE(start_row > block->last_updated_idx_)) {
-      // The block to be updated completely falls after this delta block:
-      //  <-- delta block -->      <-- delta block -->
-      //                      <-- block to update     -->
-      // This can happen because we don't know the block's last entry until after
-      // we queued it in PrepareBatch(). We could potentially remove it at that
-      // point during the prepare step, but for now just skip it here.
+    // If this delta is for the same row as before, skip it if the previous
+    // AddDelta() call told us that we're done with this row.
+    if (preparer_.last_added_idx() &&
+        preparer_.last_added_idx() == key.row_idx() &&
+        finished_row) {
+      continue;
+    }
+    finished_row = false;
+
+    // Check that the delta is within the block we're currently processing.
+    if (key.row_idx() > stop_row) {
+      // Delta is for a row which comes after the block we're processing.
+      LOG(INFO) << "Stopping";
+      return Status::OK();
+    }
+    if (key.row_idx() < start_row) {
+      // Delta is for a row which comes before the block we're processing.
       continue;
     }
 
-    bool finished_row = false;
-    for (int i = block->prepared_block_start_idx_; i < bpd.Count(); i++) {
-      Slice slice = bpd.string_at_index(i);
-
-      // Decode and check the ID of the row we're going to update.
-      DeltaKey key;
-      RETURN_NOT_OK(key.DecodeFrom(&slice));
-
-      // If this delta is for the same row as before, skip it if the previous
-      // AddDelta() call told us that we're done with this row.
-      if (preparer_.last_added_idx() &&
-          preparer_.last_added_idx() == key.row_idx() &&
-          finished_row) {
-        continue;
-      }
-      finished_row = false;
-
-      // Check that the delta is within the block we're currently processing.
-      if (key.row_idx() > stop_row) {
-        // Delta is for a row which comes after the block we're processing.
-        return Status::OK();
-      }
-      if (key.row_idx() < start_row) {
-        // Delta is for a row which comes before the block we're processing.
-        continue;
-      }
-
-      // Note: if AddDelta sets 'finished_row' to true, we could skip the
-      // remaining deltas for this row by seeking the block decoder. This trades
-      // off the cost of a seek against the cost of decoding some irrelevant delta keys.
-      //
-      // Given that updates are expected to be uncommon and that most scans are
-      // _not_ historical, the current implementation eschews seeking in favor of
-      // skipping irrelevant deltas one by one.
-      RETURN_NOT_OK(preparer_.AddDelta(key, slice, &finished_row));
-      if (VLOG_IS_ON(3)) {
-        RowChangeList rcl(slice);
-        DVLOG(3) << "Visited " << DeltaType_Name(DeltaTypeSelector<Type>::kTag)
-                 << " delta for key: " << key.ToString() << " Mut: "
-                 << rcl.ToString(*preparer_.opts().projection)
-                 << " Continue?: " << (!finished_row ? "TRUE" : "FALSE");
-      }
+    // Note: if AddDelta sets 'finished_row' to true, we could skip the
+    // remaining deltas for this row by seeking the block decoder. This trades
+    // off the cost of a seek against the cost of decoding some irrelevant delta keys.
+    //
+    // Given that updates are expected to be uncommon and that most scans are
+    // _not_ historical, the current implementation eschews seeking in favor of
+    // skipping irrelevant deltas one by one.
+    RETURN_NOT_OK(preparer_.AddDelta(key, slice, &finished_row));
+    if (VLOG_IS_ON(3)) {
+      RowChangeList rcl(slice);
+      DVLOG(3) << "Visited " << DeltaType_Name(DeltaTypeSelector<Type>::kTag)
+                << " delta for key: " << key.ToString() << " Mut: "
+                << rcl.ToString(*preparer_.opts().projection)
+                << " Continue?: " << (!finished_row ? "TRUE" : "FALSE");
     }
   }
-
   return Status::OK();
 }
 
@@ -701,7 +740,7 @@ Status DeltaFileIterator<Type>::CollectMutations(vector<Mutation*>* dst, Arena* 
 
 template<DeltaType Type>
 bool DeltaFileIterator<Type>::HasNext() {
-  return !exhausted_ || !delta_blocks_.empty();
+  return store_iter_.HasMoreBatches();
 }
 
 template<DeltaType Type>
@@ -711,7 +750,7 @@ bool DeltaFileIterator<Type>::MayHaveDeltas() const {
 
 template<DeltaType Type>
 string DeltaFileIterator<Type>::ToString() const {
-  return "DeltaFileIterator(" + dfr_->ToString() + ")";
+  return Substitute("DeltaFileIterator($0)", "TODO(awong)");
 }
 
 template<DeltaType Type>
@@ -720,14 +759,6 @@ Status DeltaFileIterator<Type>::FilterColumnIdsAndCollectDeltas(
     vector<DeltaKeyAndUpdate>* out,
     Arena* arena) {
   return preparer_.FilterColumnIdsAndCollectDeltas(col_ids, out, arena);
-}
-
-template<DeltaType Type>
-void DeltaFileIterator<Type>::FatalUnexpectedDelta(const DeltaKey &key, const Slice &deltas,
-                                             const string &msg) {
-  LOG(FATAL) << "Saw unexpected delta type in deltafile " << dfr_->ToString() << ": "
-             << " rcl=" << RowChangeList(deltas).ToString(*preparer_.opts().projection)
-             << " key=" << key.ToString() << " (" << msg << ")";
 }
 
 } // namespace tablet

@@ -316,6 +316,19 @@ class PreparedDeltas {
   virtual bool MayHaveDeltas() const = 0;
 };
 
+// Encapsulates the state needed to iterate over the deltas in a delta store.
+class DeltaStoreIterator {
+ public:
+  virtual Status Init(ScanSpec* spec) = 0;
+  virtual Status SeekToOrdinal(rowid_t idx) = 0;
+  virtual Status PrepareForBatch(size_t nrows) = 0;
+  virtual bool HasNext() const = 0;
+  virtual bool HasMoreBatches() const = 0;
+  virtual Status GetNextDelta(DeltaKey* key, Slice* slice) = 0;
+  virtual void Finish(size_t nrows) = 0;
+};
+
+// Iterates over batches.
 class DeltaIterator : public PreparedDeltas {
  public:
   // Initialize the iterator. This must be called once before any other
