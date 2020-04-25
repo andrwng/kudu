@@ -177,7 +177,7 @@ Status DeltaTracker::DoOpen(const IOContext* io_context) {
           std::make_pair(nullptr, std::move(atomic_stores)));
     } else if (atomic_redos.uncommitted_txn_id) {
       EmplaceOrDie(&uncommitted_atomic_deltas_, *atomic_redos.uncommitted_txn_id,
-          std::make_pair(nullptr, std::move(atomic_stores)));
+                   std::move(atomic_stores));
     } else {
       return Status::Corruption("atomic redo must have either a transaction ID "
                                 "or commit timestamp");
@@ -625,6 +625,7 @@ Status DeltaTracker::DoCompactStores(const IOContext* io_context,
   // If this changes in the future, we'll have to pass in the current tablet
   // schema here.
   Schema empty_schema;
+  // XXX(awong): also take the committed redos as an input.
   RETURN_NOT_OK(MakeDeltaIteratorMergerUnlocked(io_context, start_idx, end_idx,
                                                 &empty_schema, compacted_stores,
                                                 compacted_blocks, &inputs_merge));
@@ -693,6 +694,7 @@ Status DeltaTracker::WrapIterator(const shared_ptr<CFileSet::Iterator> &base,
                                   const RowIteratorOptions& opts,
                                   unique_ptr<ColumnwiseIterator>* out) const {
   unique_ptr<DeltaIterator> iter;
+  // XXX(awong): UNDOS_AND_REDOS
   RETURN_NOT_OK(NewDeltaIterator(opts, &iter));
 
   out->reset(new DeltaApplier(opts, base, std::move(iter)));
@@ -710,14 +712,14 @@ Status DeltaTracker::UpdateForTransaction(TransactionId txn_id,
   shared_ptr<DeltaMemStore> dms;
   AtomicRedoStores* atomic_redos;
   if (undos_and_redos) {
-    DCHECK(undos_and_redos->second);
-    atomic_redos = undos_and_redos->second.get();
+    DCHECK(undos_and_redos);
+    atomic_redos = undos_and_redos->get();
   } else {
     std::unique_ptr<AtomicRedoStores> redos;
     RETURN_NOT_OK(AtomicRedoStores::Create(rowset_metadata_->id(),
                                            log_anchor_registry_, &redos));
     atomic_redos = redos.get();
-    EmplaceOrDie(&uncommitted_atomic_deltas_, txn_id, std::make_pair(nullptr, std::move(redos)));
+    EmplaceOrDie(&uncommitted_atomic_deltas_, txn_id, std::move(redos));
   }
   RETURN_NOT_OK(atomic_redos->GetOrCreateDMS(rowset_metadata_->id(),
                                              log_anchor_registry_,

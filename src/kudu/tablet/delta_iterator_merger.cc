@@ -43,6 +43,8 @@ DeltaIteratorMerger::DeltaIteratorMerger(
     vector<unique_ptr<DeltaIterator> > iters)
     : iters_(std::move(iters)) {}
 
+// XXX(awong): update this to read timestamps and wrap iterators with
+// potentially multiple MergedAtomicDeltaReaders.
 Status DeltaIteratorMerger::Init(ScanSpec* spec) {
   for (const unique_ptr<DeltaIterator> &iter : iters_) {
     RETURN_NOT_OK(iter->Init(spec));
@@ -57,7 +59,19 @@ Status DeltaIteratorMerger::SeekToOrdinal(rowid_t idx) {
   return Status::OK();
 }
 
+// allow a PrepareBatch() call to take as input an atomic delta iterator.
+// maintain a min heap of (cur_key_idx, timestamp) for the atomic iterators
+// - as we iterate through rows of the main delta store, maintain a min-heap
+//   tracking the lowest (key, timestamp) among [main iter, [ atomic iters]].
+// - always AddDelta() on the smallest atomic iter
+// 
+// Compare each key.timestamp to min atomic delta iterator timestamp
+// Iterate through all the row_idx in the atomic delta iterator
 Status DeltaIteratorMerger::PrepareBatch(size_t nrows, int prepare_flags) {
+  // Get the time ranges covered by each iterator.
+  //
+  // UNDOs are in decreasing timestamp order (older from left to right)
+  // REDOs are in increasing timestamp order (newer from left to right)
   for (const unique_ptr<DeltaIterator> &iter : iters_) {
     RETURN_NOT_OK(iter->PrepareBatch(nrows, prepare_flags));
   }
@@ -66,7 +80,6 @@ Status DeltaIteratorMerger::PrepareBatch(size_t nrows, int prepare_flags) {
 
 Status DeltaIteratorMerger::ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
                                          const SelectionVector& filter) {
-  // XXX(awong):
   for (const unique_ptr<DeltaIterator>& iter : iters_) {
     RETURN_NOT_OK(iter->ApplyUpdates(col_to_apply, dst, filter));
   }
@@ -153,6 +166,12 @@ string DeltaIteratorMerger::ToString() const {
 }
 
 
+// XXX(awong): take as input the committed redos and undos. Based on whether
+// they're relevant for the given snapshot range, initialize their iterators.
+//
+// We can't determine relevance until we actually read the timestamps from disk
+// for regular deltafiles, but know the timestamps for our committed atomic
+// delta stores.
 Status DeltaIteratorMerger::Create(
     const vector<shared_ptr<DeltaStore> > &stores,
     const RowIteratorOptions& opts,

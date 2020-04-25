@@ -371,7 +371,7 @@ class DeltaTracker {
 
   typedef std::pair<std::unique_ptr<AtomicUndoStores>,
                     std::unique_ptr<AtomicRedoStores>> AtomicDeltas;
-  std::map<TransactionId, AtomicDeltas> uncommitted_atomic_deltas_;
+  std::map<TransactionId, std::unique_ptr<AtomicRedoStores>> uncommitted_atomic_deltas_;
   std::map<Timestamp::val_type, AtomicDeltas> committed_atomic_deltas_;
 
   // The maintenance scheduler calls DeltaMemStoreEmpty() a lot.

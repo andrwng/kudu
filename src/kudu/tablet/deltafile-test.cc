@@ -233,10 +233,10 @@ TEST_F(TestDeltaFile, TestDumpDeltaFileIterator) {
   ASSERT_OK(s);
   vector<string> it_contents;
   ASSERT_OK(DebugDumpDeltaIterator(REDO,
-                                          it.get(),
-                                          schema_,
-                                          ITERATE_OVER_ALL_ROWS,
-                                          &it_contents));
+                                   it.get(),
+                                   schema_,
+                                   ITERATE_OVER_ALL_ROWS,
+                                   &it_contents));
   for (const string& str : it_contents) {
     VLOG(1) << str;
   }

@@ -39,6 +39,7 @@ message DeltaDataPB {
 
 message AtomicDeltasPB {
   repeated DeltaDataPB deltas = 1;
+
   oneof txn {
     // The transaction ID of the uncommitted transaction that created this
     // delta. Should not be used if the parent rowset was created as a part of
