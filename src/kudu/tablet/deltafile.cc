@@ -527,22 +527,22 @@ Status DeltaFileStoreIterator::PrepareForBatch(size_t nrows) {
   rowid_t start_row = cur_batch_start_idx_;
   rowid_t stop_row = start_row + nrows - 1;
 
-  LOG(INFO) << Substitute("Preparing from $0 to $1", start_row, stop_row);
+  // LOG(INFO) << Substitute("Preparing from $0 to $1", start_row, stop_row);
   while (index_has_more_blocks_) {
     rowid_t next_block_rowidx = 0;
     RETURN_NOT_OK(GetFirstRowIndexInCurrentBlock(&next_block_rowidx));
     VLOG(2) << "Current delta block starting at row " << next_block_rowidx;
 
-    LOG(INFO) << Substitute("Current block starts at row idx $0", next_block_rowidx);
+    // LOG(INFO) << Substitute("Current block starts at row idx $0", next_block_rowidx);
     if (next_block_rowidx > stop_row) {
-      LOG(INFO) << "Stopping at stop row " << stop_row;
+      // LOG(INFO) << "Stopping at stop row " << stop_row;
       break;
     }
     RETURN_NOT_OK(LoadCurrentBlock());
 
     Status s = index_iter_->Next();
     if (s.IsNotFound()) {
-      LOG(INFO) << "Index is done";
+      // LOG(INFO) << "Index is done";
       index_has_more_blocks_ = false;
       break;
     }
@@ -552,8 +552,8 @@ Status DeltaFileStoreIterator::PrepareForBatch(size_t nrows) {
   // irrelevant to this batch's range of rows.
   while (!loaded_blocks_.empty() &&
          loaded_blocks_.front()->last_updated_idx_ < start_row) {
-    LOG(INFO) << Substitute("Dropping block with last updated idx $0",
-                            loaded_blocks_.front()->last_updated_idx_);
+    // LOG(INFO) << Substitute("Dropping block with last updated idx $0",
+    //                         loaded_blocks_.front()->last_updated_idx_);
     loaded_blocks_.pop_front();
   }
   if (!loaded_blocks_.empty()) {
@@ -574,8 +574,8 @@ Status DeltaFileStoreIterator::PrepareForBatch(size_t nrows) {
 
   #ifndef NDEBUG
   // V2
-  LOG(INFO) << "Done preparing deltas for " << start_row << "-" << stop_row
-          << ": row block spans " << loaded_blocks_.size() << " delta blocks";
+  // LOG(INFO) << "Done preparing deltas for " << start_row << "-" << stop_row
+  //         << ": row block spans " << loaded_blocks_.size() << " delta blocks";
   #endif
   return Status::OK();
 }
@@ -599,7 +599,11 @@ Status DeltaFileStoreIterator::GetNextDelta(DeltaKey* key, Slice* slice) {
   RETURN_NOT_OK(delta_key.DecodeFrom(&delta_slice));
   *key = delta_key;
   *slice = delta_slice;
+  return Status::OK();
+}
 
+void DeltaFileStoreIterator::IterateNext() {
+  const auto& block_decoder = *loaded_blocks_[cur_block_idx_]->decoder_;
   // If we iterated to the end of the current block, go to the next block.
   if (++idx_in_cur_block_ >= block_decoder.Count()) {
     idx_in_cur_block_ = -1;
@@ -608,7 +612,6 @@ Status DeltaFileStoreIterator::GetNextDelta(DeltaKey* key, Slice* slice) {
       idx_in_cur_block_ = loaded_blocks_[cur_block_idx_]->prepared_block_start_idx_;
     }
   }
-  return Status::OK();
 }
 
 void DeltaFileStoreIterator::Finish(size_t nrows) {
@@ -664,37 +667,38 @@ Status DeltaFileIterator<Type>::AddDeltas(rowid_t start_row, rowid_t stop_row) {
   DCHECK(prepared_) << "must Prepare";
 
   bool finished_row = false;
-  LOG(INFO) << "Adding deltas";
+  // LOG(INFO) << "Adding deltas";
   while (store_iter_.HasNext()) {
-    LOG(INFO) << "there is something here";
+    // LOG(INFO) << "there is something here";
     DeltaKey key;
     Slice slice;
     Status s = store_iter_.GetNextDelta(&key, &slice);
     if (s.IsNotFound()) {
-      LOG(INFO) << s.ToString();
       // We've exhausted our blocks.
       break;
     }
     RETURN_NOT_OK(s);
-    LOG(INFO) << "Got delta for key: " << key.ToString();
+    // LOG(INFO) << "Got delta for key: " << key.ToString();
 
     // If this delta is for the same row as before, skip it if the previous
     // AddDelta() call told us that we're done with this row.
     if (preparer_.last_added_idx() &&
         preparer_.last_added_idx() == key.row_idx() &&
         finished_row) {
+      store_iter_.IterateNext();
       continue;
     }
     finished_row = false;
 
     // Check that the delta is within the block we're currently processing.
     if (key.row_idx() > stop_row) {
-      // Delta is for a row which comes after the block we're processing.
-      LOG(INFO) << "Stopping";
+      // The delta is for a row which comes after the block we're processing.
+      // LOG(INFO) << "Stopping";
       return Status::OK();
     }
     if (key.row_idx() < start_row) {
       // Delta is for a row which comes before the block we're processing.
+      store_iter_.IterateNext();
       continue;
     }
 
@@ -713,6 +717,7 @@ Status DeltaFileIterator<Type>::AddDeltas(rowid_t start_row, rowid_t stop_row) {
                 << rcl.ToString(*preparer_.opts().projection)
                 << " Continue?: " << (!finished_row ? "TRUE" : "FALSE");
     }
+    store_iter_.IterateNext();
   }
   return Status::OK();
 }

@@ -193,29 +193,71 @@ int64_t DeltaMemStore::deleted_row_count() const {
   return count;
 }
 
+Status DeltaMemStoreIterator::Init(ScanSpec* /*spec*/) {
+  return Status::OK();
+}
+
+Status DeltaMemStoreIterator::SeekToOrdinal(rowid_t idx) {
+  faststring buf;
+  DeltaKey key(idx, Timestamp(0));
+  key.EncodeTo(&buf);
+  bool exact; // unused
+  iter_->SeekAtOrAfter(Slice(buf), &exact);
+  return Status::OK();
+}
+
+Status DeltaMemStoreIterator::PrepareForBatch(size_t nrows) {
+  return Status::OK();
+}
+
+bool DeltaMemStoreIterator::HasMoreBatches() const {
+  return iter_->IsValid();
+}
+
+bool DeltaMemStoreIterator::HasNext() const {
+  return iter_->IsValid();
+}
+
+Status DeltaMemStoreIterator::GetNextDelta(DeltaKey* key, Slice* slice) {
+  DCHECK(iter_->IsValid());
+  Slice key_slice, val_slice;
+  iter_->GetCurrentEntry(&key_slice, &val_slice);
+  DeltaKey delta_key;
+  RETURN_NOT_OK(delta_key.DecodeFrom(&key_slice));
+  *key = delta_key;
+  *slice = val_slice;
+  return Status::OK();
+}
+
+void DeltaMemStoreIterator::Finish(size_t nrows) {
+  return;
+}
+
 ////////////////////////////////////////////////////////////
 // DMSIterator
 ////////////////////////////////////////////////////////////
 
 DMSIterator::DMSIterator(const shared_ptr<const DeltaMemStore>& dms,
                          RowIteratorOptions opts)
-    : dms_(dms),
+    : store_iter_(dms),
       preparer_(std::move(opts)),
-      iter_(dms->tree_.NewIterator()),
       seeked_(false) {}
 
-Status DMSIterator::Init(ScanSpec* /*spec*/) {
+Status DMSIterator::Init(ScanSpec* spec) {
+  RETURN_NOT_OK(store_iter_.Init(spec));
   initted_ = true;
   return Status::OK();
 }
 
-Status DMSIterator::SeekToOrdinal(rowid_t row_idx) {
-  faststring buf;
-  DeltaKey key(row_idx, Timestamp(0));
-  key.EncodeTo(&buf);
+DeltaMemStoreIterator::DeltaMemStoreIterator(const shared_ptr<const DeltaMemStore> dms)
+    : dms_(dms), iter_(dms->tree_.NewIterator()) {}
 
-  bool exact; /* unused */
-  iter_->SeekAtOrAfter(Slice(buf), &exact);
+void DeltaMemStoreIterator::IterateNext() {
+  iter_->Next();
+}
+
+Status DMSIterator::SeekToOrdinal(rowid_t row_idx) {
+  RETURN_NOT_OK(store_iter_.SeekToOrdinal(row_idx));
   preparer_.Seek(row_idx);
   seeked_ = true;
   return Status::OK();
@@ -240,11 +282,10 @@ Status DMSIterator::PrepareBatch(size_t nrows, int prepare_flags) {
 
   preparer_.Start(nrows, prepare_flags);
   bool finished_row = false;
-  while (iter_->IsValid()) {
-    Slice key_slice, val;
-    iter_->GetCurrentEntry(&key_slice, &val);
+  while (store_iter_.HasNext()) {
     DeltaKey key;
-    RETURN_NOT_OK(key.DecodeFrom(&key_slice));
+    Slice val;
+    RETURN_NOT_OK(store_iter_.GetNextDelta(&key, &val));
     rowid_t cur_row = key.row_idx();
     DCHECK_GE(cur_row, start_row);
 
@@ -253,7 +294,7 @@ Status DMSIterator::PrepareBatch(size_t nrows, int prepare_flags) {
     if (preparer_.last_added_idx() &&
         preparer_.last_added_idx() == cur_row &&
         finished_row) {
-      iter_->Next();
+      store_iter_.IterateNext();
       continue;
     }
     finished_row = false;
@@ -273,8 +314,9 @@ Status DMSIterator::PrepareBatch(size_t nrows, int prepare_flags) {
     // _not_ historical, the current implementation eschews seeking in favor of
     // skipping irrelevant deltas one by one.
     RETURN_NOT_OK(preparer_.AddDelta(key, val, &finished_row));
-    iter_->Next();
+    store_iter_.IterateNext();
   }
+  store_iter_.Finish(nrows);
   preparer_.Finish(nrows);
   return Status::OK();
 }
@@ -303,7 +345,7 @@ Status DMSIterator::FilterColumnIdsAndCollectDeltas(const vector<ColumnId>& col_
 }
 
 bool DMSIterator::HasNext() {
-  return iter_->IsValid();
+  return store_iter_.HasNext();
 }
 
 bool DMSIterator::MayHaveDeltas() const {

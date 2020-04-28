@@ -285,10 +285,23 @@ class DeltaFileStoreIterator : public DeltaStoreIterator {
         dfr_(std::move(dfr)) {}
   Status Init(ScanSpec* spec) override;
   Status SeekToOrdinal(rowid_t idx) override;
+
+  // Loads delta blocks for at least the next 'nrows' and prepares to start
+  // iterating through them.
   Status PrepareForBatch(size_t nrows) override;
+
+  // Returns whether the delta store has the capacity to prepare more batches.
   bool HasMoreBatches() const override;
+
+  // Returns whether there might be another delta in the current batch.
   bool HasNext() const override;
+
   Status GetNextDelta(DeltaKey* key, Slice* slice) override;
+
+  void IterateNext() override;
+
+  // Used to indicate that the previously prepared batch of 'nrows' has been
+  // iterated through.
   void Finish(size_t nrows) override;
  private:
   // Determine the row index of the first update in the block currently
@@ -359,8 +372,6 @@ class DeltaFileIterator : public DeltaIterator {
   friend class DeltaFileReader;
 
   DISALLOW_COPY_AND_ASSIGN(DeltaFileIterator);
-
-
 
   // The pointers in 'opts' and 'dfr' must remain valid for the lifetime of the iterator.
   DeltaFileIterator(std::shared_ptr<DeltaFileReader> dfr,

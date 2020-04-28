@@ -299,7 +299,8 @@ class PreparedDeltas {
   // 'col_ids' to 'out'.
   //
   // Unlike CollectMutations, the iterator's MVCC snapshots are ignored; all
-  // deltas are considered relevant.
+  // deltas are considered relevant. This is useful when rewriting deltas
+  // stores, e.g. during compactions.
   //
   // The delta objects will be allocated out the provided Arena, which must be non-NULL.
   //
@@ -325,6 +326,7 @@ class DeltaStoreIterator {
   virtual bool HasNext() const = 0;
   virtual bool HasMoreBatches() const = 0;
   virtual Status GetNextDelta(DeltaKey* key, Slice* slice) = 0;
+  virtual void IterateNext() = 0;
   virtual void Finish(size_t nrows) = 0;
 };
 
@@ -390,8 +392,11 @@ class DeltaIterator : public PreparedDeltas {
 // DeltaPreparer traits suited for a DMSIterator.
 struct DMSPreparerTraits {
   static constexpr DeltaType kType = REDO;
+  // Inserts should always land in the MRS.
   static constexpr bool kAllowReinserts = false;
+  // This is only used for delta compactions, which don't include the DMS.
   static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = false;
+  // The DMS is in memory, so we don't bother checking for corruption.
   static constexpr bool kInitializeDecodersWithSafetyChecks = false;
 };
 
@@ -402,8 +407,12 @@ struct DMSPreparerTraits {
 template<DeltaType Type>
 struct DeltaFilePreparerTraits {
   static constexpr DeltaType kType = Type;
+  // Merging multiple rowsets might yield reinserts in the on-disk stores.
   static constexpr bool kAllowReinserts = true;
+  // We may need to filter column IDs when performing a delta compaction.
   static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = true;
+  // We'll be reading on-disk state, so it's worth doing some extra
+  // verification.
   static constexpr bool kInitializeDecodersWithSafetyChecks = true;
 };
 
