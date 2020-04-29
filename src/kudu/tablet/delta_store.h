@@ -416,6 +416,20 @@ struct DeltaFilePreparerTraits {
   static constexpr bool kInitializeDecodersWithSafetyChecks = true;
 };
 
+// We might merge DMS and deltafiles together when merging atomic deltas, so
+// have the MergedAtomicDeltasIterator's preparer be the lowest common
+// denominator of the two.
+// TODO(awong): this is a little hacky. Consider refactoring the delta decoder
+// into the DeltaStoreIterator so each store can perform the appropriate checks
+// rather than doing the checks in the DeltaPreparer.
+template<DeltaType Type>
+struct MergedAtomicDeltasPreparerTraits {
+  static constexpr DeltaType kType = Type;
+  static constexpr bool kAllowReinserts = true;
+  static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = true;
+  static constexpr bool kInitializeDecodersWithSafetyChecks = true;
+};
+
 // Encapsulates all logic and responsibility related to "delta preparation";
 // that is, the transformation of encoded deltas into an in-memory
 // representation more suitable for efficient service during iteration.

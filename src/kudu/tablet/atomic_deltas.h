@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/heap/skew_heap.hpp>
+
 #include "kudu/common/rowid.h"
 #include "kudu/fs/block_id.h"
 #include "kudu/tablet/delta_key.h"
@@ -39,30 +41,24 @@ class LogAnchorRegistry;
 
 namespace tablet {
 
-// Encapsulates the state required to merge a committed atomic iterator with
-// another iterator. The deltas should be ordered by (key, timestamp).
-//
-// A DeltaIterator can use this during its call to PrepareBatch() to mix in
-// deltas from multiple atomic delta stores.
-class AtomicDeltasReader {
+// Iterates over a group of input delta store iterators, returning deltas in
+// the order specified by the input iterators, but returning the deltas at a
+// specified timestamp.
+template <DeltaType Type>
+class OrderedAtomicDeltaStoreMerger : public DeltaStoreIterator {
  public:
-  Status ReadCurrentDelta(DeltaKey* key, Slice* slice);
+  Status Init(ScanSpec* spec) override;
+  Status SeekToOrdinal(rowid_t idx) override;
+  Status PrepareForBatch(size_t nrows) override;
+  bool HasNext() const override;
+  bool HasMoreBatches() const override;
 
-  // Reads the next delta.
-  Status ReadNextDelta(DeltaKey* key, Slice* slice);
+  // Returns a delta key with the commit timestamp, and the slice for that
+  // delta, which hasn't been rewritten.
+  Status GetNextDelta(DeltaKey* key, Slice* slice) override;
 
-  // Seek to a particular ordinal position in the delta data. This cancels any
-  // prepared block, and must be called at least once prior to PrepareBatch().
-  Status SeekToOrdinal(rowid_t idx);
-
-  // Prepares all underlying iterators to read deltas for the next 'nrows'
-  // rows. Note that this doesn't read 'nrows' deltas, but rather reads deltas
-  // that are relevant for the next 'nrows' rows.
-  Status PrepareBatch(size_t nrows, int prepare_flags);
-
-  // Returns true if at least one iterator has more deltas to read for the
-  // current batch.
-  bool HasNext();
+  void IterateNext() override;
+  void Finish(size_t nrows) override;
  private:
   // Timestamp at which the deltas the deltas were committed. If interleaving
   // this reader with another iterator, the deltas in this reader will seen as
@@ -70,7 +66,19 @@ class AtomicDeltasReader {
   const Timestamp commit_timestamp_;
 
   // The iterators that are to be read at a single timestamp.
-  std::vector<std::unique_ptr<DeltaIterator> > iters_;
+  std::vector<std::unique_ptr<DeltaStoreIterator>> iters_;
+
+  // We'll maintain a min-heap of the next row to apply.
+  typedef std::pair<const DeltaKey&, DeltaStoreIterator*> KeyAndIter;
+  struct KeyComparator {
+    bool operator()(const KeyAndIter& a, const KeyAndIter& b) const {
+      // NOTE: boost::heap defaults to a max-heap, so the comparator must be
+      // inverted to yield a min-heap.
+      return a.first.CompareTo<Type>(b.first) > 0;
+    }
+  };
+  typedef boost::heap::skew_heap<KeyAndIter, KeyComparator> KeyMinHeap;
+  KeyMinHeap key_heap_;
 };
 
 // An merging iterator that iterates over multiple delta iterators, but views
@@ -78,15 +86,15 @@ class AtomicDeltasReader {
 //
 // NOTE: the underlying iterators should be either DeltaMemStoreIterators or
 // DelfaFileIterators.
+template <DeltaType Type>
 class MergedAtomicDeltasIterator : public DeltaIterator {
-  // Constructs an iterator that has the commit timestamp and the given base
-  // options. Based on opts.snap_to_exclude and opts.snap_to_include, and the
-  // given delta type, construct a merged iterator that has iterators for the
-  // given stores.
-  //
-  // Returns NotFound() the stores are not relevant, per the iteration options.
-  static Status Create(const Timestamp& commit_timestamp, const RowIteratorOptions& opts,
-                       const SharedDeltaStoreVector& input_stores);
+  // Constructs an iterator that merges the given atomic delta readers with the
+  // given base delta store iterator.
+  static Status Create(
+      std::vector<std::unique_ptr<OrderedAtomicDeltaStoreMerger<Type>>> atomic_iters,
+      std::unique_ptr<DeltaStoreIterator> base_store_iter,
+      RowIteratorOptions opts,
+      DeltaIterator* merged_iter);
 
   Status Init(ScanSpec* spec) override { return Status::OK(); }
   Status SeekToOrdinal(rowid_t idx) override { return Status::OK(); }
@@ -103,9 +111,18 @@ class MergedAtomicDeltasIterator : public DeltaIterator {
   bool MayHaveDeltas() const override { return true; }
   std::string ToString() const override { return ""; }
  private:
-  const Timestamp commit_timestamp_;
+  MergedAtomicDeltasIterator(
+      std::vector<std::unique_ptr<OrderedAtomicDeltaStoreMerger<Type>>> atomic_iters,
+      std::unique_ptr<DeltaStoreIterator> base_store_iter,
+      RowIteratorOptions opts)
+      : atomic_iters_(std::move(atomic_iters)),
+        base_store_iter_(std::move(base_store_iter)),
+        preparer_(std::move(opts)) {}
+
   // The iterators that are to be read at a single timestamp.
-  std::vector<std::unique_ptr<DeltaIterator> > iters_;
+  std::vector<std::unique_ptr<OrderedAtomicDeltaStoreMerger<Type>>> atomic_iters_;
+  std::unique_ptr<DeltaStoreIterator> base_store_iter_;
+  DeltaPreparer<DeltaFilePreparerTraits<Type>> preparer_;
 };
 
 // XXX(awong): for the non-transactional rowset case, add constructors that

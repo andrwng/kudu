@@ -311,6 +311,7 @@ Status DMSIterator::PrepareBatchWithAtomicDeltas(
 }
 */
 Status DMSIterator::PrepareBatch(size_t nrows, int prepare_flags) {
+  RETURN_NOT_OK(store_iter_.PrepareForBatch(nrows));
   // This current implementation copies the whole batch worth of deltas
   // into a buffer local to this iterator, after filtering out deltas which
   // aren't yet committed in the current MVCC snapshot. The theory behind

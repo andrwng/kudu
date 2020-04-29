@@ -120,5 +120,74 @@ Status AtomicRedoStores::GetOrCreateDMS(int64_t rowset_id,
                                /*memtracker*/nullptr, &dms_);
 }
 
+template<DeltaType Type>
+Status OrderedAtomicDeltaStoreMerger<Type>::Init(ScanSpec* spec) {
+  for (const auto& iter : iters_) {
+    RETURN_NOT_OK(iter->Init(spec));
+  }
+  return Status::OK();
+}
+
+template<DeltaType Type>
+Status OrderedAtomicDeltaStoreMerger<Type>::SeekToOrdinal(rowid_t idx) {
+  for (const auto& iter : iters_) {
+    RETURN_NOT_OK(iter->SeekToOrdinal(idx));
+  }
+  return Status::OK();
+}
+
+template<DeltaType Type>
+Status OrderedAtomicDeltaStoreMerger<Type>::PrepareForBatch(size_t nrows) {
+  DCHECK(key_heap_.empty());
+  for (const auto& iter : iters_) {
+    RETURN_NOT_OK(iter->PrepareForBatch(nrows));
+    DeltaKey key;
+    Slice slice;
+    RETURN_NOT_OK(iter->GetNextDelta(&key, &slice));
+    key_heap_.emplace(std::make_pair(key, iter.get()));
+  }
+  return Status::OK();
+}
+
+template<DeltaType Type>
+bool OrderedAtomicDeltaStoreMerger<Type>::HasNext() const {
+  return !key_heap_.empty();
+}
+
+template<DeltaType Type>
+bool OrderedAtomicDeltaStoreMerger<Type>::HasMoreBatches() const {
+  for (const auto& iter : iters_) {
+    if (iter->HasMoreBatches()) {
+      return true;
+    }
+  }
+  return true;
+}
+
+template<DeltaType Type>
+Status OrderedAtomicDeltaStoreMerger<Type>::GetNextDelta(DeltaKey* key, Slice* slice) {
+  DCHECK(HasNext());
+  RETURN_NOT_OK(key_heap_.top().second->GetNextDelta(key, slice));
+  // XXX: rewrite the timestamp
+}
+
+template<DeltaType Type>
+void OrderedAtomicDeltaStoreMerger<Type>::IterateNext() {
+  DCHECK(HasNext());
+  // Move the front iterator forward and refresh its place in the heap.
+  const auto& iter = key_heap_.top().second;
+  iter->IterateNext();
+  if (!iter->HasNext()) {
+    key_heap_.pop();
+    return;
+  }
+  DeltaKey key;
+  Slice slice;
+  // XXX: plumb Status up
+  iter->GetNextDelta(&key, &slice);
+  key_heap_.pop();
+  key_heap_.emplace(std::make_pair(key, iter.get()));
+}
+
 } // namespace tablet
 } // namespace kudu
