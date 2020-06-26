@@ -44,6 +44,7 @@
 #include "kudu/ranger/ranger.pb.h"
 #include "kudu/rpc/user_credentials.h"
 #include "kudu/security/test/mini_kdc.h"
+#include "kudu/transactions/txn_system_client.h"
 #include "kudu/util/decimal_util.h"
 #include "kudu/util/monotime.h"
 #include "kudu/util/slice.h"
@@ -76,6 +77,7 @@ using kudu::ranger::AuthorizationPolicy;
 using kudu::ranger::MiniRanger;
 using kudu::ranger::PolicyItem;
 using kudu::rpc::UserCredentials;
+using kudu::transactions::TxnSystemClient;
 using std::function;
 using std::move;
 using std::ostream;
@@ -601,6 +603,21 @@ INSTANTIATE_TEST_CASE_P(AuthzProviders, MasterAuthzITest,
     [] (const testing::TestParamInfo<MasterAuthzITest::ParamType>& info) {
       return HarnessEnumToString(info.param);
     });
+
+// Test that creation of the transaction status table foregoes authorization.
+// TODO(awong): ensure that only the service user can create the table.
+TEST_P(MasterAuthzITest, TestCreateTransactionStatusTable) {
+  // Create a transaction status table and add a range. Both requests should
+  // succeed, despite no privileges being granted in Ranger.
+  vector<string> master_addrs;
+  for (const auto& hp : cluster_->master_rpc_addrs()) {
+    master_addrs.emplace_back(hp.ToString());
+  }
+  unique_ptr<TxnSystemClient> txn_sys_client;
+  ASSERT_OK(TxnSystemClient::Create(master_addrs, &txn_sys_client));
+  ASSERT_OK(txn_sys_client->CreateTxnStatusTable(100));
+  ASSERT_OK(txn_sys_client->AddTxnStatusTableRange(100, 200));
+}
 
 TEST_P(MasterAuthzITest, TestCreateTableAuthorized) {
   ASSERT_OK(cluster_->kdc()->Kinit(kAdminUser));

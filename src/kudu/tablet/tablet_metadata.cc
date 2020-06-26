@@ -106,19 +106,21 @@ Status TabletMetadata::CreateNew(FsManager* fs_manager,
   auto dir_group_cleanup = MakeScopedCleanup([&]() {
     fs_manager->dd_manager()->DeleteDataDirGroup(tablet_id);
   });
-  scoped_refptr<TabletMetadata> ret(new TabletMetadata(fs_manager,
-                                                       tablet_id,
-                                                       table_name,
-                                                       table_id,
-                                                       schema,
-                                                       partition_schema,
-                                                       partition,
-                                                       initial_tablet_data_state,
-                                                       std::move(tombstone_last_logged_opid),
-                                                       supports_live_row_count,
-                                                       std::move(extra_config),
-                                                       std::move(dimension_label),
-                                                       std::move(table_type)));
+  scoped_refptr<TabletMetadata> ret(new TabletMetadata(
+      fs_manager,
+      tablet_id,
+      table_name,
+      table_id,
+      schema,
+      partition_schema,
+      partition,
+      initial_tablet_data_state,
+      std::move(tombstone_last_logged_opid),
+      supports_live_row_count,
+      std::move(extra_config),
+      std::move(dimension_label),
+      !table_type || *table_type == TableTypePB::DEFAULT_TABLE ?
+          boost::none : std::move(table_type)));
   RETURN_NOT_OK(ret->Flush());
   dir_group_cleanup.cancel();
 

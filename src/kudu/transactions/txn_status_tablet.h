@@ -86,6 +86,7 @@ class TxnStatusTablet {
   static const char* kEntryTypeColName;
   static const char* kIdentifierColName;
   static const char* kMetadataColName;
+  static const char* kTxnStatusTableName;
   enum TxnStatusEntryType {
     TRANSACTION = 1,
     PARTICIPANT = 2,

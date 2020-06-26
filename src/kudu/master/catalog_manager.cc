@@ -122,6 +122,7 @@
 #include "kudu/tablet/metadata.pb.h"
 #include "kudu/tablet/ops/op_tracker.h"
 #include "kudu/tablet/tablet_replica.h"
+#include "kudu/transactions/txn_status_tablet.h"
 #include "kudu/tserver/tserver_admin.pb.h"
 #include "kudu/tserver/tserver_admin.proxy.h"
 #include "kudu/util/condition_variable.h"
@@ -364,6 +365,7 @@ using kudu::tablet::TABLET_DATA_TOMBSTONED;
 using kudu::tablet::TabletDataState;
 using kudu::tablet::TabletReplica;
 using kudu::tablet::TabletStatePB;
+using kudu::transactions::TxnStatusTablet;
 using kudu::tserver::TabletServerErrorPB;
 using std::accumulate;
 using std::inserter;
@@ -1493,31 +1495,36 @@ Status CatalogManager::CreateTable(const CreateTableRequestPB* orig_req,
   LOG(INFO) << Substitute("Servicing CreateTable request from $0:\n$1",
                           RequestorString(rpc), SecureDebugString(req));
 
-  // Do some fix-up of any defaults specified on columns.
-  // Clients are only expected to pass the default value in the 'read_default'
-  // field, but we need to write the schema to disk including the default
-  // as both the 'read' and 'write' default. It's easier to do this fix-up
-  // on the protobuf here.
-  for (int i = 0; i < req.schema().columns_size(); i++) {
-    auto* col = req.mutable_schema()->mutable_columns(i);
-    RETURN_NOT_OK(SetupError(ProcessColumnPBDefaults(col), resp, MasterErrorPB::INVALID_SCHEMA));
-  }
+  string normalized_table_name = NormalizeTableName(req.name());
+  bool is_user_table = req.table_type() == TableTypePB::DEFAULT_TABLE;
+  if (is_user_table) {
+    // Do some fix-up of any defaults specified on columns.
+    // Clients are only expected to pass the default value in the 'read_default'
+    // field, but we need to write the schema to disk including the default
+    // as both the 'read' and 'write' default. It's easier to do this fix-up
+    // on the protobuf here.
+    for (int i = 0; i < req.schema().columns_size(); i++) {
+      auto* col = req.mutable_schema()->mutable_columns(i);
+      RETURN_NOT_OK(SetupError(ProcessColumnPBDefaults(col), resp, MasterErrorPB::INVALID_SCHEMA));
+    }
 
-  // a. Validate the user request.
-  const string& normalized_table_name = NormalizeTableName(req.name());
-  if (rpc) {
-    const string& user = rpc->remote_user().username();
-    const string& owner = req.has_owner() ? req.owner() : user;
-    RETURN_NOT_OK(SetupError(
-        authz_provider_->AuthorizeCreateTable(normalized_table_name, user, owner),
-        resp, MasterErrorPB::NOT_AUTHORIZED));
-  }
+    // a. Validate the user request.
+    if (rpc) {
+      const string& user = rpc->remote_user().username();
+      const string& owner = req.has_owner() ? req.owner() : user;
+      RETURN_NOT_OK(SetupError(
+          authz_provider_->AuthorizeCreateTable(normalized_table_name, user, owner),
+          resp, MasterErrorPB::NOT_AUTHORIZED));
+    }
 
-  // If the HMS integration is enabled, wait for the notification log listener
-  // to catch up. This reduces the likelihood of attempting to create a table
-  // with a name that conflicts with a table that has just been deleted or
-  // renamed in the HMS.
-  RETURN_NOT_OK(WaitForNotificationLogListenerCatchUp(resp, rpc));
+    // If the HMS integration is enabled, wait for the notification log listener
+    // to catch up. This reduces the likelihood of attempting to create a table
+    // with a name that conflicts with a table that has just been deleted or
+    // renamed in the HMS.
+    RETURN_NOT_OK(WaitForNotificationLogListenerCatchUp(resp, rpc));
+  } else {
+    // TODO(awong): only allow the service user to do this.
+  }
 
   Schema client_schema;
   RETURN_NOT_OK(SchemaFromPB(req.schema(), &client_schema));
@@ -1733,7 +1740,7 @@ Status CatalogManager::CreateTable(const CreateTableRequestPB* orig_req,
   //
   // It is critical that this step happen before writing the table to the sys catalog,
   // since this step validates that the table name is available in the HMS catalog.
-  if (hms_catalog_) {
+  if (hms_catalog_ && is_user_table) {
     CHECK(rpc);
     const string& owner = req.has_owner() ? req.owner() : rpc->remote_user().username();
     Status s = hms_catalog_->CreateTable(table->id(), normalized_table_name, owner, schema);
@@ -1748,7 +1755,7 @@ Status CatalogManager::CreateTable(const CreateTableRequestPB* orig_req,
   // Delete the new HMS entry if we exit early.
   auto abort_hms = MakeScopedCleanup([&] {
       // TODO(dan): figure out how to test this.
-      if (hms_catalog_) {
+      if (hms_catalog_ && is_user_table) {
         TRACE("Rolling back HMS table creation");
         WARN_NOT_OK(hms_catalog_->DropTable(table->id(), normalized_table_name),
                     "an error occurred while attempting to delete orphaned HMS table entry");
@@ -1848,6 +1855,9 @@ scoped_refptr<TableInfo> CatalogManager::CreateTableInfo(
   metadata->set_version(0);
   metadata->set_next_column_id(ColumnId(schema.max_col_id() + 1));
   metadata->set_num_replicas(req.num_replicas());
+  if (req.has_table_type()) {
+    metadata->set_table_type(req.table_type());
+  }
   // Use the Schema object passed in, since it has the column IDs already assigned,
   // whereas the user request PB does not.
   CHECK_OK(SchemaToPB(schema, metadata->mutable_schema()));
@@ -1954,7 +1964,11 @@ Status CatalogManager::FindLockAndAuthorizeTable(
   // found is authorized.
   TableMetadataLock lock(table.get(), lock_mode);
   string table_name = NormalizeTableName(lock.data().name());
-  RETURN_NOT_OK(authorize(table_name));
+  if (lock.data().pb.table_type() == TableTypePB::DEFAULT_TABLE) {
+    RETURN_NOT_OK(authorize(table_name));
+  } else {
+    // TODO(awong): only allow the service user to do this.
+  }
 
   // If the table name and table ID refer to different tables, for example,
   //   1. the ID maps to table A.
@@ -2411,10 +2425,12 @@ Status CatalogManager::AlterTableRpc(const AlterTableRequestPB& req,
                                      rpc::RpcContext* rpc) {
   leader_lock_.AssertAcquiredForReading();
 
-  // If the HMS integration is enabled, wait for the notification log listener
-  // to catch up. This reduces the likelihood of attempting to apply an
-  // alteration to a table which has just been renamed or deleted through the HMS.
-  RETURN_NOT_OK(WaitForNotificationLogListenerCatchUp(resp, rpc));
+  if (req.modify_external_catalogs()) {
+    // If the HMS integration is enabled, wait for the notification log listener
+    // to catch up. This reduces the likelihood of attempting to apply an
+    // alteration to a table which has just been renamed or deleted through the HMS.
+    RETURN_NOT_OK(WaitForNotificationLogListenerCatchUp(resp, rpc));
+  }
 
   LOG(INFO) << Substitute("Servicing AlterTable request from $0:\n$1",
                           RequestorString(rpc), SecureShortDebugString(req));
@@ -3442,6 +3458,7 @@ class AsyncCreateReplica : public RetrySpecificTSRpcTask {
     req_.mutable_extra_config()->CopyFrom(
         table_lock.data().pb.extra_config());
     req_.set_dimension_label(tablet_lock.data().pb.dimension_label());
+    req_.set_table_type(table_lock.data().pb.table_type());
   }
 
   string type_name() const override { return "CreateTablet"; }
