@@ -63,6 +63,8 @@ class TxnCoordinator {
 
   // The highest transaction ID seen by this coordinator.
   virtual int64_t highest_txn_id() const = 0;
+
+  virtual void ConsensusStateChanged(const std::string& tablet_id, const std::string& reason) = 0;
 };
 
 class TxnCoordinatorFactory {

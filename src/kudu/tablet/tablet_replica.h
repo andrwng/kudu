@@ -327,6 +327,8 @@ class TabletReplica : public RefCountedThreadSafe<TabletReplica>,
 
   ~TabletReplica();
 
+  consensus::MarkDirtyCallback MaybeWrapCallback(const consensus::MarkDirtyCallback& cb);
+
   // Wait until the TabletReplica is fully in STOPPED, SHUTDOWN, or FAILED
   // state.
   void WaitUntilStopped();

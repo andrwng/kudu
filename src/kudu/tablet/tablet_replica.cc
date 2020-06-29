@@ -155,6 +155,17 @@ TabletReplica::~TabletReplica() {
       << TabletStatePB_Name(state_);
 }
 
+MarkDirtyCallback TabletReplica::MaybeWrapCallback(const MarkDirtyCallback& cb) {
+  if (txn_coordinator_) {
+    // TODO(awong): use move semantics when C++ supports rvalue capture.
+    return [this, cb] (const string& reason) {
+      txn_coordinator_->ConsensusStateChanged(meta_->tablet_id(), reason);
+      cb(reason);
+    };
+  }
+  return cb;
+}
+
 Status TabletReplica::Init(ServerContext server_ctx) {
   CHECK_EQ(NOT_INITIALIZED, state_);
   TRACE("Creating consensus instance");

@@ -120,6 +120,13 @@ class TxnStatusManager : public tablet::TxnCoordinator {
     return highest_txn_id_;
   }
 
+  // Callback used to indicate that the underlying tablet replica has changed
+  // consensus state. If the change resulted in the underlying tablet replica
+  // becoming leader, this manager should begin servicing requests, and this
+  // method loads the transactions and participants from persisted storage into
+  // memory.
+  void ConsensusStateChanged(const std::string& tablet_id, const std::string& reason) override;
+
  private:
   // Returns the transaction entry, returning an error if the transaction ID
   // doesn't exist or if 'user' is specified but isn't the owner of the

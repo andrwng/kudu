@@ -14,8 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_CLIENT_TABLE_CREATOR_INTERNAL_H
-#define KUDU_CLIENT_TABLE_CREATOR_INTERNAL_H
+#pragma once
 
 #include <map>
 #include <memory>
@@ -79,4 +78,3 @@ class KuduTableCreator::Data {
 } // namespace client
 } // namespace kudu
 
-#endif

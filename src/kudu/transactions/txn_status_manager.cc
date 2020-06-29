@@ -25,14 +25,20 @@
 
 #include <boost/optional/optional.hpp>
 
+#include "kudu/consensus/consensus.pb.h"
+#include "kudu/consensus/quorum_util.h"
+#include "kudu/consensus/raft_consensus.h"
 #include "kudu/gutil/map-util.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/strings/substitute.h"
+#include "kudu/tablet/tablet_replica.h"
 #include "kudu/transactions/transactions.pb.h"
 #include "kudu/util/cow_object.h"
 #include "kudu/util/pb_util.h"
 #include "kudu/util/status.h"
 
+using kudu::consensus::ConsensusStatePB;
+using kudu::consensus::RaftPeerPB;
 using kudu::pb_util::SecureShortDebugString;
 using kudu::tablet::ParticipantIdsByTxnId;
 using std::string;
@@ -257,6 +263,38 @@ ParticipantIdsByTxnId TxnStatusManager::GetParticipantsByTxnIdForTests() const {
     EmplaceOrDie(&ret, id_and_txn.first, std::move(prt_ids));
   }
   return ret;
+}
+
+void TxnStatusManager::ConsensusStateChanged(const string& tablet_id, const string& reason) {
+  const auto* replica = status_tablet_.tablet_replica();
+  CHECK_EQ(tablet_id, replica->tablet_id());
+  auto consensus = replica->shared_consensus();
+  if (PREDICT_FALSE(!consensus)) {
+    LOG(WARNING) << Substitute("Received Raft state change while consenus was unavailable: $0",
+                               reason);
+    return;
+  }
+  ConsensusStatePB cstate;
+  Status s = consensus->ConsensusState(&cstate);
+  if (PREDICT_FALSE(!s.ok())) {
+    LOG(WARNING) << "TODO";
+    return;
+  }
+  RaftPeerPB::Role new_role = GetConsensusRole(replica->permanent_uuid(), cstate);
+  if (new_role != RaftPeerPB::LEADER) {
+    // If we're not the leader, we might as well save some memory and not track
+    // transactions or participants.
+    std::lock_guard<simple_spinlock> l(lock_);
+    txns_by_id_.clear();
+    LOG(INFO) << "TODO";
+    return;
+  }
+  // We are leader -- load the transaction metadata from disk.
+  // TODO(awong): stick this in a threadpool.
+  s = LoadFromTablet();
+  if (PREDICT_FALSE(!s.ok())) {
+    LOG(FATAL) << "TODO";
+  }
 }
 
 } // namespace transactions
