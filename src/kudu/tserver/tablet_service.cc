@@ -83,6 +83,7 @@
 #include "kudu/tablet/tablet_metadata.h"
 #include "kudu/tablet/tablet_metrics.h"
 #include "kudu/tablet/tablet_replica.h"
+#include "kudu/tablet/txn_coordinator.h"
 #include "kudu/tserver/scanners.h"
 #include "kudu/tserver/tablet_replica_lookup.h"
 #include "kudu/tserver/tablet_server.h"
@@ -1165,12 +1166,94 @@ void TabletServiceAdminImpl::AlterSchema(const AlterSchemaRequestPB* req,
   }
 }
 
+void TabletServiceAdminImpl::BeginTransaction(const BeginTransactionRequestPB* req,
+                                              BeginTransactionResponsePB* resp,
+                                              rpc::RpcContext* context) {
+  if (!req->has_txn_id() ||
+      !req->has_txn_status_tablet_id() ||
+      !req->has_user()) {
+    context->RespondFailure(Status::InvalidArgument(
+        Substitute("Missing fields in request: $0", SecureShortDebugString(*req))));
+    return;
+  }
+  scoped_refptr<TabletReplica> replica;
+  if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), req->txn_status_tablet_id(),
+                                           resp, context, &replica)) {
+    return;
+  }
+  Status s = replica->txn_coordinator()->BeginTransaction(req->txn_id(), req->user());
+  if (PREDICT_FALSE(!s.ok())) {
+    // TODO(awong): make these errors more useful so the system client knows
+    // if/how to retry.
+    SetupErrorAndRespond(resp->mutable_error(), s,
+                         TabletServerErrorPB::UNKNOWN_ERROR,
+                         context);
+    return;
+  }
+}
+
+void TabletServiceAdminImpl::RegisterParticipant(const RegisterParticipantRequestPB* req,
+                                                 RegisterParticipantResponsePB* resp,
+                                                 rpc::RpcContext* context) {
+  if (!req->has_txn_id() ||
+      !req->has_txn_status_tablet_id() ||
+      !req->has_txn_participant_id() ||
+      !req->has_user()) {
+    context->RespondFailure(Status::InvalidArgument(
+        Substitute("Missing fields in request: $0", SecureShortDebugString(*req))));
+    return;
+  }
+  scoped_refptr<TabletReplica> replica;
+  if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), req->txn_status_tablet_id(),
+                                           resp, context, &replica)) {
+    return;
+  }
+  Status s = replica->txn_coordinator()->RegisterParticipant(req->txn_id(),
+                                                             req->txn_participant_id(),
+                                                             req->user());
+  if (PREDICT_FALSE(!s.ok())) {
+    // TODO(awong): make these errors more useful so the system client knows
+    // if/how to retry.
+    SetupErrorAndRespond(resp->mutable_error(), s,
+                         TabletServerErrorPB::UNKNOWN_ERROR,
+                         context);
+    return;
+  }
+}
+
+void TabletServiceAdminImpl::BeginCommitTransaction(const BeginCommitTransactionRequestPB* req,
+                                                    BeginCommitTransactionResponsePB* resp,
+                                                    rpc::RpcContext* context) {
+  if (!req->has_txn_id() ||
+      !req->has_txn_status_tablet_id() ||
+      !req->has_user()) {
+    context->RespondFailure(Status::InvalidArgument(
+        Substitute("Missing fields in request: $0", SecureShortDebugString(*req))));
+    return;
+  }
+  scoped_refptr<TabletReplica> replica;
+  if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), req->txn_status_tablet_id(),
+                                           resp, context, &replica)) {
+    return;
+  }
+  Status s = replica->txn_coordinator()->BeginCommitTransaction(req->txn_id(), req->user());
+  if (PREDICT_FALSE(!s.ok())) {
+    // TODO(awong): make these errors more useful so the system client knows
+    // if/how to retry.
+    SetupErrorAndRespond(resp->mutable_error(), s,
+                         TabletServerErrorPB::UNKNOWN_ERROR,
+                         context);
+    return;
+  }
+}
+
 bool TabletServiceAdminImpl::SupportsFeature(uint32_t feature) const {
   switch (feature) {
     case TabletServerFeatures::COLUMN_PREDICATES:
     case TabletServerFeatures::PAD_UNIXTIME_MICROS_TO_16_BYTES:
     case TabletServerFeatures::QUIESCING:
     case TabletServerFeatures::BLOOM_FILTER_PREDICATE:
+    // TODO(awong): once transactions are useable, add a feature flag.
       return true;
     default:
       return false;
