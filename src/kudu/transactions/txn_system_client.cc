@@ -27,6 +27,8 @@
 
 using kudu::client::KuduClient;
 using kudu::client::KuduSchema;
+using kudu::client::KuduSession;
+using kudu::client::KuduTable;
 using kudu::client::KuduClientBuilder;
 using kudu::client::KuduTableAlterer;
 using kudu::client::KuduTableCreator;
@@ -86,6 +88,16 @@ Status TxnSystemClient::AddTxnStatusTableRange(int64_t lower_bound, int64_t uppe
       ->modify_external_catalogs(false)
       ->wait(true)
       ->Alter();
+}
+
+Status TxnSystemClient::BeginTransaction() {
+  shared_ptr<KuduTable> table;
+  RETURN_NOT_OK(client_->OpenTable(TxnStatusTablet::kTxnStatusTableName, &table));
+
+  // TODO(awong): consider using a single session per system client and using
+  // async callbacks to return errors back.
+  shared_ptr<KuduSession> session = client_->NewSession();
+  return Status::OK();
 }
 
 } // namespace transactions

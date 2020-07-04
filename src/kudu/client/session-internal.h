@@ -133,6 +133,11 @@ class KuduSession::Data {
   // Apply a write operation, i.e. push it through the batcher chain.
   Status ApplyWriteOp(KuduWriteOperation* write_op);
 
+  Status BeginTransaction(int64_t txn_id, const std::string& user);
+  Status BeginCommitTransaction(int64_t txn_id, const std::string& user);
+  Status RegisterParticipant(int64_t txn_id, const std::string& tablet_id,
+                             const std::string& user);
+
   // Check and start the time-based flush task in background, if necessary.
   void TimeBasedFlushInit();
 

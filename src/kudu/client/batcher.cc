@@ -117,6 +117,7 @@ namespace internal {
 // However, since there might be millions of these objects floating around,
 // we can save a pointer per object by manually incrementing the Batcher ref-count
 // when we create the object, and decrementing when we delete it.
+template <typename KuduOpType>
 struct InFlightOp {
   InFlightOp() : state(kNew) {
   }
@@ -182,7 +183,7 @@ struct InFlightOp {
   State state;
 
   // The actual operation.
-  unique_ptr<KuduWriteOperation> write_op;
+  unique_ptr<KuduOpType> write_op;
 
   // The tablet the operation is destined for.
   // This is only filled in after passing through the kLookingUpTablet state.
@@ -213,7 +214,7 @@ class WriteRpc : public RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteRe
   WriteRpc(const scoped_refptr<Batcher>& batcher,
            const scoped_refptr<MetaCacheServerPicker>& replica_picker,
            const scoped_refptr<RequestTracker>& request_tracker,
-           vector<InFlightOp*> ops,
+           vector<InFlightOp<KuduWriteOperation>*> ops,
            const MonoTime& deadline,
            shared_ptr<Messenger> messenger,
            const string& tablet_id,
@@ -226,7 +227,7 @@ class WriteRpc : public RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteRe
     // so we'll just grab the table from the first.
     return ops_[0]->write_op->table();
   }
-  const vector<InFlightOp*>& ops() const { return ops_; }
+  const vector<InFlightOp<KuduWriteOperation>*>& ops() const { return ops_; }
   const WriteResponsePB& resp() const { return resp_; }
   const string& tablet_id() const { return tablet_id_; }
 
@@ -260,7 +261,7 @@ class WriteRpc : public RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteRe
 
   // Operations which were batched into this RPC.
   // These operations are in kRequestSent state.
-  vector<InFlightOp*> ops_;
+  vector<InFlightOp<KuduWriteOperation>*> ops_;
 
   // The id of the tablet being written to.
   string tablet_id_;
@@ -269,7 +270,7 @@ class WriteRpc : public RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteRe
 WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
                    const scoped_refptr<MetaCacheServerPicker>& replica_picker,
                    const scoped_refptr<RequestTracker>& request_tracker,
-                   vector<InFlightOp*> ops,
+                   vector<InFlightOp<KuduWriteOperation>*> ops,
                    const MonoTime& deadline,
                    shared_ptr<Messenger> messenger,
                    const string& tablet_id,
@@ -305,12 +306,34 @@ WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
 
   // Pick up the authz token for the table.
   FetchCachedAuthzToken();
+
+  // XXX(awong): need a way to convert:
+  //
+  //  T: KuduWriteOperation, KuduUpdateTxnOperation
+  //  vector<InFlightOp<T>> -> BatchedRpc<T>
+  //
+  // BatchedRpc<KuduWriteOperation> {
+  //  FromOps(vector<InFlightOp<KuduWriteOperation>> ops);
+  // }
+  //
+  // Batcher<KuduWriteOperation, RemoteTabletServer, WriteRequestPB, WriteResponsePB> {
+  //
+  //   InFlightOp<KuduWriteOperation> ops_;
+  //   InFlightOp<KuduWriteOperation> per_tablet_ops_;
+  // }
+  //
+  // where:
+  //  WriteRpc = public BatchedRpc<KuduWriteOperation>,
+  //                    RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteResponsePB>
+  //
+  //  UpdateTxnRpc = public BatchedRpc<KuduUpdateTxnOperation>,
+  //                        RetriableRpc<RemoteTSAdmin, UpdateTxnRequestPB, UpdateTxnResponsePB>
   RowOperationsPB* requested = req_.mutable_row_operations();
 
   // Add the rows
   int ctr = 0;
   RowOperationsPBEncoder enc(requested);
-  for (InFlightOp* op : ops_) {
+  for (InFlightOp<KuduWriteOperation>* op : ops_) {
 #ifndef NDEBUG
     const Partition& partition = op->tablet->partition();
     const PartitionSchema& partition_schema = table()->partition_schema();
@@ -328,7 +351,7 @@ WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
     // there is no return, and we're definitely going to send it. If we waited
     // until after we sent it, the RPC callback could fire before we got a chance
     // to change its state to 'sent'.
-    op->state = InFlightOp::kRequestSent;
+    op->state = InFlightOp<KuduWriteOperation>::kRequestSent;
     VLOG(4) << ++ctr << ". Encoded row " << op->ToString();
   }
 
@@ -578,7 +601,8 @@ void WriteRpc::GotNewAuthzTokenRetryCb(const Status& status) {
   RetriableRpc::GotNewAuthzTokenRetryCb(status);
 }
 
-Batcher::Batcher(KuduClient* client,
+template <typename KuduOpType>
+RpcBatcher<KuduOpType>::RpcBatcher(KuduClient* client,
                  scoped_refptr<ErrorCollector> error_collector,
                  sp::weak_ptr<KuduSession> session,
                  kudu::client::KuduSession::ExternalConsistencyMode consistency_mode)
@@ -594,22 +618,23 @@ Batcher::Batcher(KuduClient* client,
     outstanding_lookups_(0),
     buffer_bytes_used_(0) {
   ops_.set_empty_key(nullptr);
-  ops_.set_deleted_key(reinterpret_cast<InFlightOp*>(-1));
+  ops_.set_deleted_key(reinterpret_cast<InFlightOp<KuduOpType>*>(-1));
 }
 
-void Batcher::Abort() {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::Abort() {
   std::unique_lock<simple_spinlock> l(lock_);
   state_ = kAborted;
 
-  vector<InFlightOp*> to_abort;
-  for (InFlightOp* op : ops_) {
+  vector<InFlightOp<KuduOpType>*> to_abort;
+  for (auto* op : ops_) {
     std::lock_guard<simple_spinlock> l(op->lock_);
-    if (op->state == InFlightOp::kBufferedToTabletServer) {
+    if (op->state == InFlightOp<KuduOpType>::kBufferedToTabletServer) {
       to_abort.push_back(op);
     }
   }
 
-  for (InFlightOp* op : to_abort) {
+  for (auto* op : to_abort) {
     VLOG(1) << "Aborting op: " << op->ToString();
     MarkInFlightOpFailedUnlocked(op, Status::Aborted("Batch aborted"));
   }
@@ -621,9 +646,10 @@ void Batcher::Abort() {
   }
 }
 
-Batcher::~Batcher() {
+template <typename KuduOpType>
+RpcBatcher<KuduOpType>::~RpcBatcher() {
   if (PREDICT_FALSE(!ops_.empty())) {
-    for (InFlightOp* op : ops_) {
+    for (auto* op : ops_) {
       LOG(ERROR) << "Orphaned op: " << op->ToString();
     }
     LOG(FATAL) << "ops_ not empty";
@@ -631,18 +657,21 @@ Batcher::~Batcher() {
   CHECK(state_ == kFlushed || state_ == kAborted) << "Bad state: " << state_;
 }
 
-void Batcher::SetTimeout(const MonoDelta& timeout) {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::SetTimeout(const MonoDelta& timeout) {
   std::lock_guard<simple_spinlock> l(lock_);
   timeout_ = timeout;
 }
 
 
-bool Batcher::HasPendingOperations() const {
+template <typename KuduOpType>
+bool RpcBatcher<KuduOpType>::HasPendingOperations() const {
   std::lock_guard<simple_spinlock> l(lock_);
   return !ops_.empty();
 }
 
-int Batcher::CountBufferedOperations() const {
+template <typename KuduOpType>
+int RpcBatcher<KuduOpType>::CountBufferedOperations() const {
   std::lock_guard<simple_spinlock> l(lock_);
   if (state_ == kGatheringOps) {
     return ops_.size();
@@ -653,7 +682,8 @@ int Batcher::CountBufferedOperations() const {
   }
 }
 
-void Batcher::CheckForFinishedFlush() {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::CheckForFinishedFlush() {
   sp::shared_ptr<KuduSession> session;
   {
     std::lock_guard<simple_spinlock> l(lock_);
@@ -680,11 +710,13 @@ void Batcher::CheckForFinishedFlush() {
   }
 }
 
-MonoTime Batcher::ComputeDeadlineUnlocked() const {
+template <typename KuduOpType>
+MonoTime RpcBatcher<KuduOpType>::ComputeDeadlineUnlocked() const {
   return MonoTime::Now() + timeout_;
 }
 
-void Batcher::FlushAsync(KuduStatusCallback* cb) {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::FlushAsync(KuduStatusCallback* cb) {
   {
     std::lock_guard<simple_spinlock> l(lock_);
     CHECK_EQ(state_, kGatheringOps);
@@ -707,14 +739,15 @@ void Batcher::FlushAsync(KuduStatusCallback* cb) {
   FlushBuffersIfReady();
 }
 
-Status Batcher::Add(KuduWriteOperation* write_op) {
+template <typename KuduOpType>
+Status RpcBatcher<KuduOpType>::Add(KuduOpType* write_op) {
   // As soon as we get the op, start looking up where it belongs,
   // so that when the user calls Flush, we are ready to go.
-  unique_ptr<InFlightOp> op(new InFlightOp());
+  unique_ptr<InFlightOp<KuduOpType>> op(new InFlightOp<KuduOpType>());
   string partition_key;
   RETURN_NOT_OK(write_op->table_->partition_schema().EncodeKey(write_op->row(), &partition_key));
   op->write_op.reset(write_op);
-  op->state = InFlightOp::kLookingUpTablet;
+  op->state = InFlightOp<KuduOpType>::kLookingUpTablet;
 
   AddInFlightOp(op.get());
   VLOG(3) << "Looking up tablet for " << op->ToString();
@@ -740,8 +773,9 @@ Status Batcher::Add(KuduWriteOperation* write_op) {
   return Status::OK();
 }
 
-void Batcher::AddInFlightOp(InFlightOp* op) {
-  DCHECK_EQ(op->state, InFlightOp::kLookingUpTablet);
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::AddInFlightOp(InFlightOp<KuduOpType>* op) {
+  DCHECK_EQ(op->state, InFlightOp<KuduOpType>::kLookingUpTablet);
 
   std::lock_guard<simple_spinlock> l(lock_);
   CHECK_EQ(state_, kGatheringOps);
@@ -754,21 +788,26 @@ void Batcher::AddInFlightOp(InFlightOp* op) {
   }
 }
 
-bool Batcher::IsAbortedUnlocked() const {
+template <typename KuduOpType>
+bool RpcBatcher<KuduOpType>::IsAbortedUnlocked() const {
   return state_ == kAborted;
 }
 
-void Batcher::MarkHadErrors() {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::MarkHadErrors() {
   std::lock_guard<simple_spinlock> l(lock_);
   had_errors_ = true;
 }
 
-void Batcher::MarkInFlightOpFailed(InFlightOp* op, const Status& s) {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::MarkInFlightOpFailed(InFlightOp<KuduOpType>* op, const Status& s) {
   std::lock_guard<simple_spinlock> l(lock_);
   MarkInFlightOpFailedUnlocked(op, s);
 }
 
-void Batcher::MarkInFlightOpFailedUnlocked(InFlightOp* op, const Status& s) {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::MarkInFlightOpFailedUnlocked(InFlightOp<KuduOpType>* op,
+                                                          const Status& s) {
   CHECK_EQ(1, ops_.erase(op))
     << "Could not remove op " << op->ToString() << " from in-flight list";
   error_collector_->AddError(unique_ptr<KuduError>(new KuduError(op->write_op.release(), s)));
@@ -776,7 +815,8 @@ void Batcher::MarkInFlightOpFailedUnlocked(InFlightOp* op, const Status& s) {
   delete op;
 }
 
-void Batcher::TabletLookupFinished(InFlightOp* op, const Status& s) {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::TabletLookupFinished(InFlightOp<KuduOpType>* op, const Status& s) {
   base::RefCountDec(&outstanding_lookups_);
 
   // Acquire the batcher lock early to atomically:
@@ -813,12 +853,12 @@ void Batcher::TabletLookupFinished(InFlightOp* op, const Status& s) {
 
   {
     std::lock_guard<simple_spinlock> l2(op->lock_);
-    CHECK_EQ(op->state, InFlightOp::kLookingUpTablet);
+    CHECK_EQ(op->state, InFlightOp<KuduOpType>::kLookingUpTablet);
     CHECK(op->tablet != NULL);
 
-    op->state = InFlightOp::kBufferedToTabletServer;
+    op->state = InFlightOp<KuduOpType>::kBufferedToTabletServer;
 
-    vector<InFlightOp*>& to_ts = per_tablet_ops_[op->tablet.get()];
+    vector<InFlightOp<KuduOpType>*>& to_ts = per_tablet_ops_[op->tablet.get()];
     to_ts.push_back(op);
 
     // "Reverse bubble sort" the operation into the right spot in the tablet server's
@@ -845,8 +885,9 @@ void Batcher::TabletLookupFinished(InFlightOp* op, const Status& s) {
   FlushBuffersIfReady();
 }
 
-void Batcher::FlushBuffersIfReady() {
-  unordered_map<RemoteTablet*, vector<InFlightOp*> > ops_copy;
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::FlushBuffersIfReady() {
+  unordered_map<RemoteTablet*, vector<InFlightOp<KuduOpType>*> > ops_copy;
 
   // We're only ready to flush if:
   // 1. The batcher is in the flushing state (i.e. FlushAsync was called).
@@ -869,9 +910,9 @@ void Batcher::FlushBuffersIfReady() {
   }
 
   // Now flush the ops for each tablet.
-  for (const OpsMap::value_type& e : ops_copy) {
+  for (const auto& e : ops_copy) {
     RemoteTablet* tablet = e.first;
-    const vector<InFlightOp*>& ops = e.second;
+    const vector<InFlightOp<KuduOpType>*>& ops = e.second;
 
     VLOG(3) << "FlushBuffersIfReady: already in flushing state, immediately flushing to "
             << tablet->tablet_id();
@@ -879,7 +920,9 @@ void Batcher::FlushBuffersIfReady() {
   }
 }
 
-void Batcher::FlushBuffer(RemoteTablet* tablet, const vector<InFlightOp*>& ops) {
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::FlushBuffer(RemoteTablet* tablet,
+                                         const vector<InFlightOp<KuduOpType>*>& ops) {
   CHECK(!ops.empty());
 
   // Create and send an RPC that aggregates the ops. The RPC is freed when
@@ -905,7 +948,8 @@ void Batcher::FlushBuffer(RemoteTablet* tablet, const vector<InFlightOp*>& ops) 
   rpc->SendRpc();
 }
 
-void Batcher::ProcessWriteResponse(const WriteRpc& rpc,
+template <typename KuduOpType>
+void RpcBatcher<KuduOpType>::ProcessWriteResponse(const WriteRpc& rpc,
                                    const Status& s) {
   // TODO: there is a potential race here -- if the Batcher gets destructed while
   // RPCs are in-flight, then accessing state_ will crash. We probably need to keep
@@ -919,7 +963,7 @@ void Batcher::ProcessWriteResponse(const WriteRpc& rpc,
     }
   } else {
     // Mark each of the rows in the write op as failed, since the whole RPC failed.
-    for (InFlightOp* op : rpc.ops()) {
+    for (auto* op : rpc.ops()) {
       unique_ptr<KuduError> error(new KuduError(op->write_op.release(), s));
       error_collector_->AddError(std::move(error));
     }
@@ -970,7 +1014,7 @@ void Batcher::ProcessWriteResponse(const WriteRpc& rpc,
   //     from which the Flush() is being called.
   {
     std::lock_guard<simple_spinlock> l(lock_);
-    for (InFlightOp* op : rpc.ops()) {
+    for (auto* op : rpc.ops()) {
       CHECK_EQ(1, ops_.erase(op))
             << "Could not remove op " << op->ToString()
             << " from in-flight list";
@@ -979,6 +1023,8 @@ void Batcher::ProcessWriteResponse(const WriteRpc& rpc,
 
   CheckForFinishedFlush();
 }
+
+template class RpcBatcher<KuduWriteOperation>;
 
 } // namespace internal
 } // namespace client

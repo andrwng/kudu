@@ -46,7 +46,8 @@ namespace internal {
 class ErrorCollector;
 class RemoteTablet;
 class WriteRpc;
-struct InFlightOp;
+
+template <typename KuduOpType> struct InFlightOp;
 
 // A Batcher is the class responsible for collecting row operations, routing them to the
 // correct tablet server, and possibly batching them together for better efficiency.
@@ -55,7 +56,8 @@ struct InFlightOp;
 // reference, and all of the in-flight operations hold others. This allows the client
 // session to be destructed while ops are still in-flight, without the async callbacks
 // attempting to access a destructed Batcher.
-class Batcher : public RefCountedThreadSafe<Batcher> {
+template <typename KuduOpType>
+class RpcBatcher : public RefCountedThreadSafe<RpcBatcher<KuduOpType>> {
  public:
   // Create a new batcher associated with the given session.
   //
@@ -66,7 +68,7 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   // is to break circular dependencies (a session keeps a reference to its
   // current batcher) and make it possible to call notify a session
   // (if it's around) from a batcher which does its job using other threads.
-  Batcher(KuduClient* client,
+  RpcBatcher(KuduClient* client,
           scoped_refptr<ErrorCollector> error_collector,
           client::sp::weak_ptr<KuduSession> session,
           kudu::client::KuduSession::ExternalConsistencyMode consistency_mode);
@@ -86,7 +88,7 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   // Add a new operation to the batch. Requires that the batch has not yet been flushed.
   //
   // NOTE: If this returns not-OK, does not take ownership of 'write_op'.
-  Status Add(KuduWriteOperation* write_op) WARN_UNUSED_RESULT;
+  Status Add(KuduOpType* write_op) WARN_UNUSED_RESULT;
 
   // Return true if any operations are still pending. An operation is no longer considered
   // pending once it has either errored or succeeded.  Operations are considering pending
@@ -130,15 +132,15 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   }
 
  private:
-  friend class RefCountedThreadSafe<Batcher>;
+  friend class RefCountedThreadSafe<RpcBatcher<KuduOpType>>;
   friend class WriteRpc;
 
-  ~Batcher();
+  ~RpcBatcher();
 
   // Add an op to the in-flight set and increment the ref-count.
-  void AddInFlightOp(InFlightOp* op);
+  void AddInFlightOp(InFlightOp<KuduOpType>* op);
 
-  void RemoveInFlightOp(InFlightOp* op);
+  void RemoveInFlightOp(InFlightOp<KuduOpType>* op);
 
   // Return true if the batch has been aborted, and any in-flight ops should stop
   // processing wherever they are.
@@ -151,19 +153,19 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   // Remove an op from the in-flight op list, and delete the op itself.
   // The operation is reported to the ErrorReporter as having failed with the
   // given status.
-  void MarkInFlightOpFailed(InFlightOp* op, const Status& s);
-  void MarkInFlightOpFailedUnlocked(InFlightOp* op, const Status& s);
+  void MarkInFlightOpFailed(InFlightOp<KuduOpType>* op, const Status& s);
+  void MarkInFlightOpFailedUnlocked(InFlightOp<KuduOpType>* op, const Status& s);
 
   void CheckForFinishedFlush();
   void FlushBuffersIfReady();
-  void FlushBuffer(RemoteTablet* tablet, const std::vector<InFlightOp*>& ops);
+  void FlushBuffer(RemoteTablet* tablet, const std::vector<InFlightOp<KuduOpType>*>& ops);
 
   // Cleans up an RPC response, scooping out any errors and passing them up
   // to the batcher.
   void ProcessWriteResponse(const WriteRpc& rpc, const Status& s);
 
   // Async Callbacks.
-  void TabletLookupFinished(InFlightOp* op, const Status& s);
+  void TabletLookupFinished(InFlightOp<KuduOpType>* op, const Status& s);
 
   // Compute a new deadline based on timeout_. If no timeout_ has been set,
   // uses a hard-coded default and issues periodic warnings.
@@ -202,10 +204,9 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   KuduStatusCallback* flush_callback_;
 
   // All buffered or in-flight ops.
-  google::dense_hash_set<InFlightOp*> ops_;
+  google::dense_hash_set<InFlightOp<KuduOpType>*> ops_;
   // Each tablet's buffered ops.
-  typedef std::unordered_map<RemoteTablet*, std::vector<InFlightOp*> > OpsMap;
-  OpsMap per_tablet_ops_;
+  std::unordered_map<RemoteTablet*, std::vector<InFlightOp<KuduOpType>*> > per_tablet_ops_;
 
   // When each operation is added to the batcher, it is assigned a sequence number
   // which preserves the user's intended order. Preserving order is critical when
@@ -230,8 +231,10 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   // The number of bytes used in the buffer for pending operations.
   AtomicInt<int64_t> buffer_bytes_used_;
 
-  DISALLOW_COPY_AND_ASSIGN(Batcher);
+  DISALLOW_COPY_AND_ASSIGN(RpcBatcher<KuduOpType>);
 };
+
+typedef RpcBatcher<KuduWriteOperation> Batcher;
 
 } // namespace internal
 } // namespace client

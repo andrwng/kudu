@@ -41,6 +41,10 @@ class TxnSystemClient {
   // Adds a new range to the transaction status table with the given bounds.
   Status AddTxnStatusTableRange(int64_t lower_bound, int64_t upper_bound);
 
+  // Returns an error if there were issues communicating with the transaction
+  // status table.
+  Status BeginTransaction();
+
  private:
   TxnSystemClient(client::sp::shared_ptr<client::KuduClient> client)
       : client_(std::move(client)) {}

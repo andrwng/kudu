@@ -98,7 +98,7 @@ class KuduWriteOperation;
 class ResourceMetrics;
 
 namespace internal {
-class Batcher;
+template <typename KuduOpType> class RpcBatcher;
 class ErrorCollector;
 class GetTableSchemaRpc;
 class LookupRpc;
@@ -612,7 +612,7 @@ class KUDU_EXPORT KuduClient : public sp::enable_shared_from_this<KuduClient> {
   friend class KuduTable;
   friend class KuduTableAlterer;
   friend class KuduTableCreator;
-  friend class internal::Batcher;
+  template <typename KuduOpType> friend class internal::RpcBatcher;
   friend class internal::GetTableSchemaRpc;
   friend class internal::LookupRpc;
   friend class internal::MetaCache;
@@ -1541,7 +1541,7 @@ class KUDU_EXPORT KuduError {
  private:
   class KUDU_NO_EXPORT Data;
 
-  friend class internal::Batcher;
+  template <typename KuduOpType> friend class internal::RpcBatcher;
   friend class internal::ErrorCollector;
   friend class KuduSession;
 
@@ -2007,7 +2007,7 @@ class KUDU_EXPORT KuduSession : public sp::enable_shared_from_this<KuduSession> 
   class KUDU_NO_EXPORT Data;
 
   friend class KuduClient;
-  friend class internal::Batcher;
+  template <typename KuduOpType> friend class internal::RpcBatcher;
   friend class ClientTest;
   FRIEND_TEST(ClientTest, TestAutoFlushBackgroundApplyBlocks);
   FRIEND_TEST(ClientTest, TestAutoFlushBackgroundAndErrorCollector);
