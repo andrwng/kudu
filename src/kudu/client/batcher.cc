@@ -183,7 +183,7 @@ struct InFlightOp {
   State state;
 
   // The actual operation.
-  unique_ptr<KuduOpType> write_op;
+  unique_ptr<KuduOpType> owned_op;
 
   // The tablet the operation is destined for.
   // This is only filled in after passing through the kLookingUpTablet state.
@@ -200,7 +200,7 @@ struct InFlightOp {
   string ToString() const {
     return strings::Substitute("op[state=$0, write_op=$1]",
                                state,
-                               KUDU_REDACT(write_op->ToString()));
+                               KUDU_REDACT(owned_op->ToString()));
   }
 };
 
@@ -209,29 +209,30 @@ struct InFlightOp {
 // leader fails.
 //
 // Keeps a reference on the owning batcher while alive.
-class WriteRpc : public RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteResponsePB> {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+class BatchedRpc : public RetriableRpc<RemoteTabletServer, RequestPB, ResponsePB> {
  public:
-  WriteRpc(const scoped_refptr<Batcher>& batcher,
-           const scoped_refptr<MetaCacheServerPicker>& replica_picker,
-           const scoped_refptr<RequestTracker>& request_tracker,
-           vector<InFlightOp<KuduWriteOperation>*> ops,
-           const MonoTime& deadline,
-           shared_ptr<Messenger> messenger,
-           const string& tablet_id,
-           uint64_t propagated_timestamp);
-  virtual ~WriteRpc();
+  BatchedRpc(const scoped_refptr<RpcBatcher<KuduOpType>>& batcher,
+             const scoped_refptr<MetaCacheServerPicker>& replica_picker,
+             const scoped_refptr<RequestTracker>& request_tracker,
+             vector<InFlightOp<KuduOpType>*> ops,
+             const MonoTime& deadline,
+             shared_ptr<Messenger> messenger,
+             const string& tablet_id,
+             uint64_t propagated_timestamp);
+  virtual ~BatchedRpc();
   string ToString() const override;
 
-  const KuduTable* table() const {
-    // All of the ops for a given tablet obviously correspond to the same table,
-    // so we'll just grab the table from the first.
-    return ops_[0]->write_op->table();
-  }
-  const vector<InFlightOp<KuduWriteOperation>*>& ops() const { return ops_; }
-  const WriteResponsePB& resp() const { return resp_; }
+  const vector<InFlightOp<KuduOpType>*>& ops() const { return ops_; }
+  const ResponsePB& resp() const { return this->resp_; }
   const string& tablet_id() const { return tablet_id_; }
 
  protected:
+  const KuduTable* table() const {
+    // All of the ops for a given tablet obviously correspond to the same table,
+    // so we'll just grab the table from the first.
+    return ops_[0]->owned_op->table();
+  }
   void Try(RemoteTabletServer* replica, const ResponseCallback& callback) override;
   RetriableRpcStatus AnalyzeResponse(const Status& rpc_cb_status) override;
   void Finish(const Status& status) override;
@@ -243,7 +244,6 @@ class WriteRpc : public RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteRe
 
   // Callback to run after going through the steps to get a new authz token.
   void GotNewAuthzTokenRetryCb(const Status& status) override;
-
  private:
   // Fetches the appropriate authz token for this request from the client
   // cache. Note that this doesn't get a new token from the master, but rather,
@@ -257,37 +257,40 @@ class WriteRpc : public RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteRe
 
   // Pointer back to the batcher. Processes the write response when it
   // completes, regardless of success or failure.
-  scoped_refptr<Batcher> batcher_;
+  scoped_refptr<RpcBatcher<KuduOpType>> batcher_;
 
   // Operations which were batched into this RPC.
   // These operations are in kRequestSent state.
-  vector<InFlightOp<KuduWriteOperation>*> ops_;
+  vector<InFlightOp<KuduOpType>*> ops_;
 
   // The id of the tablet being written to.
   string tablet_id_;
 };
 
-WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
-                   const scoped_refptr<MetaCacheServerPicker>& replica_picker,
-                   const scoped_refptr<RequestTracker>& request_tracker,
-                   vector<InFlightOp<KuduWriteOperation>*> ops,
-                   const MonoTime& deadline,
-                   shared_ptr<Messenger> messenger,
-                   const string& tablet_id,
-                   uint64_t propagated_timestamp)
-    : RetriableRpc(replica_picker, request_tracker, deadline, std::move(messenger)),
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+BatchedRpc<KuduOpType, RequestPB, ResponsePB>::BatchedRpc(
+    const scoped_refptr<RpcBatcher<KuduOpType>>& batcher,
+    const scoped_refptr<MetaCacheServerPicker>& replica_picker,
+    const scoped_refptr<RequestTracker>& request_tracker,
+    vector<InFlightOp<KuduOpType>*> ops,
+    const MonoTime& deadline,
+    shared_ptr<Messenger> messenger,
+    const string& tablet_id,
+    uint64_t propagated_timestamp)
+    : RetriableRpc<RemoteTabletServer, RequestPB, ResponsePB>(replica_picker, request_tracker,
+                                                              deadline, std::move(messenger)),
       batcher_(batcher),
       ops_(std::move(ops)),
       tablet_id_(tablet_id) {
   const Schema* schema = table()->schema().schema_;
 
-  req_.set_tablet_id(tablet_id_);
+  this->req_.set_tablet_id(tablet_id_);
   switch (batcher->external_consistency_mode()) {
     case kudu::client::KuduSession::CLIENT_PROPAGATED:
-      req_.set_external_consistency_mode(kudu::CLIENT_PROPAGATED);
+      this->req_.set_external_consistency_mode(kudu::CLIENT_PROPAGATED);
       break;
     case kudu::client::KuduSession::COMMIT_WAIT:
-      req_.set_external_consistency_mode(kudu::COMMIT_WAIT);
+      this->req_.set_external_consistency_mode(kudu::COMMIT_WAIT);
       break;
     default:
       LOG(FATAL) << "Unsupported consistency mode: " << batcher->external_consistency_mode();
@@ -295,11 +298,11 @@ WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
   }
   // If set, propagate the latest observed timestamp.
   if (PREDICT_TRUE(propagated_timestamp != KuduClient::kNoTimestamp)) {
-    req_.set_propagated_timestamp(propagated_timestamp);
+    this->req_.set_propagated_timestamp(propagated_timestamp);
   }
 
   // Set up schema
-  CHECK_OK(SchemaToPB(*schema, req_.mutable_schema(),
+  CHECK_OK(SchemaToPB(*schema, this->req_.mutable_schema(),
                       SCHEMA_PB_WITHOUT_STORAGE_ATTRIBUTES |
                       SCHEMA_PB_WITHOUT_IDS |
                       SCHEMA_PB_WITHOUT_COMMENT));
@@ -307,37 +310,16 @@ WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
   // Pick up the authz token for the table.
   FetchCachedAuthzToken();
 
-  // XXX(awong): need a way to convert:
-  //
-  //  T: KuduWriteOperation, KuduUpdateTxnOperation
-  //  vector<InFlightOp<T>> -> BatchedRpc<T>
-  //
-  // BatchedRpc<KuduWriteOperation> {
-  //  FromOps(vector<InFlightOp<KuduWriteOperation>> ops);
-  // }
-  //
-  // Batcher<KuduWriteOperation, RemoteTabletServer, WriteRequestPB, WriteResponsePB> {
-  //
-  //   InFlightOp<KuduWriteOperation> ops_;
-  //   InFlightOp<KuduWriteOperation> per_tablet_ops_;
-  // }
-  //
-  // where:
-  //  WriteRpc = public BatchedRpc<KuduWriteOperation>,
-  //                    RetriableRpc<RemoteTabletServer, WriteRequestPB, WriteResponsePB>
-  //
-  //  UpdateTxnRpc = public BatchedRpc<KuduUpdateTxnOperation>,
-  //                        RetriableRpc<RemoteTSAdmin, UpdateTxnRequestPB, UpdateTxnResponsePB>
-  RowOperationsPB* requested = req_.mutable_row_operations();
+  RowOperationsPB* requested = this->req_.mutable_row_operations();
 
   // Add the rows
   int ctr = 0;
   RowOperationsPBEncoder enc(requested);
-  for (InFlightOp<KuduWriteOperation>* op : ops_) {
+  for (InFlightOp<KuduOpType>* op : ops_) {
 #ifndef NDEBUG
     const Partition& partition = op->tablet->partition();
     const PartitionSchema& partition_schema = table()->partition_schema();
-    const KuduPartialRow& row = op->write_op->row();
+    const KuduPartialRow& row = op->owned_op->row();
     bool partition_contains_row;
     CHECK(partition_schema.PartitionContainsRow(partition, row, &partition_contains_row).ok());
     CHECK(partition_contains_row)
@@ -345,7 +327,7 @@ WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
         << " not in partition " << partition_schema.PartitionDebugString(partition, *schema);
 #endif
 
-    enc.Add(ToInternalWriteType(op->write_op->type()), op->write_op->row());
+    enc.Add(ToInternalWriteType(op->owned_op->type()), op->owned_op->row());
 
     // Set the state now, even though we haven't yet sent it -- at this point
     // there is no return, and we're definitely going to send it. If we waited
@@ -356,10 +338,11 @@ WriteRpc::WriteRpc(const scoped_refptr<Batcher>& batcher,
   }
 
   VLOG(3) << Substitute("Created batch for $0:\n$1",
-                        tablet_id, SecureShortDebugString(req_));
+                        tablet_id, SecureShortDebugString(this->req_));
 }
 
-WriteRpc::~WriteRpc() {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+BatchedRpc<KuduOpType, RequestPB, ResponsePB>::~BatchedRpc() {
   // Since the WriteRpc is destructed a while after all of the
   // InFlightOps and other associated objects were last touched,
   // and because those operations were not all allocated together,
@@ -406,13 +389,13 @@ WriteRpc::~WriteRpc() {
       __builtin_prefetch(ops_[ifo_prefetch], 0, PREFETCH_HINT_T0);
     }
     if (op_prefetch >= 0 && op_prefetch < size) {
-      const auto* op = ops_[op_prefetch]->write_op.get();
+      const auto* op = ops_[op_prefetch]->owned_op.get();
       if (op) {
         __builtin_prefetch(&op->row().isset_bitmap_, 0, PREFETCH_HINT_T0);
       }
     }
     if (row_prefetch >= 0 && row_prefetch < size) {
-      const auto* op = ops_[row_prefetch]->write_op.get();
+      const auto* op = ops_[row_prefetch]->owned_op.get();
       if (op) {
         __builtin_prefetch(op->row().isset_bitmap_, 0, PREFETCH_HINT_T0);
       }
@@ -436,43 +419,49 @@ WriteRpc::~WriteRpc() {
   }
 }
 
-string WriteRpc::ToString() const {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+string BatchedRpc<KuduOpType, RequestPB, ResponsePB>::ToString() const {
   return Substitute("Write(tablet: $0, num_ops: $1, num_attempts: $2)",
-                    tablet_id_, ops_.size(), num_attempts());
+                    tablet_id_, ops_.size(), this->num_attempts());
 }
 
-void WriteRpc::Try(RemoteTabletServer* replica, const ResponseCallback& callback) {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+void BatchedRpc<KuduOpType, RequestPB, ResponsePB>::Try(
+    RemoteTabletServer* replica, const ResponseCallback& callback) {
   VLOG(2) << "Tablet " << tablet_id_ << ": Writing batch to replica " << replica->ToString();
-  replica->proxy()->WriteAsync(req_, &resp_,
-                               mutable_retrier()->mutable_controller(),
+  replica->proxy()->WriteAsync(this->req_, &this->resp_,
+                               this->mutable_retrier()->mutable_controller(),
                                callback);
 }
 
-void WriteRpc::Finish(const Status& status) {
-  unique_ptr<WriteRpc> this_instance(this);
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+void BatchedRpc<KuduOpType, RequestPB, ResponsePB>::Finish(const Status& status) {
+  unique_ptr<BatchedRpc> this_instance(this);
   Status final_status = status;
   if (!final_status.ok()) {
     final_status = final_status.CloneAndPrepend(
         Substitute("Failed to write batch of $0 ops to tablet $1 after $2 attempt(s)",
-                   ops_.size(), tablet_id_, num_attempts()));
+                   ops_.size(), tablet_id_, this->num_attempts()));
     KLOG_EVERY_N_SECS(WARNING, 1) << final_status.ToString();
   }
-  batcher_->ProcessWriteResponse(*this, final_status);
+  batcher_->ProcessResponse(*this, final_status);
 }
 
-RetriableRpcStatus WriteRpc::AnalyzeResponse(const Status& rpc_cb_status) {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+RetriableRpcStatus BatchedRpc<KuduOpType, RequestPB, ResponsePB>::AnalyzeResponse(
+    const Status& rpc_cb_status) {
   RetriableRpcStatus result;
   result.status = rpc_cb_status;
 
   // If we didn't fail on tablet lookup/proxy initialization, check if we failed actually performing
   // the write.
   if (rpc_cb_status.ok()) {
-    result.status = mutable_retrier()->controller().status();
+    result.status = this->mutable_retrier()->controller().status();
   }
 
   // Check for specific RPC errors.
   if (result.status.IsRemoteError()) {
-    const ErrorStatusPB* err = mutable_retrier()->controller().error_response();
+    const ErrorStatusPB* err = this->mutable_retrier()->controller().error_response();
     if (err && err->has_code()) {
       switch (err->code()) {
         case ErrorStatusPB::ERROR_SERVER_TOO_BUSY:
@@ -496,7 +485,7 @@ RetriableRpcStatus WriteRpc::AnalyzeResponse(const Status& rpc_cb_status) {
   // Check whether it's an invalid authn token. That's the error code the server
   // sends back if authn token is expired.
   if (result.status.IsNotAuthorized()) {
-    const ErrorStatusPB* err = mutable_retrier()->controller().error_response();
+    const ErrorStatusPB* err = this->mutable_retrier()->controller().error_response();
     if (err && err->has_code() &&
         err->code() == ErrorStatusPB::FATAL_INVALID_AUTHENTICATION_TOKEN) {
       result.result = RetriableRpcStatus::INVALID_AUTHENTICATION_TOKEN;
@@ -514,12 +503,13 @@ RetriableRpcStatus WriteRpc::AnalyzeResponse(const Status& rpc_cb_status) {
   }
 
   // Prefer controller failures over response failures.
-  if (result.status.ok() && resp_.has_error()) {
-    result.status = StatusFromPB(resp_.error().status());
+  if (result.status.ok() && this->resp_.has_error()) {
+    result.status = StatusFromPB(this->resp_.error().status());
   }
 
   // If we get TABLET_NOT_FOUND, the replica we thought was leader has been deleted.
-  if (resp_.has_error() && resp_.error().code() == tserver::TabletServerErrorPB::TABLET_NOT_FOUND) {
+  if (this->resp_.has_error() &&
+      this->resp_.error().code() == tserver::TabletServerErrorPB::TABLET_NOT_FOUND) {
     result.result = RetriableRpcStatus::RESOURCE_NOT_FOUND;
     return result;
   }
@@ -546,7 +536,7 @@ RetriableRpcStatus WriteRpc::AnalyzeResponse(const Status& rpc_cb_status) {
   // NOTE: Connection negotiation errors related to security are handled in the
   //       code above: see the handlers for IsNotAuthorized(), IsRemoteError().
   if (!rpc_cb_status.IsTimedOut() && !result.status.ok() &&
-      mutable_retrier()->controller().negotiation_failed()) {
+      this->mutable_retrier()->controller().negotiation_failed()) {
     result.result = RetriableRpcStatus::SERVER_NOT_ACCESSIBLE;
     return result;
   }
@@ -559,34 +549,37 @@ RetriableRpcStatus WriteRpc::AnalyzeResponse(const Status& rpc_cb_status) {
   return result;
 }
 
-bool WriteRpc::GetNewAuthnTokenAndRetry() {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+bool BatchedRpc<KuduOpType, RequestPB, ResponsePB>::GetNewAuthnTokenAndRetry() {
   // Since we know we may retry, clear the existing response.
-  resp_.Clear();
+  this->resp_.Clear();
   // To get a new authn token it's necessary to authenticate with the master
   // using any other credentials but already existing authn token.
   KuduClient* c = batcher_->client_;
   VLOG(1) << "Retrieving new authn token from master";
-  c->data_->ConnectToClusterAsync(c, retrier().deadline(),
+  c->data_->ConnectToClusterAsync(c, this->retrier().deadline(),
       [this](const Status& s) { this->GotNewAuthnTokenRetryCb(s); },
       CredentialsPolicy::PRIMARY_CREDENTIALS);
   return true;
 }
 
-bool WriteRpc::GetNewAuthzTokenAndRetry() {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+bool BatchedRpc<KuduOpType, RequestPB, ResponsePB>::GetNewAuthzTokenAndRetry() {
   // Since we know we may retry, clear the existing response.
-  resp_.Clear();
+  this->resp_.Clear();
   KuduClient* c = batcher_->client_;
   VLOG(1) << "Retrieving new authz token from master";
   c->data_->RetrieveAuthzTokenAsync(table(),
       [this](const Status& s) { this->GotNewAuthzTokenRetryCb(s); },
-      retrier().deadline());
+      this->retrier().deadline());
   return true;
 }
 
-void WriteRpc::FetchCachedAuthzToken() {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+void BatchedRpc<KuduOpType, RequestPB, ResponsePB>::FetchCachedAuthzToken() {
   SignedTokenPB signed_token;
   if (batcher_->client_->data_->FetchCachedAuthzToken(table()->id(), &signed_token)) {
-    *req_.mutable_authz_token() = std::move(signed_token);
+    *this->req_.mutable_authz_token() = std::move(signed_token);
   } else {
     // Note: this is the expected path if communicating with an older-versioned
     // master that does not support authz tokens.
@@ -594,11 +587,13 @@ void WriteRpc::FetchCachedAuthzToken() {
   }
 }
 
-void WriteRpc::GotNewAuthzTokenRetryCb(const Status& status) {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+void BatchedRpc<KuduOpType, RequestPB, ResponsePB>::GotNewAuthzTokenRetryCb(
+    const Status& status) {
   if (status.ok()) {
     FetchCachedAuthzToken();
   }
-  RetriableRpc::GotNewAuthzTokenRetryCb(status);
+  RetriableRpc<RemoteTabletServer, RequestPB, ResponsePB>::GotNewAuthzTokenRetryCb(status);
 }
 
 template <typename KuduOpType>
@@ -740,35 +735,35 @@ void RpcBatcher<KuduOpType>::FlushAsync(KuduStatusCallback* cb) {
 }
 
 template <typename KuduOpType>
-Status RpcBatcher<KuduOpType>::Add(KuduOpType* write_op) {
+Status RpcBatcher<KuduOpType>::Add(KuduOpType* op) {
   // As soon as we get the op, start looking up where it belongs,
   // so that when the user calls Flush, we are ready to go.
-  unique_ptr<InFlightOp<KuduOpType>> op(new InFlightOp<KuduOpType>());
+  unique_ptr<InFlightOp<KuduOpType>> in_flight(new InFlightOp<KuduOpType>());
   string partition_key;
-  RETURN_NOT_OK(write_op->table_->partition_schema().EncodeKey(write_op->row(), &partition_key));
-  op->write_op.reset(write_op);
-  op->state = InFlightOp<KuduOpType>::kLookingUpTablet;
+  RETURN_NOT_OK(op->table_->partition_schema().EncodeKey(op->row(), &partition_key));
+  in_flight->owned_op.reset(op);
+  in_flight->state = InFlightOp<KuduOpType>::kLookingUpTablet;
 
-  AddInFlightOp(op.get());
-  VLOG(3) << "Looking up tablet for " << op->ToString();
+  AddInFlightOp(in_flight.get());
+  VLOG(3) << "Looking up tablet for " << in_flight->ToString();
   // Increment our reference count for the outstanding callback.
   //
   // deadline_ is set in FlushAsync(), after all Add() calls are done, so
   // here we're forced to create a new deadline.
-  auto op_raw = op.get();
+  auto* in_flight_raw = in_flight.get();
   MonoTime deadline = ComputeDeadlineUnlocked();
   base::RefCountInc(&outstanding_lookups_);
   scoped_refptr<Batcher> self(this);
   client_->data_->meta_cache_->LookupTabletByKey(
-      op->write_op->table(),
+      in_flight->owned_op->table(),
       std::move(partition_key),
       deadline,
       MetaCache::LookupType::kPoint,
-      &op->tablet,
-      [self, op_raw](const Status& s) { self->TabletLookupFinished(op_raw, s); });
-  ignore_result(op.release());
+      &in_flight->tablet,
+      [self, in_flight_raw](const Status& s) { self->TabletLookupFinished(in_flight_raw, s); });
+  ignore_result(in_flight.release());
 
-  buffer_bytes_used_.IncrementBy(write_op->SizeInBuffer());
+  buffer_bytes_used_.IncrementBy(op->SizeInBuffer());
 
   return Status::OK();
 }
@@ -810,7 +805,7 @@ void RpcBatcher<KuduOpType>::MarkInFlightOpFailedUnlocked(InFlightOp<KuduOpType>
                                                           const Status& s) {
   CHECK_EQ(1, ops_.erase(op))
     << "Could not remove op " << op->ToString() << " from in-flight list";
-  error_collector_->AddError(unique_ptr<KuduError>(new KuduError(op->write_op.release(), s)));
+  error_collector_->AddError(unique_ptr<KuduError>(new KuduError(op->owned_op.release(), s)));
   had_errors_ = true;
   delete op;
 }
@@ -920,9 +915,13 @@ void RpcBatcher<KuduOpType>::FlushBuffersIfReady() {
   }
 }
 
-template <typename KuduOpType>
-void RpcBatcher<KuduOpType>::FlushBuffer(RemoteTablet* tablet,
-                                         const vector<InFlightOp<KuduOpType>*>& ops) {
+template class BatchedRpc<KuduWriteOperation, WriteRequestPB, WriteResponsePB>;
+typedef BatchedRpc<KuduWriteOperation, WriteRequestPB, WriteResponsePB>
+    WriteRpc;
+
+template <>
+void RpcBatcher<KuduWriteOperation>::FlushBuffer(
+    RemoteTablet* tablet, const vector<InFlightOp<KuduWriteOperation>*>& ops) {
   CHECK(!ops.empty());
 
   // Create and send an RPC that aggregates the ops. The RPC is freed when
@@ -935,9 +934,9 @@ void RpcBatcher<KuduOpType>::FlushBuffer(RemoteTablet* tablet,
   scoped_refptr<MetaCacheServerPicker> server_picker(
       new MetaCacheServerPicker(client_,
                                 client_->data_->meta_cache_,
-                                ops[0]->write_op->table(),
+                                ops[0]->owned_op->table(),
                                 tablet));
-  WriteRpc* rpc = new WriteRpc(this,
+  WriteRpc* rpc = new WriteRpc(scoped_refptr<RpcBatcher<KuduWriteOperation>>(this),
                                server_picker,
                                client_->data_->request_tracker_,
                                ops,
@@ -949,8 +948,9 @@ void RpcBatcher<KuduOpType>::FlushBuffer(RemoteTablet* tablet,
 }
 
 template <typename KuduOpType>
-void RpcBatcher<KuduOpType>::ProcessWriteResponse(const WriteRpc& rpc,
-                                   const Status& s) {
+template <typename RpcType>
+void RpcBatcher<KuduOpType>::ProcessResponse(const RpcType& rpc,
+                                             const Status& s) {
   // TODO: there is a potential race here -- if the Batcher gets destructed while
   // RPCs are in-flight, then accessing state_ will crash. We probably need to keep
   // track of the in-flight RPCs, and in the destructor, change each of them to an
@@ -964,7 +964,7 @@ void RpcBatcher<KuduOpType>::ProcessWriteResponse(const WriteRpc& rpc,
   } else {
     // Mark each of the rows in the write op as failed, since the whole RPC failed.
     for (auto* op : rpc.ops()) {
-      unique_ptr<KuduError> error(new KuduError(op->write_op.release(), s));
+      unique_ptr<KuduError> error(new KuduError(op->owned_op.release(), s));
       error_collector_->AddError(std::move(error));
     }
 
@@ -984,7 +984,7 @@ void RpcBatcher<KuduOpType>::ProcessWriteResponse(const WriteRpc& rpc,
                  << SecureDebugString(rpc.resp());
       continue;
     }
-    unique_ptr<KuduWriteOperation> op = std::move(rpc.ops()[err_pb.row_index()]->write_op);
+    unique_ptr<KuduWriteOperation> op = std::move(rpc.ops()[err_pb.row_index()]->owned_op);
     VLOG(2) << "Error on op " << op->ToString() << ": "
             << SecureShortDebugString(err_pb.error());
     Status op_status = StatusFromPB(err_pb.error());
@@ -1014,7 +1014,7 @@ void RpcBatcher<KuduOpType>::ProcessWriteResponse(const WriteRpc& rpc,
   //     from which the Flush() is being called.
   {
     std::lock_guard<simple_spinlock> l(lock_);
-    for (auto* op : rpc.ops()) {
+    for (InFlightOp<KuduOpType>* op : rpc.ops()) {
       CHECK_EQ(1, ops_.erase(op))
             << "Could not remove op " << op->ToString()
             << " from in-flight list";

@@ -40,9 +40,10 @@ class EncodedKey;
 namespace client {
 
 namespace internal {
+template <typename KuduOpType, class RequestPB, class ResponsePB>
+class BatchedRpc;
 template <typename KuduOpType> class RpcBatcher;
 class ErrorCollector;
-class WriteRpc;
 } // namespace internal
 
 class KuduTable;
@@ -114,8 +115,9 @@ class KUDU_EXPORT KuduWriteOperation {
   /// @endcond
 
  private:
+  template <typename KuduOpType, class RequestPB, class ResponsePB>
+  friend class internal::BatchedRpc;
   template <typename KuduOpType> friend class internal::RpcBatcher;
-  friend class internal::WriteRpc;
   friend class internal::ErrorCollector;
   friend class KuduSession;
 

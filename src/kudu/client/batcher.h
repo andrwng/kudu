@@ -45,7 +45,6 @@ namespace internal {
 
 class ErrorCollector;
 class RemoteTablet;
-class WriteRpc;
 
 template <typename KuduOpType> struct InFlightOp;
 
@@ -69,9 +68,9 @@ class RpcBatcher : public RefCountedThreadSafe<RpcBatcher<KuduOpType>> {
   // current batcher) and make it possible to call notify a session
   // (if it's around) from a batcher which does its job using other threads.
   RpcBatcher(KuduClient* client,
-          scoped_refptr<ErrorCollector> error_collector,
-          client::sp::weak_ptr<KuduSession> session,
-          kudu::client::KuduSession::ExternalConsistencyMode consistency_mode);
+             scoped_refptr<ErrorCollector> error_collector,
+             client::sp::weak_ptr<KuduSession> session,
+             kudu::client::KuduSession::ExternalConsistencyMode consistency_mode);
 
   // Abort the current batch. Any writes that were buffered and not yet sent are
   // discarded. Those that were sent may still be delivered.  If there is a pending Flush
@@ -87,8 +86,8 @@ class RpcBatcher : public RefCountedThreadSafe<RpcBatcher<KuduOpType>> {
 
   // Add a new operation to the batch. Requires that the batch has not yet been flushed.
   //
-  // NOTE: If this returns not-OK, does not take ownership of 'write_op'.
-  Status Add(KuduOpType* write_op) WARN_UNUSED_RESULT;
+  // NOTE: If this returns not-OK, does not take ownership of 'op'.
+  Status Add(KuduOpType* op) WARN_UNUSED_RESULT;
 
   // Return true if any operations are still pending. An operation is no longer considered
   // pending once it has either errored or succeeded.  Operations are considering pending
@@ -133,7 +132,8 @@ class RpcBatcher : public RefCountedThreadSafe<RpcBatcher<KuduOpType>> {
 
  private:
   friend class RefCountedThreadSafe<RpcBatcher<KuduOpType>>;
-  friend class WriteRpc;
+  template <typename OpType, class RequestPB, class ResponsePB>
+    friend class BatchedRpc;
 
   ~RpcBatcher();
 
@@ -162,7 +162,8 @@ class RpcBatcher : public RefCountedThreadSafe<RpcBatcher<KuduOpType>> {
 
   // Cleans up an RPC response, scooping out any errors and passing them up
   // to the batcher.
-  void ProcessWriteResponse(const WriteRpc& rpc, const Status& s);
+  template <typename RpcType>
+  void ProcessResponse(const RpcType& rpc, const Status& s);
 
   // Async Callbacks.
   void TabletLookupFinished(InFlightOp<KuduOpType>* op, const Status& s);
