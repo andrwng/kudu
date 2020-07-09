@@ -74,7 +74,7 @@ void KuduSession::Data::Init(weak_ptr<KuduSession> session) {
   TimeBasedFlushInit();
 }
 
-void KuduSession::Data::FlushFinished(Batcher* batcher) {
+void KuduSession::Data::FlushFinished(internal::RpcBatcher<KuduWriteOperation>* batcher) {
   const int64_t bytes_flushed = batcher->buffer_bytes_used();
   {
     std::lock_guard<Mutex> l(mutex_);

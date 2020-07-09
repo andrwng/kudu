@@ -45,7 +45,7 @@ namespace client {
 class ClientTest_TestProjectionPredicatesFuzz_Test;
 class KuduWriteOperation;
 namespace internal {
-template <typename KuduOpType, class RequestPB, class ResponsePB>
+template <class BatcherType, typename KuduOpType, class RequestPB, class ResponsePB>
 class BatchedRpc;
 } // namespace internal
 template<typename KeyTypeWrapper> struct SliceKeysTestSetup;// IWYU pragma: keep
@@ -593,7 +593,7 @@ class KUDU_EXPORT KuduPartialRow {
   const Schema* schema() const { return schema_; }
 
  private:
-  template <typename KuduOpType, class RequestPB, class ResponsePB>
+  template <class BatcherType, typename KuduOpType, class RequestPB, class ResponsePB>
   friend class client::internal::BatchedRpc;
   friend class client::KuduWriteOperation;   // for row_data_.
   friend class KeyUtilTest;

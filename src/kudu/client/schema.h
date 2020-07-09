@@ -57,7 +57,7 @@ class GetTableSchemaRpc;
 class LookupRpc;
 class MetaCache;
 class MetaCacheEntry;
-template <typename KuduOpType, class RequestPB, class ResponsePB>
+template <class BatcherType, typename KuduOpType, class RequestPB, class ResponsePB>
 class BatchedRpc;
 } // namespace internal
 
@@ -710,7 +710,7 @@ class KUDU_EXPORT KuduSchema {
   friend class internal::LookupRpc;
   friend class internal::MetaCache;
   friend class internal::MetaCacheEntry;
-  template <typename KuduOpType, class RequestPB, class ResponsePB>
+  template <class BatcherType, typename KuduOpType, class RequestPB, class ResponsePB>
   friend class internal::BatchedRpc;
   friend class tools::RemoteKsckCluster;
   friend class tools::ReplicaDumper;

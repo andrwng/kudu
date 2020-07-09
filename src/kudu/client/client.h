@@ -98,7 +98,7 @@ class KuduWriteOperation;
 class ResourceMetrics;
 
 namespace internal {
-template <typename KuduOpType> class RpcBatcher;
+class Batcher;
 class ErrorCollector;
 class GetTableSchemaRpc;
 class LookupRpc;
@@ -107,8 +107,9 @@ class RemoteTablet;
 class RemoteTabletServer;
 class ReplicaController;
 class RetrieveAuthzTokenRpc;
+template <typename KuduOpType> class RpcBatcher;
 class ScanBatchDataInterface;
-template <typename KuduOpType, class RequestPB, class ResponsePB>
+template <class BatcherType, typename KuduOpType, class RequestPB, class ResponsePB>
 class BatchedRpc;
 template <class ReqClass, class RespClass>
 class AsyncLeaderMasterRpc; // IWYU pragma: keep
@@ -613,15 +614,16 @@ class KUDU_EXPORT KuduClient : public sp::enable_shared_from_this<KuduClient> {
   friend class KuduTable;
   friend class KuduTableAlterer;
   friend class KuduTableCreator;
-  template <typename KuduOpType> friend class internal::RpcBatcher;
+  friend class internal::Batcher;
   friend class internal::GetTableSchemaRpc;
   friend class internal::LookupRpc;
   friend class internal::MetaCache;
   friend class internal::RemoteTablet;
   friend class internal::RemoteTabletServer;
   friend class internal::RetrieveAuthzTokenRpc;
-  template <typename KuduOpType, class RequestPB, class ResponsePB>
-  friend class internal::BatchedRpc;
+  template <class BatcherType, typename KuduOpType, class RequestPB, class ResponsePB>
+      friend class internal::BatchedRpc;
+  template <typename KuduOpType> friend class internal::RpcBatcher;
   friend class kudu::AuthzTokenTest;
   friend class kudu::SecurityUnknownTskTest;
   friend class tools::LeaderMasterProxy;
@@ -1543,7 +1545,7 @@ class KUDU_EXPORT KuduError {
  private:
   class KUDU_NO_EXPORT Data;
 
-  template <typename KuduOpType> friend class internal::RpcBatcher;
+  friend class internal::Batcher;
   friend class internal::ErrorCollector;
   friend class KuduSession;
 

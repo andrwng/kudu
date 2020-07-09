@@ -104,6 +104,7 @@
 #include "kudu/util/monotime.h"
 #include "kudu/util/pb_util.h"
 #include "kudu/util/process_memory.h"
+#include "kudu/util/scoped_cleanup.h"
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 #include "kudu/util/stopwatch.h"
@@ -1166,84 +1167,83 @@ void TabletServiceAdminImpl::AlterSchema(const AlterSchemaRequestPB* req,
   }
 }
 
-void TabletServiceAdminImpl::BeginTransaction(const BeginTransactionRequestPB* req,
-                                              BeginTransactionResponsePB* resp,
-                                              rpc::RpcContext* context) {
-  if (!req->has_txn_id() ||
-      !req->has_txn_status_tablet_id() ||
-      !req->has_user()) {
-    context->RespondFailure(Status::InvalidArgument(
-        Substitute("Missing fields in request: $0", SecureShortDebugString(*req))));
-    return;
-  }
-  scoped_refptr<TabletReplica> replica;
-  if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), req->txn_status_tablet_id(),
-                                           resp, context, &replica)) {
-    return;
-  }
-  Status s = replica->txn_coordinator()->BeginTransaction(req->txn_id(), req->user());
-  if (PREDICT_FALSE(!s.ok())) {
-    // TODO(awong): make these errors more useful so the system client knows
-    // if/how to retry.
-    SetupErrorAndRespond(resp->mutable_error(), s,
-                         TabletServerErrorPB::UNKNOWN_ERROR,
-                         context);
-    return;
-  }
+namespace {
+// Returns an error if 'op' is missing any required fields, or if it's of an
+// unknown type.
+Status ValidateCoordinatorOpFields(const CoordinatorOpPB op) {
+  const auto& type = op.type();
+  Status s;
+  switch (type) {
+    case CoordinatorOpPB::REGISTER_PARTICIPANT:
+      if (!op.has_txn_participant_id()) {
+        return Status::InvalidArgument(Substitute("Missing participant id: $0",
+                                                  SecureShortDebugString(op)));
+      }
+      FALLTHROUGH_INTENDED;
+    case CoordinatorOpPB::BEGIN_TXN:
+    case CoordinatorOpPB::BEGIN_COMMIT_TXN:
+    case CoordinatorOpPB::ABORT_TXN:
+      if (!op.has_txn_id()) {
+        return Status::InvalidArgument(Substitute("Missing txn id: $0",
+                                                  SecureShortDebugString(op)));
+      }
+      break;
+    default:
+      return Status::InvalidArgument(Substitute("Unknown op type: $0", type));
+  };
+  return Status::OK();
 }
+} // anonymous namespace
 
-void TabletServiceAdminImpl::RegisterParticipant(const RegisterParticipantRequestPB* req,
-                                                 RegisterParticipantResponsePB* resp,
-                                                 rpc::RpcContext* context) {
-  if (!req->has_txn_id() ||
-      !req->has_txn_status_tablet_id() ||
-      !req->has_txn_participant_id() ||
-      !req->has_user()) {
+void TabletServiceAdminImpl::CoordinateTransaction(const CoordinateTransactionRequestPB* req,
+                                                   CoordinateTransactionResponsePB* resp,
+                                                   rpc::RpcContext* context) {
+  if (PREDICT_FALSE(!req->has_txn_status_tablet_id() ||
+                    !req->has_user() ||
+                    !req->has_op())) {
     context->RespondFailure(Status::InvalidArgument(
         Substitute("Missing fields in request: $0", SecureShortDebugString(*req))));
     return;
   }
   scoped_refptr<TabletReplica> replica;
-  if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), req->txn_status_tablet_id(),
-                                           resp, context, &replica)) {
+  if (PREDICT_FALSE(!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(),
+                                                         req->txn_status_tablet_id(),
+                                                         resp, context, &replica))) {
     return;
   }
-  Status s = replica->txn_coordinator()->RegisterParticipant(req->txn_id(),
-                                                             req->txn_participant_id(),
-                                                             req->user());
-  if (PREDICT_FALSE(!s.ok())) {
-    // TODO(awong): make these errors more useful so the system client knows
-    // if/how to retry.
-    SetupErrorAndRespond(resp->mutable_error(), s,
-                         TabletServerErrorPB::UNKNOWN_ERROR,
-                         context);
-    return;
-  }
-}
-
-void TabletServiceAdminImpl::BeginCommitTransaction(const BeginCommitTransactionRequestPB* req,
-                                                    BeginCommitTransactionResponsePB* resp,
-                                                    rpc::RpcContext* context) {
-  if (!req->has_txn_id() ||
-      !req->has_txn_status_tablet_id() ||
-      !req->has_user()) {
+  tablet::TxnCoordinator* txn_coordinator = replica->txn_coordinator();
+  if (PREDICT_FALSE(!txn_coordinator)) {
     context->RespondFailure(Status::InvalidArgument(
-        Substitute("Missing fields in request: $0", SecureShortDebugString(*req))));
+        Substitute("Requested tablet is not a txn coordinator: $0", replica->tablet_id())));
     return;
   }
-  scoped_refptr<TabletReplica> replica;
-  if (!LookupRunningTabletReplicaOrRespond(server_->tablet_manager(), req->txn_status_tablet_id(),
-                                           resp, context, &replica)) {
-    return;
-  }
-  Status s = replica->txn_coordinator()->BeginCommitTransaction(req->txn_id(), req->user());
+  // From here on out, errors are considered application errors -- the RPC was
+  // a success, but something was wrong with the op.
+  SCOPED_CLEANUP({
+    context->RespondSuccess();
+  });
+  const auto& user = req->user();
+  const auto& op = req->op();
+  Status s = ValidateCoordinatorOpFields(op);
   if (PREDICT_FALSE(!s.ok())) {
-    // TODO(awong): make these errors more useful so the system client knows
-    // if/how to retry.
-    SetupErrorAndRespond(resp->mutable_error(), s,
-                         TabletServerErrorPB::UNKNOWN_ERROR,
-                         context);
+    StatusToPB(s, resp->mutable_op_error()->mutable_error());
     return;
+  }
+  const auto& txn_id = op.txn_id();
+  switch (op.type()) {
+    case CoordinatorOpPB::BEGIN_TXN:
+      s = txn_coordinator->BeginTransaction(txn_id, user);
+    case CoordinatorOpPB::REGISTER_PARTICIPANT:
+      s = txn_coordinator->RegisterParticipant(txn_id, op.txn_participant_id(), user);
+    case CoordinatorOpPB::BEGIN_COMMIT_TXN:
+      s = txn_coordinator->BeginCommitTransaction(txn_id, user);
+    case CoordinatorOpPB::ABORT_TXN:
+      s = txn_coordinator->AbortTransaction(txn_id, user);
+    default:
+      s = Status::InvalidArgument(Substitute("Unknown op type: $0", op.type()));
+  }
+  if (PREDICT_FALSE(!s.ok())) {
+    StatusToPB(s, resp->mutable_op_error()->mutable_error());
   }
 }
 
