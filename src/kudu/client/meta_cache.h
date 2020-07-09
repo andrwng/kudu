@@ -50,6 +50,7 @@ namespace kudu {
 class Sockaddr;
 
 namespace tserver {
+class TabletServerAdminServiceProxy;
 class TabletServerServiceProxy;
 class TabletServerAdminServiceProxy;
 } // namespace tserver

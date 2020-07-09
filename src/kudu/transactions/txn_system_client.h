@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "kudu/client/batcher.h"
 #include "kudu/client/client.h"
 #include "kudu/client/shared_ptr.h"
 #include "kudu/client/table_creator-internal.h"

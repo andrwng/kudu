@@ -34,6 +34,8 @@
 
 using kudu::client::KuduClient;
 using kudu::client::KuduSchema;
+using kudu::client::KuduSession;
+using kudu::client::KuduTable;
 using kudu::client::KuduClientBuilder;
 using kudu::client::KuduTable;
 using kudu::client::KuduTableAlterer;

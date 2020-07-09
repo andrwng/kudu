@@ -122,6 +122,12 @@ void RemoteTabletServer::DnsResolutionFinished(const HostPort& hp,
     admin_proxy_.reset(
         new TabletServerAdminServiceProxy(client->data_->messenger_, (*addrs)[0], hp.host()));
     proxy_->set_user_credentials(client->data_->user_credentials_);
+
+    // TODO(awong): predicate this on whether the client is a system client or
+    // somesuch. User-managed clients won't need access to the admin endpoints.
+    admin_proxy_.reset(new TabletServerAdminServiceProxy(
+        client->data_->messenger_, (*addrs)[0], hp.host()));
+    admin_proxy_->set_user_credentials(client->data_->user_credentials_);
   }
   user_callback(s);
 }

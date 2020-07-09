@@ -45,6 +45,10 @@ namespace client {
 class KuduStatusCallback;
 class KuduWriteOperation;
 
+namespace internal {
+template <typename KuduOpType> class RpcBatcher;
+}
+
 // This class contains the code to do the heavy-lifting for the
 // kudu::KuduSession-related operations. Its interface does not assume
 // thread-safety in general, but it's thread-safe regarding the following
@@ -68,7 +72,7 @@ class KuduSession::Data {
   void Init(sp::weak_ptr<KuduSession> session);
 
   // Called by Batcher when a flush has finished.
-  void FlushFinished(internal::Batcher* batcher);
+  void FlushFinished(internal::RpcBatcher<KuduWriteOperation>* batcher);
 
   // Returns Status::IllegalState() if 'force' is false and there are still pending
   // operations. If 'force' is true batcher_ is aborted even if there are pending
@@ -132,6 +136,11 @@ class KuduSession::Data {
 
   // Apply a write operation, i.e. push it through the batcher chain.
   Status ApplyWriteOp(KuduWriteOperation* write_op);
+
+  Status BeginTransaction(int64_t txn_id, const std::string& user);
+  Status BeginCommitTransaction(int64_t txn_id, const std::string& user);
+  Status RegisterParticipant(int64_t txn_id, const std::string& tablet_id,
+                             const std::string& user);
 
   // Check and start the time-based flush task in background, if necessary.
   void TimeBasedFlushInit();

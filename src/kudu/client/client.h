@@ -108,8 +108,10 @@ class RemoteTablet;
 class RemoteTabletServer;
 class ReplicaController;
 class RetrieveAuthzTokenRpc;
+template <typename KuduOpType> class RpcBatcher;
 class ScanBatchDataInterface;
-class WriteRpc;
+template <class BatcherType, typename KuduOpType, class RequestPB, class ResponsePB>
+class BatchedRpc;
 template <class ReqClass, class RespClass>
 class AsyncLeaderMasterRpc; // IWYU pragma: keep
 } // namespace internal
@@ -620,7 +622,9 @@ class KUDU_EXPORT KuduClient : public sp::enable_shared_from_this<KuduClient> {
   friend class internal::RemoteTablet;
   friend class internal::RemoteTabletServer;
   friend class internal::RetrieveAuthzTokenRpc;
-  friend class internal::WriteRpc;
+  template <class BatcherType, typename KuduOpType, class RequestPB, class ResponsePB>
+      friend class internal::BatchedRpc;
+  template <typename KuduOpType> friend class internal::RpcBatcher;
   friend class kudu::AuthzTokenTest;
   friend class kudu::SecurityUnknownTskTest;
   friend class transactions::CoordinatorRpc;
@@ -2010,7 +2014,7 @@ class KUDU_EXPORT KuduSession : public sp::enable_shared_from_this<KuduSession> 
   class KUDU_NO_EXPORT Data;
 
   friend class KuduClient;
-  friend class internal::Batcher;
+  template <typename KuduOpType> friend class internal::RpcBatcher;
   friend class ClientTest;
   FRIEND_TEST(ClientTest, TestAutoFlushBackgroundApplyBlocks);
   FRIEND_TEST(ClientTest, TestAutoFlushBackgroundAndErrorCollector);
