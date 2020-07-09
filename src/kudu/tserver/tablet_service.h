@@ -216,6 +216,10 @@ class TabletServiceAdminImpl : public TabletServerAdminServiceIf {
                QuiesceTabletServerResponsePB* resp,
                rpc::RpcContext* context) override;
 
+  void CoordinateTransaction(const CoordinateTransactionRequestPB* req,
+                             CoordinateTransactionResponsePB* resp,
+                             rpc::RpcContext* context) override;
+
   bool SupportsFeature(uint32_t feature) const override;
 
  private:

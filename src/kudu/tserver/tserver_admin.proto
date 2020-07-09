@@ -20,10 +20,48 @@ package kudu.tserver;
 option java_package = "org.apache.kudu.tserver";
 
 import "kudu/common/common.proto";
+import "kudu/common/wire_protocol.proto";
 import "kudu/consensus/metadata.proto";
 import "kudu/rpc/rpc_header.proto";
 import "kudu/tablet/metadata.proto";
 import "kudu/tserver/tserver.proto";
+
+message CoordinatorOpPB {
+  enum CoordinatorOpType {
+    UNKNOWN = 0;
+    BEGIN_TXN = 1;
+    REGISTER_PARTICIPANT = 2;
+    BEGIN_COMMIT_TXN = 3;
+    ABORT_TXN = 4;
+  }
+  optional CoordinatorOpType type = 1; 
+  optional int64 txn_id = 2;
+
+  // Only set if 'type' is REGISTER_PARTICIPANT.
+  optional string txn_participant_id = 3;
+}
+
+message CoordinateTransactionRequestPB {
+  optional bytes txn_status_tablet_id = 1;
+  optional string user = 2;
+
+  // TODO(awong): consider batching these ops, though we'll need to give a lot
+  // of thought to locking constraints.
+  optional CoordinatorOpPB op = 3;
+}
+
+message CoordinateTransactionResponsePB {
+  // If the entire CoordinateTransactionRequestPB request failed (e.g. not
+  // online, tablet not found, etc), the error status that caused the failure.
+  optional TabletServerErrorPB error = 1;
+
+  // If an error occurred for the request operation, the error of the
+  // operation.
+  message CoordinatorOpErrorPB {
+    optional AppStatusPB error = 1;
+  }
+  optional CoordinatorOpErrorPB op_error = 2;
+}
 
 message AlterSchemaRequestPB {
   // UUID of server this request is addressed to.
@@ -151,6 +189,10 @@ service TabletServerAdminService {
 
   // Quiesce the tablet server.
   rpc Quiesce(QuiesceTabletServerRequestPB) returns (QuiesceTabletServerResponsePB);
+
+  // Coordinate the lifecycle of a transaction.
+  rpc CoordinateTransaction(CoordinateTransactionRequestPB)
+      returns (CoordinateTransactionResponsePB);
 }
 
 message QuiesceTabletServerRequestPB {
