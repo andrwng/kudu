@@ -39,28 +39,37 @@ message CoordinatorOpPB {
 
   // Only set if 'type' is REGISTER_PARTICIPANT.
   optional string txn_participant_id = 3;
+
+  // End-user that is associated with this request.
+  optional string user = 4;
+}
+
+message CoordinatorOpResultPB {
+  optional AppStatusPB op_error = 1;
+
+  // TODO(awong): populate this with some application-level results, like the
+  // actual transaction ID assigned, the next highest transaction ID available,
+  // etc.
 }
 
 message CoordinateTransactionRequestPB {
+  // The tablet ID of the transaction status tablet associated with the given
+  // operation.
   optional bytes txn_status_tablet_id = 1;
-  optional string user = 2;
 
   // TODO(awong): consider batching these ops, though we'll need to give a lot
   // of thought to locking constraints.
-  optional CoordinatorOpPB op = 3;
+  optional CoordinatorOpPB op = 2;
 }
 
 message CoordinateTransactionResponsePB {
-  // If the entire CoordinateTransactionRequestPB request failed (e.g. not
-  // online, tablet not found, etc), the error status that caused the failure.
+  // If there was a service-level error with the request (e.g. the server was
+  // not online, the tablet was not found, etc.), the error status that caused
+  // the failure.
   optional TabletServerErrorPB error = 1;
 
-  // If an error occurred for the request operation, the error of the
-  // operation.
-  message CoordinatorOpErrorPB {
-    optional AppStatusPB error = 1;
-  }
-  optional CoordinatorOpErrorPB op_error = 2;
+  // The application-level result of the operation.
+  optional CoordinatorOpResultPB op_result = 2;
 }
 
 message AlterSchemaRequestPB {

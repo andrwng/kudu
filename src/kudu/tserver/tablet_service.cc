@@ -1187,11 +1187,11 @@ Status ValidateCoordinatorOpFields(const CoordinatorOpPB op) {
         return Status::InvalidArgument(Substitute("Missing txn id: $0",
                                                   SecureShortDebugString(op)));
       }
-      break;
+      return Status::OK();
     default:
       return Status::InvalidArgument(Substitute("Unknown op type: $0", type));
   };
-  return Status::OK();
+  __builtin_unreachable();
 }
 } // anonymous namespace
 
@@ -1199,7 +1199,6 @@ void TabletServiceAdminImpl::CoordinateTransaction(const CoordinateTransactionRe
                                                    CoordinateTransactionResponsePB* resp,
                                                    rpc::RpcContext* context) {
   if (PREDICT_FALSE(!req->has_txn_status_tablet_id() ||
-                    !req->has_user() ||
                     !req->has_op())) {
     context->RespondFailure(Status::InvalidArgument(
         Substitute("Missing fields in request: $0", SecureShortDebugString(*req))));
@@ -1222,28 +1221,34 @@ void TabletServiceAdminImpl::CoordinateTransaction(const CoordinateTransactionRe
   SCOPED_CLEANUP({
     context->RespondSuccess();
   });
-  const auto& user = req->user();
   const auto& op = req->op();
   Status s = ValidateCoordinatorOpFields(op);
   if (PREDICT_FALSE(!s.ok())) {
-    StatusToPB(s, resp->mutable_op_error()->mutable_error());
+    StatusToPB(s, resp->mutable_op_result()->mutable_op_error());
     return;
   }
+  const auto& user = op.user();
   const auto& txn_id = op.txn_id();
+  // TODO(awong): pass a TabletServerErrorPB pointer down in case these
+  // actually resulted in a failure to write, rather than an application error.
   switch (op.type()) {
     case CoordinatorOpPB::BEGIN_TXN:
       s = txn_coordinator->BeginTransaction(txn_id, user);
+      break;
     case CoordinatorOpPB::REGISTER_PARTICIPANT:
       s = txn_coordinator->RegisterParticipant(txn_id, op.txn_participant_id(), user);
+      break;
     case CoordinatorOpPB::BEGIN_COMMIT_TXN:
       s = txn_coordinator->BeginCommitTransaction(txn_id, user);
+      break;
     case CoordinatorOpPB::ABORT_TXN:
       s = txn_coordinator->AbortTransaction(txn_id, user);
+      break;
     default:
       s = Status::InvalidArgument(Substitute("Unknown op type: $0", op.type()));
   }
   if (PREDICT_FALSE(!s.ok())) {
-    StatusToPB(s, resp->mutable_op_error()->mutable_error());
+    StatusToPB(s, resp->mutable_op_result()->mutable_op_error());
   }
 }
 

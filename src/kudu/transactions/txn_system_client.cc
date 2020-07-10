@@ -16,21 +16,32 @@
 // under the License.
 
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "kudu/client/client.h"
+#include "kudu/client/client-internal.h"
+#include "kudu/client/meta_cache.h"
 #include "kudu/client/table_creator-internal.h"
 #include "kudu/common/partial_row.h"
 #include "kudu/common/schema.h"
+#include "kudu/gutil/basictypes.h"
+#include "kudu/util/async_util.h"
+#include "kudu/transactions/coordinator_rpc.h"
 #include "kudu/transactions/txn_status_tablet.h"
 #include "kudu/transactions/txn_system_client.h"
+#include "kudu/tserver/tserver_admin.pb.h"
 
 using kudu::client::KuduClient;
 using kudu::client::KuduSchema;
 using kudu::client::KuduClientBuilder;
+using kudu::client::KuduTable;
 using kudu::client::KuduTableAlterer;
 using kudu::client::KuduTableCreator;
+using kudu::client::internal::MetaCache;
 using kudu::client::sp::shared_ptr;
+using kudu::tserver::CoordinateTransactionRequestPB;
+using kudu::tserver::CoordinatorOpPB;
 using std::string;
 using std::unique_ptr;
 using std::vector;
@@ -48,7 +59,7 @@ Status TxnSystemClient::Create(const vector<string>& master_addrs,
   return Status::OK();
 }
 
-Status TxnSystemClient::CreateTxnStatusTable(int64_t initial_upper_bound) {
+Status TxnSystemClient::CreateTxnStatusTable(int64_t initial_upper_bound, int num_replicas) {
 
   const auto& schema = TxnStatusTablet::GetSchema();
   const auto kudu_schema = KuduSchema::FromSchema(schema);
@@ -69,7 +80,7 @@ Status TxnSystemClient::CreateTxnStatusTable(int64_t initial_upper_bound) {
       .set_range_partition_columns({ TxnStatusTablet::kTxnIdColName })
       .add_range_partition(lb.release(), ub.release())
       .table_name(TxnStatusTablet::kTxnStatusTableName)
-      .num_replicas(1)
+      .num_replicas(num_replicas)
       .wait(true)
       .Create();
 }
@@ -86,6 +97,87 @@ Status TxnSystemClient::AddTxnStatusTableRange(int64_t lower_bound, int64_t uppe
       ->modify_external_catalogs(false)
       ->wait(true)
       ->Alter();
+}
+
+Status TxnSystemClient::OpenTxnStatusTable() {
+  client::sp::shared_ptr<KuduTable> table;
+  RETURN_NOT_OK(client_->OpenTable(TxnStatusTablet::kTxnStatusTableName, &table));
+
+  std::lock_guard<simple_spinlock> l(table_lock_);
+  txn_status_table_ = std::move(table);
+  return Status::OK();
+}
+
+Status TxnSystemClient::BeginTransaction(int64_t txn_id, const string& user) {
+  CoordinatorOpPB coordinate_txn_op;
+  coordinate_txn_op.set_type(CoordinatorOpPB::BEGIN_TXN);
+  coordinate_txn_op.set_txn_id(txn_id);
+  coordinate_txn_op.set_user(user);
+  Synchronizer s;
+  MonoDelta timeout = MonoDelta::FromSeconds(10);
+  RETURN_NOT_OK(CoordinateTransactionAsync(std::move(coordinate_txn_op),
+                                           timeout,
+                                           s.AsStatusCallback()));
+  return s.Wait();
+}
+
+Status TxnSystemClient::RegisterParticipant(int64_t txn_id, const string& participant_id,
+                                            const string& user) {
+  CoordinatorOpPB coordinate_txn_op;
+  coordinate_txn_op.set_type(CoordinatorOpPB::REGISTER_PARTICIPANT);
+  coordinate_txn_op.set_txn_id(txn_id);
+  coordinate_txn_op.set_txn_participant_id(participant_id);
+  coordinate_txn_op.set_user(user);
+  Synchronizer s;
+  MonoDelta timeout = MonoDelta::FromSeconds(10);
+  RETURN_NOT_OK(CoordinateTransactionAsync(std::move(coordinate_txn_op),
+                                           timeout,
+                                           s.AsStatusCallback()));
+  return s.Wait();
+}
+
+Status TxnSystemClient::CoordinateTransactionAsync(CoordinatorOpPB coordinate_txn_op,
+                                                   const MonoDelta& timeout,
+                                                   StatusCallback cb) {
+  const MonoTime deadline = MonoTime::Now() + timeout;
+  unique_ptr<TxnStatusTabletContext> ctx(
+      new TxnStatusTabletContext({
+          txn_status_table(),
+          std::move(coordinate_txn_op),
+          /*tablet=*/nullptr
+      }));
+
+  string partition_key;
+  KuduPartialRow row(&TxnStatusTablet::GetSchema());
+  DCHECK(ctx->coordinate_txn_op.has_txn_id());
+  RETURN_NOT_OK(row.SetInt64(TxnStatusTablet::kTxnIdColName, ctx->coordinate_txn_op.txn_id()));
+  RETURN_NOT_OK(ctx->table->partition_schema().EncodeKey(row, &partition_key));
+
+  auto* ctx_raw = ctx.get();
+  client_->data_->meta_cache_->LookupTabletByKey(
+      ctx->table.get(),
+      std::move(partition_key),
+      deadline,
+      MetaCache::LookupType::kPoint,
+      &ctx->tablet,
+      [cb, deadline, ctx_raw] (const Status& s) {
+        // First, take ownership of the context.
+        unique_ptr<TxnStatusTabletContext> ctx(ctx_raw);
+
+        // If the lookup failed, run the callback with the error.
+        if (PREDICT_FALSE(!s.ok())) {
+          cb(s);
+          return;
+        }
+        // NOTE: the CoordinatorRpc frees its own memory upon completion.
+        CoordinatorRpc* rpc = CoordinatorRpc::NewRpc(
+            std::move(ctx),
+            deadline,
+            std::move(cb));
+        rpc->SendRpc();
+      });
+  ignore_result(ctx.release());
+  return Status::OK();
 }
 
 } // namespace transactions

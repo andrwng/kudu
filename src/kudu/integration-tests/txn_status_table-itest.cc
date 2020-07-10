@@ -58,6 +58,12 @@ using strings::Substitute;
 namespace kudu {
 namespace itest {
 
+namespace {
+string ParticipantId(int i) {
+  return Substitute("strawhat-$0", i);
+}
+} // anonymous namespace
+
 class TxnStatusTableITest : public KuduTest {
  public:
   TxnStatusTableITest() {}
@@ -140,6 +146,75 @@ TEST_F(TxnStatusTableITest, TestTxnStatusTableColocatedWithTables) {
       { TableTypePB::TXN_STATUS_TABLE, 1 },
       { TableTypePB::DEFAULT_TABLE, 1 }
   }));
+}
+
+TEST_F(TxnStatusTableITest, TestSystemClientFindTablets) {
+  ASSERT_OK(txn_sys_client_->CreateTxnStatusTable(100));
+  ASSERT_OK(txn_sys_client_->OpenTxnStatusTable());
+  ASSERT_OK(txn_sys_client_->BeginTransaction(1, "user"));
+
+  // If we write out of range, we should see an error.
+  Status s = txn_sys_client_->BeginTransaction(100, "user");
+  ASSERT_TRUE(s.IsNotFound()) << s.ToString();
+
+  // Once we add a new range, we should be able to leverage it.
+  ASSERT_OK(txn_sys_client_->AddTxnStatusTableRange(100, 200));
+  ASSERT_OK(txn_sys_client_->BeginTransaction(100, "user"));
+}
+
+TEST_F(TxnStatusTableITest, TestSystemClientBeginTransactionErrors) {
+  ASSERT_OK(txn_sys_client_->CreateTxnStatusTable(100));
+  ASSERT_OK(txn_sys_client_->OpenTxnStatusTable());
+  ASSERT_OK(txn_sys_client_->BeginTransaction(1, "user"));
+
+  // Trying to start another transaction with a used ID should yield an error.
+  Status s = txn_sys_client_->BeginTransaction(1, "user");
+  ASSERT_TRUE(s.IsInvalidArgument()) << s.ToString();
+  ASSERT_STR_CONTAINS(s.ToString(), "not higher than the highest ID");
+}
+
+TEST_F(TxnStatusTableITest, TestSystemClientRegisterParticipantErrors) {
+  ASSERT_OK(txn_sys_client_->CreateTxnStatusTable(100));
+  ASSERT_OK(txn_sys_client_->OpenTxnStatusTable());
+  Status s = txn_sys_client_->RegisterParticipant(1, "participant", "user");
+  ASSERT_TRUE(s.IsNotFound()) << s.ToString();
+  ASSERT_STR_MATCHES(s.ToString(), "transaction ID.*not found, current highest txn ID:.*");
+
+  ASSERT_OK(txn_sys_client_->BeginTransaction(1, "user"));
+  ASSERT_OK(txn_sys_client_->RegisterParticipant(1, ParticipantId(1), "user"));
+
+  s = txn_sys_client_->RegisterParticipant(1, ParticipantId(2), "stranger");
+  ASSERT_TRUE(s.IsNotAuthorized()) << s.ToString();
+}
+
+class ReplicatedTxnStatusTableITest : public TxnStatusTableITest {
+ public:
+  void SetUp() override {
+    KuduTest::SetUp();
+    InternalMiniClusterOptions opts;
+    opts.num_tablet_servers = 4;
+    cluster_.reset(new InternalMiniCluster(env_, std::move(opts)));
+    ASSERT_OK(cluster_->Start());
+
+    vector<string> master_addrs;
+    for (const auto& hp : cluster_->master_rpc_addrs()) {
+      master_addrs.emplace_back(hp.ToString());
+    }
+    ASSERT_OK(TxnSystemClient::Create(master_addrs, &txn_sys_client_));
+  }
+};
+
+// TODO
+TEST_F(ReplicatedTxnStatusTableITest, TestSystemClientLeaderTransfer) {
+}
+
+TEST_F(ReplicatedTxnStatusTableITest, TestSystemClientFailedReplica) {
+}
+
+TEST_F(ReplicatedTxnStatusTableITest, TestSystemClientCrashedNodes) {
+}
+
+TEST_F(ReplicatedTxnStatusTableITest, TestSystemClientQueueOverflow) {
 }
 
 } // namespace itest
