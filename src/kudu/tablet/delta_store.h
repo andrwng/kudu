@@ -381,7 +381,7 @@ class DeltaIterator : public PreparedDeltas {
   virtual Status PrepareBatch(size_t nrows, int prepare_flags) = 0;
 
   // Returns true if there are any more rows left in this iterator.
-  virtual bool HasNext() = 0;
+  virtual bool HasNext() const = 0;
 
   // Return a string representation suitable for debug printouts.
   virtual std::string ToString() const = 0;
@@ -596,6 +596,33 @@ template<DeltaType Type>
 Status WriteDeltaIteratorToFile(DeltaIterator* iter,
                                 size_t nrows,
                                 DeltaFileWriter* out);
+
+template <class DeltaPreparerType, class DeltaStoreIterType>
+class DeltaPreparingIterator : public DeltaIterator {
+ public:
+  Status Init(ScanSpec* spec) override;
+  Status SeekToOrdinal(rowid_t row_idx) override;
+  Status PrepareBatch(size_t nrows, int prepare_flags) override;
+  Status ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
+                      const SelectionVector& filter) override;
+  Status ApplyDeletes(SelectionVector* sel_vec) override;
+  Status SelectDeltas(SelectedDeltas* deltas) override;
+  Status CollectMutations(std::vector<Mutation*>* dst, Arena* arena) override;
+  Status FilterColumnIdsAndCollectDeltas(const std::vector<ColumnId>& col_ids,
+                                         std::vector<DeltaKeyAndUpdate>* out,
+                                         Arena* arena) override;
+  bool HasNext() const override;
+  bool MayHaveDeltas() const override;
+
+  virtual std::string ToString() const = 0;
+  virtual DeltaStoreIterType* store_iter() = 0;
+  virtual DeltaPreparerType* preparer() = 0;
+  virtual const DeltaStoreIterType* store_iter() const = 0;
+  virtual const DeltaPreparerType* preparer() const = 0;
+ private:
+  bool seeked_ = false;
+  bool initted_ = false;
+};
 
 } // namespace tablet
 } // namespace kudu

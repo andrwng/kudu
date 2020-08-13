@@ -247,32 +247,24 @@ class DeltaMemStoreIterator : public DeltaStoreIterator {
 //
 // See DeltaStore for more details on usage and the implemented
 // functions.
-class DMSIterator : public DeltaIterator {
+class DMSIterator :
+    public DeltaPreparingIterator<DeltaPreparer<DMSPreparerTraits>, DeltaMemStoreIterator> {
  public:
-  Status Init(ScanSpec* spec) override;
-
-  Status SeekToOrdinal(rowid_t row_idx) override;
-
-  Status PrepareBatch(size_t nrows, int prepare_flags) override;
-
-  Status ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
-                      const SelectionVector& filter) override;
-
-  Status ApplyDeletes(SelectionVector* sel_vec) override;
-
-  Status SelectDeltas(SelectedDeltas* deltas) override;
-
-  Status CollectMutations(std::vector<Mutation*>* dst, Arena* arena) override;
-
-  Status FilterColumnIdsAndCollectDeltas(const std::vector<ColumnId>& col_ids,
-                                         std::vector<DeltaKeyAndUpdate>* out,
-                                         Arena* arena) override;
-
-  std::string ToString() const override;
-
-  bool HasNext() override;
-
-  bool MayHaveDeltas() const override;
+  std::string ToString() const override {
+    return "DMSIterator";
+  }
+  const DeltaMemStoreIterator* store_iter() const override {
+    return &store_iter_;
+  }
+  const DeltaPreparer<DMSPreparerTraits>* preparer() const override {
+    return &preparer_;
+  }
+  DeltaMemStoreIterator* store_iter() override {
+    return &store_iter_;
+  }
+  DeltaPreparer<DMSPreparerTraits>* preparer() override {
+    return &preparer_;
+  }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DMSIterator);
@@ -286,13 +278,7 @@ class DMSIterator : public DeltaIterator {
               RowIteratorOptions opts);
 
   DeltaMemStoreIterator store_iter_;
-
   DeltaPreparer<DMSPreparerTraits> preparer_;
-
-  bool initted_;
-
-  // True if SeekToOrdinal() been called at least once.
-  bool seeked_;
 };
 
 } // namespace tablet

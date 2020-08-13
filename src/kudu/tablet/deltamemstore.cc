@@ -194,6 +194,13 @@ int64_t DeltaMemStore::deleted_row_count() const {
   return count;
 }
 
+DeltaMemStoreIterator::DeltaMemStoreIterator(const shared_ptr<const DeltaMemStore> dms)
+    : dms_(dms), iter_(dms->tree_.NewIterator()) {}
+
+void DeltaMemStoreIterator::IterateNext() {
+  iter_->Next();
+}
+
 Status DeltaMemStoreIterator::Init(ScanSpec* /*spec*/) {
   return Status::OK();
 }
@@ -241,168 +248,7 @@ void DeltaMemStoreIterator::Finish(size_t nrows) {
 DMSIterator::DMSIterator(const shared_ptr<const DeltaMemStore>& dms,
                          RowIteratorOptions opts)
     : store_iter_(dms),
-      preparer_(std::move(opts)),
-      seeked_(false) {}
-
-Status DMSIterator::Init(ScanSpec* spec) {
-  RETURN_NOT_OK(store_iter_.Init(spec));
-  initted_ = true;
-  return Status::OK();
-}
-
-DeltaMemStoreIterator::DeltaMemStoreIterator(const shared_ptr<const DeltaMemStore> dms)
-    : dms_(dms), iter_(dms->tree_.NewIterator()) {}
-
-void DeltaMemStoreIterator::IterateNext() {
-  iter_->Next();
-}
-
-Status DMSIterator::SeekToOrdinal(rowid_t row_idx) {
-  RETURN_NOT_OK(store_iter_.SeekToOrdinal(row_idx));
-  preparer_.Seek(row_idx);
-  seeked_ = true;
-  return Status::OK();
-}
-/*
-Status DMSIterator::PrepareBatchWithAtomicDeltas(
-    size_t nrows, int prepare_flags, std::vector<AtomicDeltasReader> atomic_deltas) {
-  rowid_t start_row = preparer_.cur_prepared_idx();
-  rowid_t stop_row = start_row + nrows - 1;
-
-  preparer_.Start(nrows, prepare_flags);
-  bool finished_row = false;
-  while (iter_->IsValid()) {
-    Slice key_slice, val;
-    iter_->GetCurrentEntry(&key_slice, &val);
-    DeltaKey key;
-    RETURN_NOT_OK(key.DecodeFrom(&key_slice));
-    rowid_t cur_row = key.row_idx();
-    DCHECK_GE(cur_row, start_row);
-
-    // If this delta is for the same row as before, skip it if the previous
-    // AddDelta() call told us that we're done with this row.
-    if (preparer_.last_added_idx() &&
-        preparer_.last_added_idx() == cur_row &&
-        finished_row) {
-      iter_->Next();
-      continue;
-    }
-    finished_row = false;
-
-    if (cur_row > stop_row) {
-      // Delta is for a row which comes after the block we're processing.
-      break;
-    }
-
-    // Note: if AddDelta() sets 'finished_row' to true, we could skip the
-    // remaining deltas for this row by seeking the tree iterator. This trades
-    // off the cost of a seek against the cost of decoding some irrelevant delta
-    // keys. Experimentation with a microbenchmark revealed that only when ~50
-    // deltas were skipped was the seek cheaper than the decoding.
-    //
-    // Given that updates are expected to be uncommon and that most scans are
-    // _not_ historical, the current implementation eschews seeking in favor of
-    // skipping irrelevant deltas one by one.
-    RETURN_NOT_OK(preparer_.AddDelta(key, val, &finished_row));
-    iter_->Next();
-  }
-  preparer_.Finish(nrows);
-  return Status::OK();
-}
-*/
-Status DMSIterator::PrepareBatch(size_t nrows, int prepare_flags) {
-  RETURN_NOT_OK(store_iter_.PrepareForBatch(nrows));
-  // This current implementation copies the whole batch worth of deltas
-  // into a buffer local to this iterator, after filtering out deltas which
-  // aren't yet committed in the current MVCC snapshot. The theory behind
-  // this approach is the following:
-
-  // Each batch needs to be processed once per column, meaning that unless
-  // we make a local copy, we'd have to reset the CBTree iterator back to the
-  // start of the batch and re-iterate for each column. CBTree iterators make
-  // local copies as they progress in order to shield from concurrent mutation,
-  // so with N columns, we'd end up making N copies of the data. Making a local
-  // copy here is instead a single copy of the data, so is likely faster.
-  CHECK(seeked_);
-  DCHECK(initted_) << "must init";
-  rowid_t start_row = preparer_.cur_prepared_idx();
-  rowid_t stop_row = start_row + nrows - 1;
-
-  preparer_.Start(nrows, prepare_flags);
-  bool finished_row = false;
-  while (store_iter_.HasNext()) {
-    DeltaKey key;
-    Slice val;
-    RETURN_NOT_OK(store_iter_.GetNextDelta(&key, &val));
-    rowid_t cur_row = key.row_idx();
-    DCHECK_GE(cur_row, start_row);
-
-    // If this delta is for the same row as before, skip it if the previous
-    // AddDelta() call told us that we're done with this row.
-    if (preparer_.last_added_idx() &&
-        preparer_.last_added_idx() == cur_row &&
-        finished_row) {
-      store_iter_.IterateNext();
-      continue;
-    }
-    finished_row = false;
-
-    if (cur_row > stop_row) {
-      // Delta is for a row which comes after the block we're processing.
-      break;
-    }
-
-    // Note: if AddDelta() sets 'finished_row' to true, we could skip the
-    // remaining deltas for this row by seeking the tree iterator. This trades
-    // off the cost of a seek against the cost of decoding some irrelevant delta
-    // keys. Experimentation with a microbenchmark revealed that only when ~50
-    // deltas were skipped was the seek cheaper than the decoding.
-    //
-    // Given that updates are expected to be uncommon and that most scans are
-    // _not_ historical, the current implementation eschews seeking in favor of
-    // skipping irrelevant deltas one by one.
-    RETURN_NOT_OK(preparer_.AddDelta(key, val, &finished_row));
-    store_iter_.IterateNext();
-  }
-  store_iter_.Finish(nrows);
-  preparer_.Finish(nrows);
-  return Status::OK();
-}
-
-Status DMSIterator::ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
-                                 const SelectionVector& filter) {
-  return preparer_.ApplyUpdates(col_to_apply, dst, filter);
-}
-
-Status DMSIterator::ApplyDeletes(SelectionVector* sel_vec) {
-  return preparer_.ApplyDeletes(sel_vec);
-}
-
-Status DMSIterator::SelectDeltas(SelectedDeltas* deltas) {
-  return preparer_.SelectDeltas(deltas);
-}
-
-Status DMSIterator::CollectMutations(vector<Mutation*>*dst, Arena* arena) {
-  return preparer_.CollectMutations(dst, arena);
-}
-
-Status DMSIterator::FilterColumnIdsAndCollectDeltas(const vector<ColumnId>& col_ids,
-                                                    vector<DeltaKeyAndUpdate>* out,
-                                                    Arena* arena) {
-  return preparer_.FilterColumnIdsAndCollectDeltas(col_ids, out, arena);
-}
-
-bool DMSIterator::HasNext() {
-  return store_iter_.HasNext();
-}
-
-bool DMSIterator::MayHaveDeltas() const {
-  return preparer_.MayHaveDeltas();
-}
-
-string DMSIterator::ToString() const {
-  return "DMSIterator";
-}
+      preparer_(std::move(opts)) {}
 
 } // namespace tablet
 } // namespace kudu

@@ -129,7 +129,7 @@ Status DeltaIteratorMerger::FilterColumnIdsAndCollectDeltas(
   return Status::OK();
 }
 
-bool DeltaIteratorMerger::HasNext() {
+bool DeltaIteratorMerger::HasNext() const {
   for (const unique_ptr<DeltaIterator>& iter : iters_) {
     if (iter->HasNext()) {
       return true;

@@ -341,33 +341,25 @@ class DeltaFileStoreIterator : public DeltaStoreIterator {
 //
 // See DeltaIterator for details.
 template <DeltaType Type>
-class DeltaFileIterator : public DeltaIterator {
+class DeltaFileIterator :
+    public DeltaPreparingIterator<DeltaPreparer<DeltaFilePreparerTraits<Type>>,
+                                  DeltaFileStoreIterator> {
  public:
-  Status Init(ScanSpec* spec) override;
-
-  Status SeekToOrdinal(rowid_t idx) override;
-
-  Status PrepareBatch(size_t nrows, int prepare_flags) override;
-
-  Status ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
-                      const SelectionVector& filter) override;
-
-  Status ApplyDeletes(SelectionVector* sel_vec) override;
-
-  Status SelectDeltas(SelectedDeltas* deltas) override;
-
-  Status CollectMutations(std::vector<Mutation*>*dst, Arena* arena) override;
-
-  Status FilterColumnIdsAndCollectDeltas(const std::vector<ColumnId>& col_ids,
-                                         std::vector<DeltaKeyAndUpdate>* out,
-                                         Arena* arena) override;
-
-  std::string ToString() const override;
-
-  bool HasNext() override;
-
-  bool MayHaveDeltas() const override;
-
+  std::string ToString() const override {
+    return strings::Substitute("DeltaFileIterator($0)", "TODO(awong): store_iter tostring");
+  }
+  const DeltaFileStoreIterator* store_iter() const override {
+    return &store_iter_;
+  }
+  const DeltaPreparer<DeltaFilePreparerTraits<Type>>* preparer() const override {
+    return &preparer_;
+  }
+  DeltaFileStoreIterator* store_iter() override {
+    return &store_iter_;
+  }
+  DeltaPreparer<DeltaFilePreparerTraits<Type>>* preparer() override {
+    return &preparer_;
+  }
  private:
   friend class DeltaFileReader;
 
@@ -376,8 +368,6 @@ class DeltaFileIterator : public DeltaIterator {
   // The pointers in 'opts' and 'dfr' must remain valid for the lifetime of the iterator.
   DeltaFileIterator(std::shared_ptr<DeltaFileReader> dfr,
                     RowIteratorOptions opts);
-
-  Status AddDeltas(rowid_t start_row, rowid_t stop_row);
 
   DeltaFileStoreIterator store_iter_;
   DeltaPreparer<DeltaFilePreparerTraits<Type>> preparer_;

@@ -49,7 +49,7 @@ class OrderedDeltaIteratorMerger : public DeltaIterator {
   Status FilterColumnIdsAndCollectDeltas(const std::vector<ColumnId>& col_ids,
                                          std::vector<DeltaKeyAndUpdate>* out,
                                          Arena* arena) override { return Status::OK(); }
-  bool HasNext() override { return true; }
+  bool HasNext() const override { return true; }
   bool MayHaveDeltas() const override { return true; }
   std::string ToString() const override { return ""; }
  private:
