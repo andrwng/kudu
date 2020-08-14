@@ -53,6 +53,7 @@ set(TABLET_SRCS
   delta_iterator_merger.cc
   delta_stats.cc
   delta_store.cc
+  delta_store_merger.cc
   delta_tracker.cc
   ordered_delta_iter_merger.cc
 )

@@ -416,6 +416,14 @@ struct DeltaFilePreparerTraits {
   static constexpr bool kInitializeDecodersWithSafetyChecks = true;
 };
 
+template <DeltaType Type>
+struct MergedDeltaPreparerTraits {
+  static constexpr DeltaType kType = Type;
+  static constexpr bool kAllowReinserts = true;
+  static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = true;
+  static constexpr bool kInitializeDecodersWithSafetyChecks = true;
+};
+
 // We might merge DMS and deltafiles together when merging atomic deltas, so
 // have the MergedAtomicDeltasIterator's preparer be the lowest common
 // denominator of the two.
