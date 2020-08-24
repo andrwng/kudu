@@ -366,7 +366,9 @@ class DeltaTracker {
   // The set of tracked REDO delta stores, in increasing timestamp order.
   SharedDeltaStoreVector redo_delta_stores_;
 
-  // The set of tracked UNDO delta stores, in decreasing timestamp order.
+  // The set of tracked UNDO delta stores, in decreasing timestamp order. If
+  // applying updates for a snapshot in the past, the delta stores should be
+  // applied in the order maintained by this list.
   SharedDeltaStoreVector undo_delta_stores_;
 
   typedef std::pair<std::unique_ptr<AtomicUndoStores>,

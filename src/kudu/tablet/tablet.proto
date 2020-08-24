@@ -29,6 +29,8 @@ message MemStoreTargetPB {
   // -1 defaults here are so that, if a caller forgets to check has_mrs_id(),
   // they won't accidentally see real-looking (i.e 0) IDs.
 
+  optional int64 txn_id = 4 [ default = -1 ];
+
   // Either this field...
   optional int64 mrs_id = 1 [ default = -1];
 

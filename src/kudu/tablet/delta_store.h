@@ -328,6 +328,7 @@ class DeltaStoreIterator {
   virtual Status GetNextDelta(DeltaKey* key, Slice* slice) = 0;
   virtual void IterateNext() = 0;
   virtual void Finish(size_t nrows) = 0;
+  virtual ~DeltaStoreIterator() = default;
 };
 
 // Iterates over batches.
@@ -424,20 +425,6 @@ struct MergedDeltaPreparerTraits {
   static constexpr bool kInitializeDecodersWithSafetyChecks = true;
 };
 
-// We might merge DMS and deltafiles together when merging atomic deltas, so
-// have the MergedAtomicDeltasIterator's preparer be the lowest common
-// denominator of the two.
-// TODO(awong): this is a little hacky. Consider refactoring the delta decoder
-// into the DeltaStoreIterator so each store can perform the appropriate checks
-// rather than doing the checks in the DeltaPreparer.
-template<DeltaType Type>
-struct MergedAtomicDeltasPreparerTraits {
-  static constexpr DeltaType kType = Type;
-  static constexpr bool kAllowReinserts = true;
-  static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = true;
-  static constexpr bool kInitializeDecodersWithSafetyChecks = true;
-};
-
 // Encapsulates all logic and responsibility related to "delta preparation";
 // that is, the transformation of encoded deltas into an in-memory
 // representation more suitable for efficient service during iteration.
@@ -477,6 +464,11 @@ class DeltaPreparer : public PreparedDeltas {
   // to deltas belonging to the next row.
   //
   // Call when a new delta becomes available in DeltaIterator::PrepareBatch.
+  //
+  // XXX(awong): also supply a transaction ID / commit timestamp.
+  // RowIteratorOptions should be extende with a transaction ID (or several)
+  // that indicate whether we can read uncommitted state (e.g. for
+  // read-modify-write transactions).
   Status AddDelta(const DeltaKey& key, Slice val, bool* finished_row);
 
   Status ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
@@ -622,7 +614,6 @@ class DeltaPreparingIterator : public DeltaIterator {
   bool HasNext() const override;
   bool MayHaveDeltas() const override;
 
-  virtual std::string ToString() const = 0;
   virtual DeltaStoreIterType* store_iter() = 0;
   virtual DeltaPreparerType* preparer() = 0;
   virtual const DeltaStoreIterType* store_iter() const = 0;

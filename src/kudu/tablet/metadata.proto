@@ -38,29 +38,33 @@ message DeltaDataPB {
 }
 
 message AtomicDeltasPB {
-  repeated DeltaDataPB deltas = 1;
+  // The transaction ID of the uncommitted transaction that created this delta.
+  // Should not be used if the parent rowset was created as a part of a
+  // transaction that is uncommitted -- instead, 'uncommitted_txn_id' should be
+  // set for the entire rowset.
+  optional int64 txn_id = 1;
 
-  oneof txn {
-    // The transaction ID of the uncommitted transaction that created this
-    // delta. Should not be used if the parent rowset was created as a part of
-    // a transaction that is uncommitted -- instead, 'uncommitted_txn_id'
-    // should be set for the entire rowset.
-    int64 uncommitted_txn_id = 2;
+  // The commit timestamp of the transaction that created this delta, if it has
+  // been committed.
+  optional int64 commit_timestamp = 2;
 
-    // The commit timestamp of the transaction that created this delta, if it
-    // has been committed.
-    int64 commit_timestamp = 3;
-  }
   // Only used if these are redo stores.
-  optional int64 last_flushed_dms_id = 4;
+  optional int64 last_flushed_dms_id = 3;
+
+  repeated DeltaDataPB deltas = 4;
 }
 
 message RowSetDataPB {
   required uint64 id = 1;
   required int64 last_durable_dms_id = 2;
   repeated ColumnDataPB columns = 3;
+
+  // Ordered in increasing timestamp order.
   repeated DeltaDataPB redo_deltas = 4;
+
+  // Ordered in decreasing timestamp order.
   repeated DeltaDataPB undo_deltas = 5;
+
   optional BlockIdPB bloom_block = 6;
   optional BlockIdPB adhoc_index_block = 7;
   optional bytes min_encoded_key = 8;
@@ -76,6 +80,9 @@ message RowSetDataPB {
 
   // REDOs to apply atomically, e.g. the REDOs associated with mutations made
   // during a transaction.
+
+  // The presence of these preclude the need to replay all mutation ops
+  // associated with this rowset, since we only flush once committed.
   repeated AtomicDeltasPB atomic_redo_deltas = 12;
 
   // UNDOs to apply atomically, e.g. the UNDOs associated with data inserted
