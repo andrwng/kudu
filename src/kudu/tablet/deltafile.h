@@ -23,40 +23,40 @@
 #include <mutex>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include <boost/optional/optional.hpp>
 #include <glog/logging.h>
 
+#include "kudu/cfile/binary_plain_block.h"
+#include "kudu/cfile/block_handle.h"
+#include "kudu/cfile/block_pointer.h"
 #include "kudu/cfile/cfile_reader.h"
 #include "kudu/cfile/cfile_writer.h"
+#include "kudu/cfile/index_btree.h"
 #include "kudu/common/rowid.h"
 #include "kudu/gutil/macros.h"
+#include "kudu/gutil/ref_counted.h"
+#include "kudu/gutil/stringprintf.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/delta_key.h"
 #include "kudu/tablet/delta_stats.h"
 #include "kudu/tablet/delta_store.h"
+#include "kudu/tablet/rowset.h"
 #include "kudu/util/faststring.h"
 #include "kudu/util/locks.h"
 #include "kudu/util/once.h"
-#include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
 namespace kudu {
 
-class Arena;
 class BlockId;
-class ColumnBlock;
 class FsManager;
 class MemTracker;
 class RowChangeList;
 class ScanSpec;
-class SelectionVector;
-struct ColumnId;
+class Slice;
 
 namespace cfile {
-class BinaryPlainBlockDecoder;
-class IndexTreeIterator;
 struct ReaderOptions;
 } // namespace cfile
 
@@ -69,9 +69,7 @@ struct IOContext;
 
 namespace tablet {
 
-class Mutation;
 class MvccSnapshot;
-struct RowIteratorOptions;
 
 class DeltaFileWriter {
  public:
@@ -205,6 +203,7 @@ class DeltaFileReader : public DeltaStore,
  private:
   template<DeltaType Type>
   friend class DeltaFileIterator;
+  friend class DeltaFileStoreIterator;
 
   DISALLOW_COPY_AND_ASSIGN(DeltaFileReader);
 
@@ -234,88 +233,146 @@ class DeltaFileReader : public DeltaStore,
   KuduOnceLambda init_once_;
 };
 
-struct PreparedDeltaBlock;
+// PrepareBatch() will read forward all blocks from the deltafile
+// which overlap with the block being prepared, enqueueing them onto
+// the 'delta_blocks_' deque. The prepared blocks are then used to
+// actually apply deltas in ApplyUpdates().
+struct PreparedDeltaBlock {
+  // The pointer from which this block was read. This is only used for
+  // logging, etc.
+  cfile::BlockPointer block_ptr_;
 
-// Iterator over the deltas contained in a delta file.
-//
-// See DeltaIterator for details.
-template <DeltaType Type>
-class DeltaFileIterator : public DeltaIterator {
+  // Handle to the block, so it doesn't get freed from underneath us.
+  scoped_refptr<cfile::BlockHandle> block_;
+
+  // The block decoder, to avoid having to re-parse the block header
+  // on every ApplyUpdates() call
+  std::unique_ptr<cfile::BinaryPlainBlockDecoder> decoder_;
+
+  // The first row index for which there is an update in this delta block.
+  rowid_t first_updated_idx_;
+
+  // The last row index for which there is an update in this delta block.
+  rowid_t last_updated_idx_;
+
+  // Within this block, the positional index of the first update that needs to
+  // be consulted. This allows deltas to be skipped at the beginning of the
+  // block when the row block starts towards the end of the delta block.
+  // For example:
+  // <-- delta block ---->
+  //                   <--- prepared row block --->
+  // Here, we can skip a bunch of deltas at the beginning of the delta block
+  // which we know don't apply to the prepared row block.
+  rowid_t prepared_block_start_idx_;
+
+  // Return a string description of this prepared block, for logging.
+  std::string ToString() const {
+    return StringPrintf("%d-%d (%s)", first_updated_idx_, last_updated_idx_,
+                        block_ptr_.ToString().c_str());
+  }
+};
+
+class DeltaFileStoreIterator : public DeltaStoreIterator {
  public:
+  DeltaFileStoreIterator(RowIteratorOptions opts,
+                         std::shared_ptr<DeltaFileReader> dfr)
+      : opts_(std::move(opts)),
+        cache_blocks_(cfile::CFileReader::CACHE_BLOCK),
+        initted_(false),
+        dfr_(std::move(dfr)) {}
   Status Init(ScanSpec* spec) override;
-
   Status SeekToOrdinal(rowid_t idx) override;
 
-  // PrepareBatch() will read forward all blocks from the deltafile
-  // which overlap with the block being prepared, enqueueing them onto
-  // the 'delta_blocks_' deque. The prepared blocks are then used to
-  // actually apply deltas in ApplyUpdates().
-  Status PrepareBatch(size_t nrows, int prepare_flags) override;
+  // Loads delta blocks for at least the next 'nrows' and prepares to start
+  // iterating through them.
+  Status PrepareForBatch(size_t nrows) override;
 
-  Status ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
-                      const SelectionVector& filter) override;
+  // Returns whether the delta store has the capacity to prepare more batches.
+  bool HasMoreDeltas() const override;
 
-  Status ApplyDeletes(SelectionVector* sel_vec) override;
+  // Returns whether there might be another delta in the current batch.
+  bool HasPreparedNext() const override;
 
-  Status SelectDeltas(SelectedDeltas* deltas) override;
+  Status GetNextDelta(DeltaKey* key, Slice* slice) override;
 
-  Status CollectMutations(std::vector<Mutation*>*dst, Arena* arena) override;
+  void IterateNext() override;
 
-  Status FilterColumnIdsAndCollectDeltas(const std::vector<ColumnId>& col_ids,
-                                         std::vector<DeltaKeyAndUpdate>* out,
-                                         Arena* arena) override;
+  // Used to indicate that the previously prepared batch of 'nrows' has been
+  // iterated through.
+  void Finish(size_t nrows) override;
 
-  std::string ToString() const override;
-
-  bool HasNext() override;
-
-  bool MayHaveDeltas() const override;
-
+  std::string ToString() const {
+    return dfr_->ToString();
+  }
  private:
-  friend class DeltaFileReader;
-
-  DISALLOW_COPY_AND_ASSIGN(DeltaFileIterator);
-
-  // The pointers in 'opts' and 'dfr' must remain valid for the lifetime of the iterator.
-  DeltaFileIterator(std::shared_ptr<DeltaFileReader> dfr,
-                    RowIteratorOptions opts);
-
   // Determine the row index of the first update in the block currently
   // pointed to by index_iter_.
   Status GetFirstRowIndexInCurrentBlock(rowid_t *idx);
 
   // Determine the last updated row index contained in the given decoded block.
   static Status GetLastRowIndexInDecodedBlock(
-    const cfile::BinaryPlainBlockDecoder &dec, rowid_t *idx);
+      const cfile::BinaryPlainBlockDecoder& dec, rowid_t *idx);
 
   // Read the current block of data from the current position in the file
-  // onto the end of the delta_blocks_ queue.
-  Status ReadCurrentBlockOntoQueue();
+  // onto the end of the load_blocks_.
+  Status LoadCurrentBlock();
 
-  Status AddDeltas(rowid_t start_row, rowid_t stop_row);
-
-  // Log a FATAL error message about a bad delta.
-  void FatalUnexpectedDelta(const DeltaKey &key, const Slice &deltas,
-                            const std::string &msg);
-
-  std::shared_ptr<DeltaFileReader> dfr_;
-
-  DeltaPreparer<DeltaFilePreparerTraits<Type>> preparer_;
-
-  std::unique_ptr<cfile::IndexTreeIterator> index_iter_;
-
-  bool prepared_;
-  bool exhausted_;
+  const RowIteratorOptions opts_;
+  cfile::CFileReader::CacheControl cache_blocks_;
   bool initted_;
 
-  // After PrepareBatch(), the set of delta blocks in the delta file
-  // which correspond to prepared_block_.
-  std::deque<std::unique_ptr<PreparedDeltaBlock>> delta_blocks_;
+  std::shared_ptr<DeltaFileReader> dfr_;
+  std::unique_ptr<cfile::IndexTreeIterator> index_iter_;
 
-  // Temporary buffer used in seeking.
-  faststring tmp_buf_;
+  // Indicates whether the index iter has more blocks available to be prepared.
+  bool index_has_more_blocks_ = false;
 
-  cfile::CFileReader::CacheControl cache_blocks_;
+  // Set when initially seeking and finishing a batch.
+  rowid_t cur_batch_start_idx_;
+
+  int cur_block_idx_ = 0;
+
+  // The default is an invalid value.
+  int idx_in_cur_block_ = -1;
+
+  std::deque<std::unique_ptr<PreparedDeltaBlock>> loaded_blocks_;
+};
+
+// Iterator over the deltas contained in a delta file.
+//
+// See DeltaIterator for details.
+template <DeltaType Type>
+class DeltaFileIterator :
+    public DeltaPreparingIterator<DeltaPreparer<DeltaFilePreparerTraits<Type>>,
+                                  DeltaFileStoreIterator> {
+ public:
+  std::string ToString() const override {
+    return strings::Substitute("DeltaFileIterator($0)", store_iter_.ToString());
+  }
+  const DeltaFileStoreIterator* store_iter() const override {
+    return &store_iter_;
+  }
+  DeltaFileStoreIterator* store_iter() override {
+    return &store_iter_;
+  }
+  const DeltaPreparer<DeltaFilePreparerTraits<Type>>* preparer() const override {
+    return &preparer_;
+  }
+  DeltaPreparer<DeltaFilePreparerTraits<Type>>* preparer() override {
+    return &preparer_;
+  }
+ private:
+  friend class DeltaFileReader;
+
+  // The pointers in 'opts' and 'dfr' must remain valid for the lifetime of the iterator.
+  DeltaFileIterator(std::shared_ptr<DeltaFileReader> dfr,
+                    const RowIteratorOptions& opts);
+
+  DeltaFileStoreIterator store_iter_;
+  DeltaPreparer<DeltaFilePreparerTraits<Type>> preparer_;
+
+  bool prepared_;
+  DISALLOW_COPY_AND_ASSIGN(DeltaFileIterator);
 };
 
 

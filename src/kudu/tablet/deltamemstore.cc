@@ -20,8 +20,8 @@
 #include <algorithm>
 #include <memory>
 #include <ostream>
+#include <vector>
 
-#include <boost/optional/optional.hpp>
 #include <glog/logging.h>
 
 #include "kudu/common/row_changelist.h"
@@ -194,126 +194,61 @@ int64_t DeltaMemStore::deleted_row_count() const {
   return count;
 }
 
+DeltaMemStoreIterator::DeltaMemStoreIterator(const shared_ptr<const DeltaMemStore>& dms)
+    : dms_(dms), iter_(dms->tree_.NewIterator()) {}
+
+void DeltaMemStoreIterator::IterateNext() {
+  iter_->Next();
+}
+
+Status DeltaMemStoreIterator::Init(ScanSpec* /*spec*/) {
+  return Status::OK();
+}
+
+Status DeltaMemStoreIterator::SeekToOrdinal(rowid_t idx) {
+  faststring buf;
+  DeltaKey key(idx, Timestamp(0));
+  key.EncodeTo(&buf);
+  bool exact; // unused
+  iter_->SeekAtOrAfter(Slice(buf), &exact);
+  return Status::OK();
+}
+
+Status DeltaMemStoreIterator::PrepareForBatch(size_t /*nrows*/) {
+  return Status::OK();
+}
+
+bool DeltaMemStoreIterator::HasMoreDeltas() const {
+  return iter_->IsValid();
+}
+
+bool DeltaMemStoreIterator::HasPreparedNext() const {
+  return iter_->IsValid();
+}
+
+Status DeltaMemStoreIterator::GetNextDelta(DeltaKey* key, Slice* slice) {
+  DCHECK(iter_->IsValid());
+  Slice key_slice;
+  Slice val_slice;
+  iter_->GetCurrentEntry(&key_slice, &val_slice);
+  DeltaKey delta_key;
+  RETURN_NOT_OK(delta_key.DecodeFrom(&key_slice));
+  *key = delta_key;
+  *slice = val_slice;
+  return Status::OK();
+}
+
+void DeltaMemStoreIterator::Finish(size_t /*nrows*/) {
+}
+
 ////////////////////////////////////////////////////////////
 // DMSIterator
 ////////////////////////////////////////////////////////////
 
 DMSIterator::DMSIterator(const shared_ptr<const DeltaMemStore>& dms,
                          RowIteratorOptions opts)
-    : dms_(dms),
-      preparer_(std::move(opts)),
-      iter_(dms->tree_.NewIterator()),
-      seeked_(false) {}
-
-Status DMSIterator::Init(ScanSpec* /*spec*/) {
-  initted_ = true;
-  return Status::OK();
-}
-
-Status DMSIterator::SeekToOrdinal(rowid_t row_idx) {
-  faststring buf;
-  DeltaKey key(row_idx, Timestamp(0));
-  key.EncodeTo(&buf);
-
-  bool exact; /* unused */
-  iter_->SeekAtOrAfter(Slice(buf), &exact);
-  preparer_.Seek(row_idx);
-  seeked_ = true;
-  return Status::OK();
-}
-
-Status DMSIterator::PrepareBatch(size_t nrows, int prepare_flags) {
-  // This current implementation copies the whole batch worth of deltas
-  // into a buffer local to this iterator, after filtering out deltas which
-  // aren't yet committed in the current MVCC snapshot. The theory behind
-  // this approach is the following:
-
-  // Each batch needs to be processed once per column, meaning that unless
-  // we make a local copy, we'd have to reset the CBTree iterator back to the
-  // start of the batch and re-iterate for each column. CBTree iterators make
-  // local copies as they progress in order to shield from concurrent mutation,
-  // so with N columns, we'd end up making N copies of the data. Making a local
-  // copy here is instead a single copy of the data, so is likely faster.
-  CHECK(seeked_);
-  DCHECK(initted_) << "must init";
-  rowid_t start_row = preparer_.cur_prepared_idx();
-  rowid_t stop_row = start_row + nrows - 1;
-
-  preparer_.Start(nrows, prepare_flags);
-  bool finished_row = false;
-  while (iter_->IsValid()) {
-    Slice key_slice, val;
-    iter_->GetCurrentEntry(&key_slice, &val);
-    DeltaKey key;
-    RETURN_NOT_OK(key.DecodeFrom(&key_slice));
-    rowid_t cur_row = key.row_idx();
-    DCHECK_GE(cur_row, start_row);
-
-    // If this delta is for the same row as before, skip it if the previous
-    // AddDelta() call told us that we're done with this row.
-    if (preparer_.last_added_idx() &&
-        preparer_.last_added_idx() == cur_row &&
-        finished_row) {
-      iter_->Next();
-      continue;
-    }
-    finished_row = false;
-
-    if (cur_row > stop_row) {
-      // Delta is for a row which comes after the block we're processing.
-      break;
-    }
-
-    // Note: if AddDelta() sets 'finished_row' to true, we could skip the
-    // remaining deltas for this row by seeking the tree iterator. This trades
-    // off the cost of a seek against the cost of decoding some irrelevant delta
-    // keys. Experimentation with a microbenchmark revealed that only when ~50
-    // deltas were skipped was the seek cheaper than the decoding.
-    //
-    // Given that updates are expected to be uncommon and that most scans are
-    // _not_ historical, the current implementation eschews seeking in favor of
-    // skipping irrelevant deltas one by one.
-    RETURN_NOT_OK(preparer_.AddDelta(key, val, &finished_row));
-    iter_->Next();
-  }
-  preparer_.Finish(nrows);
-  return Status::OK();
-}
-
-Status DMSIterator::ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
-                                 const SelectionVector& filter) {
-  return preparer_.ApplyUpdates(col_to_apply, dst, filter);
-}
-
-Status DMSIterator::ApplyDeletes(SelectionVector* sel_vec) {
-  return preparer_.ApplyDeletes(sel_vec);
-}
-
-Status DMSIterator::SelectDeltas(SelectedDeltas* deltas) {
-  return preparer_.SelectDeltas(deltas);
-}
-
-Status DMSIterator::CollectMutations(vector<Mutation*>*dst, Arena* arena) {
-  return preparer_.CollectMutations(dst, arena);
-}
-
-Status DMSIterator::FilterColumnIdsAndCollectDeltas(const vector<ColumnId>& col_ids,
-                                                    vector<DeltaKeyAndUpdate>* out,
-                                                    Arena* arena) {
-  return preparer_.FilterColumnIdsAndCollectDeltas(col_ids, out, arena);
-}
-
-bool DMSIterator::HasNext() {
-  return iter_->IsValid();
-}
-
-bool DMSIterator::MayHaveDeltas() const {
-  return preparer_.MayHaveDeltas();
-}
-
-string DMSIterator::ToString() const {
-  return "DMSIterator";
-}
+    : store_iter_(dms),
+      preparer_(std::move(opts)) {}
 
 } // namespace tablet
 } // namespace kudu

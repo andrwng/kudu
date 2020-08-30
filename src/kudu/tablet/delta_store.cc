@@ -39,6 +39,7 @@
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/tablet/delta_relevancy.h"
 #include "kudu/tablet/delta_stats.h"
+#include "kudu/tablet/deltamemstore.h"
 #include "kudu/tablet/deltafile.h"
 #include "kudu/tablet/mutation.h"
 #include "kudu/tablet/mvcc.h"
@@ -489,7 +490,7 @@ Status DeltaPreparer<Traits>::FilterColumnIdsAndCollectDeltas(
 }
 
 template<class Traits>
-bool DeltaPreparer<Traits>::MayHaveDeltas() const {
+bool DeltaPreparer<Traits>::BatchMayHaveDeltas() const {
   DCHECK(prepared_flags_ & DeltaIterator::PREPARE_FOR_APPLY);
   return may_have_deltas_;
 }
@@ -664,6 +665,80 @@ template
 Status WriteDeltaIteratorToFile<UNDO>(DeltaIterator* iter,
                                       size_t nrows,
                                       DeltaFileWriter* out);
+
+template <class DeltaPreparerType, class DeltaStoreIterType>
+Status DeltaPreparingIterator<DeltaPreparerType, DeltaStoreIterType>::PrepareBatch(
+    size_t nrows, int prepare_flags) {
+  RETURN_NOT_OK(store_iter()->PrepareForBatch(nrows));
+  // This current implementation copies the whole batch worth of deltas
+  // into a buffer local to this iterator, after filtering out deltas which
+  // aren't yet committed in the current MVCC snapshot. The theory behind
+  // this approach is the following:
+
+  // Each batch needs to be processed once per column, meaning that unless
+  // we make a local copy, we'd have to reset the CBTree iterator back to the
+  // start of the batch and re-iterate for each column. CBTree iterators make
+  // local copies as they progress in order to shield from concurrent mutation,
+  // so with N columns, we'd end up making N copies of the data. Making a local
+  // copy here is instead a single copy of the data, so is likely faster.
+  CHECK(seeked_);
+  DCHECK(initted_) << "must init";
+  rowid_t start_row = preparer()->cur_prepared_idx();
+  rowid_t stop_row = start_row + nrows - 1;
+
+  preparer()->Start(nrows, prepare_flags);
+  bool finished_row = false;
+  while (store_iter()->HasPreparedNext()) {
+    DeltaKey key;
+    Slice val;
+    RETURN_NOT_OK(store_iter()->GetNextDelta(&key, &val));
+    rowid_t cur_row = key.row_idx();
+    DCHECK_GE(cur_row, start_row);
+
+    // If this delta is for the same row as before, skip it if the previous
+    // AddDelta() call told us that we're done with this row.
+    if (preparer()->last_added_idx() &&
+        preparer()->last_added_idx() == cur_row &&
+        finished_row) {
+      store_iter()->IterateNext();
+      continue;
+    }
+    finished_row = false;
+
+    if (cur_row > stop_row) {
+      // Delta is for a row which comes after the block we're processing.
+      break;
+    }
+    if (cur_row < start_row) {
+      // Delta is for a row which comes before the block we're processing.
+      store_iter()->IterateNext();
+      continue;
+    }
+
+    // Note: if AddDelta() sets 'finished_row' to true, we could skip the
+    // remaining deltas for this row by seeking the tree iterator. This trades
+    // off the cost of a seek against the cost of decoding some irrelevant delta
+    // keys. Experimentation with a microbenchmark revealed that only when ~50
+    // deltas were skipped was the seek cheaper than the decoding.
+    //
+    // Given that updates are expected to be uncommon and that most scans are
+    // _not_ historical, the current implementation eschews seeking in favor of
+    // skipping irrelevant deltas one by one.
+    RETURN_NOT_OK(preparer()->AddDelta(key, val, &finished_row));
+    store_iter()->IterateNext();
+  }
+  store_iter()->Finish(nrows);
+  preparer()->Finish(nrows);
+  return Status::OK();
+}
+
+template
+class DeltaPreparingIterator<DeltaPreparer<DMSPreparerTraits>, DeltaMemStoreIterator>;
+template
+class DeltaPreparingIterator<DeltaPreparer<DeltaFilePreparerTraits<UNDO>>, DeltaFileStoreIterator>;
+template
+class DeltaPreparingIterator<DeltaPreparer<DeltaFilePreparerTraits<REDO>>, DeltaFileStoreIterator>;
+
 
 } // namespace tablet
 } // namespace kudu

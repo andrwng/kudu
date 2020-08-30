@@ -132,7 +132,7 @@ Status DeltaApplier::InitializeSelectionVector(SelectionVector *sel_vec) {
 Status DeltaApplier::MaterializeColumn(ColumnMaterializationContext *ctx) {
   DCHECK(!first_prepare_) << "PrepareBatch() must be called at least once";
   // Data with updates cannot be evaluated at the decoder-level.
-  if (delta_iter_->MayHaveDeltas()) {
+  if (delta_iter_->BatchMayHaveDeltas()) {
     ctx->SetDecoderEvalNotSupported();
     RETURN_NOT_OK(base_iter_->MaterializeColumn(ctx));
     RETURN_NOT_OK(delta_iter_->ApplyUpdates(ctx->col_idx(), ctx->block(), *ctx->sel()));

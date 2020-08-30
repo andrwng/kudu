@@ -299,7 +299,8 @@ class PreparedDeltas {
   // 'col_ids' to 'out'.
   //
   // Unlike CollectMutations, the iterator's MVCC snapshots are ignored; all
-  // deltas are considered relevant.
+  // deltas are considered relevant. This is useful when rewriting deltas
+  // stores, e.g. during compactions.
   //
   // The delta objects will be allocated out the provided Arena, which must be non-NULL.
   //
@@ -313,9 +314,58 @@ class PreparedDeltas {
   // evaluation.
   //
   // Deltas must have been prepared with the flag PREPARE_FOR_APPLY.
-  virtual bool MayHaveDeltas() const = 0;
+  virtual bool BatchMayHaveDeltas() const = 0;
 };
 
+// Encapsulates the state needed to iterate over the deltas in a delta store.
+// Deltas are returned in increasing row index order.
+class DeltaStoreIterator {
+ public:
+  virtual Status Init(ScanSpec* spec) = 0;
+
+  // Seeks into the underlying store iterators to the given row index.
+  // Depending on the implementation, may seek just past or just before the row
+  // index. It is thus up to the caller to determine whether deltas returned by
+  // this iterator fall within a row range.
+  virtual Status SeekToOrdinal(rowid_t idx) = 0;
+
+  // After calling, the iterator must be ready to iterate through deltas that
+  // need to be applied to the next 'nrows' rows.
+  // Must be called after a call to SeekToOrdinal() for the first batch, or
+  // after a call to Finish() from the previous batch.
+  virtual Status PrepareForBatch(size_t nrows) = 0;
+
+  // Returns whether or not the iterator has more rows in the current prepared
+  // batch. Callers should not rely on this returning false to demarcate the
+  // end of a row range. Instead, GetNextDelta() should be used and the rows
+  // should be checked against the desired row range.
+  virtual bool HasPreparedNext() const = 0;
+
+  // Returns whether there are more deltas to iterate over (not necessarily
+  // just in the current batch).
+  virtual bool HasMoreDeltas() const = 0;
+
+  // Returns the next delta in the prepared batch, which may not necessarily be
+  // for a row belonging to the expected 'nrows' range. Repeated calls will
+  // return the same delta until IterateNext() is called. Only returns results
+  // if HasPreparedNext() returns true.
+  virtual Status GetNextDelta(DeltaKey* key, Slice* slice) = 0;
+
+  // Moves the iterator onto the next delta key. Subsequent calls to HasNext()
+  // may return false if we've exhausted our prepared state.
+  //
+  // This may push the iterator past the current row range -- subsequent calls
+  // to PrepareForBatch should be OK with that, e.g. by re-seeking into
+  // existing state.
+  virtual void IterateNext() = 0;
+
+  // Indicates to the iterator that it has completed the current batch of size
+  // 'nrows'. Subsequent calls to PrepareForBatch() should prepare the iterator
+  // for the next 'nrows' rows (as opposed to examining the same row range).
+  virtual void Finish(size_t nrows) = 0;
+};
+
+// Interface to prepare and iterate over batches of deltas.
 class DeltaIterator : public PreparedDeltas {
  public:
   // Initialize the iterator. This must be called once before any other
@@ -366,7 +416,7 @@ class DeltaIterator : public PreparedDeltas {
   virtual Status PrepareBatch(size_t nrows, int prepare_flags) = 0;
 
   // Returns true if there are any more rows left in this iterator.
-  virtual bool HasNext() = 0;
+  virtual bool HasNext() const = 0;
 
   // Return a string representation suitable for debug printouts.
   virtual std::string ToString() const = 0;
@@ -377,8 +427,12 @@ class DeltaIterator : public PreparedDeltas {
 // DeltaPreparer traits suited for a DMSIterator.
 struct DMSPreparerTraits {
   static constexpr DeltaType kType = REDO;
+  // Inserts should always land in the MRS.
   static constexpr bool kAllowReinserts = false;
+  // Delta collection is only used during delta  compactions, which do not
+  // include the DMS.
   static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = false;
+  // The DMS is in memory, so we don't bother checking for corruption.
   static constexpr bool kInitializeDecodersWithSafetyChecks = false;
 };
 
@@ -389,8 +443,12 @@ struct DMSPreparerTraits {
 template<DeltaType Type>
 struct DeltaFilePreparerTraits {
   static constexpr DeltaType kType = Type;
+  // Merging multiple rowsets might yield reinserts in the on-disk stores.
   static constexpr bool kAllowReinserts = true;
+  // We may need to filter column IDs when performing a delta compaction.
   static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = true;
+  // We'll be reading on-disk state, so it's worth doing some extra
+  // verification.
   static constexpr bool kInitializeDecodersWithSafetyChecks = true;
 };
 
@@ -448,7 +506,7 @@ class DeltaPreparer : public PreparedDeltas {
                                          std::vector<DeltaKeyAndUpdate>* out,
                                          Arena* arena) override;
 
-  bool MayHaveDeltas() const override;
+  bool BatchMayHaveDeltas() const override;
 
   rowid_t cur_prepared_idx() const { return cur_prepared_idx_; }
   boost::optional<rowid_t> last_added_idx() const { return last_added_idx_; }
@@ -560,6 +618,66 @@ template<DeltaType Type>
 Status WriteDeltaIteratorToFile(DeltaIterator* iter,
                                 size_t nrows,
                                 DeltaFileWriter* out);
+
+template <class DeltaPreparerType, class DeltaStoreIterType>
+class DeltaPreparingIterator : public DeltaIterator {
+ public:
+  Status Init(ScanSpec* spec) override {
+    initted_ = true;
+    return store_iter()->Init(spec);
+  }
+
+  Status SeekToOrdinal(rowid_t row_idx) override {
+    RETURN_NOT_OK(store_iter()->SeekToOrdinal(row_idx));
+    preparer()->Seek(row_idx);
+    seeked_ = true;
+    return Status::OK();
+  }
+
+  // Prepares the next batch of deltas, deserializing into a format suitable
+  // for iteration.
+  Status PrepareBatch(size_t nrows, int prepare_flags) override;
+
+  // See PreparedDeltas for more details.
+  Status ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
+                      const SelectionVector& filter) override {
+    return preparer()->ApplyUpdates(col_to_apply, dst, filter);
+  }
+  Status ApplyDeletes(SelectionVector* sel_vec) override {
+    return preparer()->ApplyDeletes(sel_vec);
+  }
+  Status SelectDeltas(SelectedDeltas* deltas) override {
+    return preparer()->SelectDeltas(deltas);
+  }
+  Status CollectMutations(std::vector<Mutation*>* dst, Arena* arena) override {
+    return preparer()->CollectMutations(dst, arena);
+  }
+  Status FilterColumnIdsAndCollectDeltas(const std::vector<ColumnId>& col_ids,
+                                         std::vector<DeltaKeyAndUpdate>* out,
+                                         Arena* arena) override {
+    return preparer()->FilterColumnIdsAndCollectDeltas(col_ids, out, arena);
+  }
+  // Whether or not the current prepared batch may have deltas.
+  bool BatchMayHaveDeltas() const override {
+    return preparer()->BatchMayHaveDeltas();
+  }
+
+  // Whether or not the delta reading iterator has more deltas buffered or in
+  // the underlying store.
+  //
+  // If this returns true, GetNextDelta() should return successfully.
+  bool HasNext() const override {
+    return store_iter()->HasMoreDeltas();
+  }
+  virtual std::string ToString() const override = 0;
+  virtual const DeltaStoreIterType* store_iter() const = 0;
+  virtual DeltaStoreIterType* store_iter() = 0;
+  virtual const DeltaPreparerType* preparer() const = 0;
+  virtual DeltaPreparerType* preparer() = 0;
+ private:
+  bool seeked_ = false;
+  bool initted_ = false;
+};
 
 } // namespace tablet
 } // namespace kudu

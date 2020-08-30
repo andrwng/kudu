@@ -21,7 +21,6 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <vector>
 
 #include <boost/optional/optional.hpp>
 #include <boost/type_traits/decay.hpp>
@@ -44,13 +43,11 @@
 
 namespace kudu {
 
-class ColumnBlock;
 class MemTracker;
 class MemoryTrackingBufferAllocator;
 class RowChangeList;
 class ScanSpec;
-class SelectionVector;
-struct ColumnId;
+class Slice;
 
 namespace consensus {
 class OpId;
@@ -63,7 +60,7 @@ struct IOContext;
 namespace tablet {
 
 class DeltaFileWriter;
-class Mutation;
+class DeltaKey;
 struct RowIteratorOptions;
 
 struct DMSTreeTraits : public btree::BTreeTraits {
@@ -171,6 +168,7 @@ class DeltaMemStore : public DeltaStore,
 
  private:
   friend class DMSIterator;
+  friend class DeltaMemStoreIterator;
 
   const DMSTree& tree() const {
     return tree_;
@@ -209,6 +207,39 @@ class DeltaMemStore : public DeltaStore,
   DISALLOW_COPY_AND_ASSIGN(DeltaMemStore);
 };
 
+class DeltaMemStoreIterator : public DeltaStoreIterator {
+ public:
+  explicit DeltaMemStoreIterator(const std::shared_ptr<const DeltaMemStore>& dms);
+
+  Status Init(ScanSpec* spec) override;
+
+  Status SeekToOrdinal(rowid_t idx) override;
+
+  // Loads delta blocks for at least the next 'nrows' and prepares to start
+  // iterating through them.
+  Status PrepareForBatch(size_t nrows) override;
+
+  // Returns whether the delta store has the capacity to prepare more batches.
+  bool HasMoreDeltas() const override;
+
+  // Returns whether there might be another delta in the current batch.
+  bool HasPreparedNext() const override;
+
+  // Gets the value pointed to by the delta iterator. Requires that
+  // HasPreparedNext() returns true.
+  Status GetNextDelta(DeltaKey* key, Slice* slice) override;
+
+  // Moves the underlying iterator forward.
+  void IterateNext() override;
+
+  // Used to indicate that the previously prepared batch of 'nrows' has been
+  // iterated through.
+  void Finish(size_t nrows) override;
+ private:
+  const std::shared_ptr<const DeltaMemStore> dms_;
+  std::unique_ptr<DeltaMemStore::DMSTreeIter> iter_;
+};
+
 // Iterator over the deltas currently in the delta memstore.
 // This iterator is a wrapper around the underlying tree iterator
 // which snapshots sets of deltas on a per-block basis, and allows
@@ -218,33 +249,24 @@ class DeltaMemStore : public DeltaStore,
 //
 // See DeltaStore for more details on usage and the implemented
 // functions.
-class DMSIterator : public DeltaIterator {
+class DMSIterator :
+    public DeltaPreparingIterator<DeltaPreparer<DMSPreparerTraits>, DeltaMemStoreIterator> {
  public:
-  Status Init(ScanSpec* spec) override;
-
-  Status SeekToOrdinal(rowid_t row_idx) override;
-
-  Status PrepareBatch(size_t nrows, int prepare_flags) override;
-
-  Status ApplyUpdates(size_t col_to_apply, ColumnBlock* dst,
-                      const SelectionVector& filter) override;
-
-  Status ApplyDeletes(SelectionVector* sel_vec) override;
-
-  Status SelectDeltas(SelectedDeltas* deltas) override;
-
-  Status CollectMutations(std::vector<Mutation*>* dst, Arena* arena) override;
-
-  Status FilterColumnIdsAndCollectDeltas(const std::vector<ColumnId>& col_ids,
-                                         std::vector<DeltaKeyAndUpdate>* out,
-                                         Arena* arena) override;
-
-  std::string ToString() const override;
-
-  bool HasNext() override;
-
-  bool MayHaveDeltas() const override;
-
+  std::string ToString() const override {
+    return "DMSIterator";
+  }
+  const DeltaMemStoreIterator* store_iter() const override {
+    return &store_iter_;
+  }
+  DeltaMemStoreIterator* store_iter() override {
+    return &store_iter_;
+  }
+  const DeltaPreparer<DMSPreparerTraits>* preparer() const override {
+    return &preparer_;
+  }
+  DeltaPreparer<DMSPreparerTraits>* preparer() override {
+    return &preparer_;
+  }
  private:
   DISALLOW_COPY_AND_ASSIGN(DMSIterator);
   friend class DeltaMemStore;
@@ -256,16 +278,8 @@ class DMSIterator : public DeltaIterator {
   DMSIterator(const std::shared_ptr<const DeltaMemStore> &dms,
               RowIteratorOptions opts);
 
-  const std::shared_ptr<const DeltaMemStore> dms_;
-
+  DeltaMemStoreIterator store_iter_;
   DeltaPreparer<DMSPreparerTraits> preparer_;
-
-  std::unique_ptr<DeltaMemStore::DMSTreeIter> iter_;
-
-  bool initted_;
-
-  // True if SeekToOrdinal() been called at least once.
-  bool seeked_;
 };
 
 } // namespace tablet
