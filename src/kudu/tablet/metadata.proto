@@ -35,6 +35,7 @@ message ColumnDataPB {
 
 message DeltaDataPB {
   required BlockIdPB block = 2;
+  optional int64 txn_id = 3;
 }
 
 message RowSetDataPB {
@@ -107,6 +108,10 @@ message TxnMetadataPB {
   // set to true, Kudu should not create an MRS for this transaction when
   // bootstrapping.
   optional bool flushed_committed_mrs = 4;
+
+  // The highest ID of an MRS flushed for this transaction. Transactional ops
+  // with lower target MRS IDs need not be replayed on bootstrap.
+  optional int64 last_durable_mrs_id = 5;
 
   // TODO(awong): add an owner field to this for uncommitted transactions.
 }

@@ -48,6 +48,7 @@
 #include "kudu/common/scan_spec.h"
 #include "kudu/common/schema.h"
 #include "kudu/common/timestamp.h"
+#include "kudu/common/txn_id.h"
 #include "kudu/common/wire_protocol.pb.h"
 #include "kudu/consensus/log_anchor_registry.h"
 #include "kudu/consensus/opid.pb.h"
@@ -223,6 +224,7 @@ using std::pair;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
+using std::unordered_map;
 using std::unordered_set;
 using std::vector;
 using strings::Substitute;
@@ -325,7 +327,8 @@ Tablet::~Tablet() {
 } while (0)
 
 Status Tablet::Open(const unordered_set<int64_t>& in_flight_txn_ids,
-                    const unordered_set<int64_t>& txn_ids_with_mrs) {
+                    const unordered_set<int64_t>& txn_ids_with_mrs,
+                    const unordered_map<int64_t, int64_t>& last_durable_mrs_id_by_txn_id) {
   TRACE_EVENT0("tablet", "Tablet::Open");
   RETURN_IF_STOPPED_OR_CHECK_STATE(kInitialized);
 
@@ -345,6 +348,9 @@ Status Tablet::Open(const unordered_set<int64_t>& in_flight_txn_ids,
 
   fs::IOContext io_context({ tablet_id() });
   // open the tablet row-sets
+  // XXX(awong): separate out the DRSs that have transactional UNDOs, with
+  // transaction metadata that isn't committed. Such rowsets need to be added
+  // to the 'uncommitted_rs_by_txn_id' trees.
   for (const shared_ptr<RowSetMetadata>& rowset_meta : metadata_->rowsets()) {
     shared_ptr<DiskRowSet> rowset;
     Status s = DiskRowSet::Open(rowset_meta,
@@ -378,6 +384,21 @@ Status Tablet::Open(const unordered_set<int64_t>& in_flight_txn_ids,
     std::unordered_map<int64_t, scoped_refptr<TxnRowSets>> uncommitted_rs_by_txn_id;
     const auto txn_meta_by_id = metadata_->GetTxnMetadata();
     for (const auto& txn_id : txn_ids_with_mrs) {
+      const auto* last_durable_mrs_id = FindOrNull(last_durable_mrs_id_by_txn_id, txn_id);
+      if (last_durable_mrs_id) {
+        shared_ptr<MemRowSet> txn_mrs;
+        // NOTE: we are able to FindOrDie() on these IDs because
+        // 'txn_ids_with_mrs' is a subset of the transaction IDs known by the
+        // metadata.
+        RETURN_NOT_OK(MemRowSet::Create(*last_durable_mrs_id + 1, *schema(), txn_id,
+                                        FindOrDie(txn_meta_by_id, txn_id),
+                                        log_anchor_registry_.get(),
+                                        mem_trackers_.tablet_tracker,
+                                        &txn_mrs));
+        EmplaceOrDie(&uncommitted_rs_by_txn_id, txn_id,
+            new TxnRowSets(std::move(txn_mrs), {}));
+      }
+      // XXX(awong): if there's no 'last_durable_mrs_id', start at 0.
       shared_ptr<MemRowSet> txn_mrs;
       // NOTE: we are able to FindOrDie() on these IDs because
       // 'txn_ids_with_mrs' is a subset of the transaction IDs known by the
@@ -1350,14 +1371,32 @@ void Tablet::ModifyRowSetTree(const RowSetTree& old_tree,
 }
 
 void Tablet::AtomicSwapRowSets(const RowSetVector &to_remove,
-                               const RowSetVector &to_add) {
+                               const RowSetVector &to_add,
+                               const TxnId& uncommitted_txn_id) {
   std::lock_guard<rw_spinlock> lock(component_lock_);
   AtomicSwapRowSetsUnlocked(to_remove, to_add);
 }
 
-void Tablet::AtomicSwapRowSetsUnlocked(const RowSetVector &to_remove,
-                                       const RowSetVector &to_add) {
+void Tablet::AtomicSwapRowSetsUnlocked(const RowSetVector& to_remove,
+                                       const RowSetVector& to_add,
+                                       const TxnId& uncommitted_txn_id) {
   DCHECK(component_lock_.is_locked());
+  // If we're flushing uncommitted data, try to swap from our uncommitted
+  // rowsets.
+  if (uncommitted_txn_id.IsValid()) {
+    // Try to remove from the uncommitted rowsets.
+    auto txn_rowsets = FindPtrOrNull(uncommitted_rowsets_by_txn_id_, uncommitted_txn_id.value());
+    if (txn_rowsets && txn_rowsets->diskrowsets) {
+      // Update the existing rowsets to account for the update.
+      auto new_tree(make_shared<RowSetTree>());
+      ModifyRowSetTree(*txn_rowsets->diskrowsets, to_remove, to_add, new_tree.get());
+      CHECK(!EmplaceOrUpdate(&uncommitted_rowsets_by_txn_id_, uncommitted_txn_id.value(),
+          new TxnRowSets(txn_rowsets->memrowset, new_tree)));
+      return;
+    }
+    // If the uncommitted rowsets aren't there, we must have committed the
+    // transaction mid-flush, and must search through the committed rowsets.
+  }
 
   auto new_tree(make_shared<RowSetTree>());
   ModifyRowSetTree(*components_->rowsets, to_remove, to_add, new_tree.get());
@@ -1421,13 +1460,21 @@ Status Tablet::FlushUnlocked() {
   TRACE_EVENT0("tablet", "Tablet::FlushUnlocked");
   RETURN_NOT_OK(CheckHasNotBeenStopped());
   RowSetsInCompaction input;
-  vector<shared_ptr<MemRowSet>> old_mrss;
+  vector<shared_ptr<MemRowSet>> mrss_to_flush;
+  TxnId uncommitted_txn_id_to_flush;
+  int64_t main_mrs_id = -1;
   {
     // Create a new MRS with the latest schema.
     std::lock_guard<rw_spinlock> lock(component_lock_);
-    RETURN_NOT_OK(ReplaceMemRowSetsUnlocked(&input, &old_mrss));
-    DCHECK_GE(old_mrss.size(), 1);
+    RETURN_NOT_OK(ReplaceMemRowSetsUnlocked(&input, &mrss_to_flush, &uncommitted_txn_id_to_flush));
+    DCHECK_GE(mrss_to_flush.size(), 1);
+    main_mrs_id = components_->memrowset->mrs_id();
   }
+#ifndef NDEBUG
+  if (uncommitted_txn_id_to_flush.IsValid()) {
+    DCHECK_EQ(1, mrss_to_flush.size());
+  }
+#endif
 
   // Wait for any in-flight ops to finish against the old MRS before we flush
   // it.
@@ -1455,21 +1502,20 @@ Status Tablet::FlushUnlocked() {
   // used this, but not certain whether it's still doable with the new design.
 
   uint64_t start_insert_count = 0;
-  // Keep track of the main MRS.
-  int64_t main_mrs_id = -1;
-  vector<TxnInfoBeingFlushed> txns_being_flushed;
-  for (const auto& old_mrs : old_mrss) {
-    start_insert_count += old_mrs->debug_insert_count();
-    if (old_mrs->txn_id()) {
-      txns_being_flushed.emplace_back(*old_mrs->txn_id());
-    } else {
-      DCHECK_EQ(-1, main_mrs_id);
-      main_mrs_id = old_mrs->mrs_id();
+  TxnsBeingFlushed txns_being_flushed;
+  for (const auto& mrs : mrss_to_flush) {
+    start_insert_count += mrs->debug_insert_count();
+    if (mrs->txn_id()) {
+      // Keep track if we're flushing committed transactional state.
+      if (!uncommitted_txn_id_to_flush.IsValid()) {
+        txns_being_flushed.committed_txns.emplace_back(*mrs->txn_id());
+      }
+      EmplaceOrDie(&txns_being_flushed.last_durable_mrs_id_by_txn_id,
+                   *mrs->txn_id(), mrs->mrs_id());
     }
   }
-  DCHECK_NE(-1, main_mrs_id);
 
-  if (old_mrss.size() == 1 && old_mrss[0]->empty()) {
+  if (mrss_to_flush.size() == 1 && mrss_to_flush[0]->empty()) {
     // If we're flushing an empty RowSet, we can short circuit here rather than
     // waiting until the check at the end of DoCompactionAndFlush(). This avoids
     // the need to create cfiles and write their headers only to later delete
@@ -1485,8 +1531,8 @@ Status Tablet::FlushUnlocked() {
 
   if (VLOG_IS_ON(1)) {
     size_t memory_footprint = 0;
-    for (const auto& old_mrs : old_mrss) {
-      memory_footprint += old_mrs->memory_footprint();
+    for (const auto& mrs : mrss_to_flush) {
+      memory_footprint += mrs->memory_footprint();
     }
     VLOG_WITH_PREFIX(1) << Substitute("Flush: entering stage 1 (old memrowset"
                                       "already frozen for inserts). Memstore"
@@ -1497,8 +1543,8 @@ Status Tablet::FlushUnlocked() {
   RETURN_NOT_OK(DoMergeCompactionOrFlush(input, main_mrs_id, txns_being_flushed));
 
   uint64_t end_insert_count = 0;
-  for (const auto& old_mrs : old_mrss) {
-    end_insert_count += old_mrs->debug_insert_count();
+  for (const auto& mrs : mrss_to_flush) {
+    end_insert_count += mrs->debug_insert_count();
   }
   // Sanity check that no insertions happened during our flush.
   CHECK_EQ(start_insert_count, end_insert_count)
@@ -1509,15 +1555,55 @@ Status Tablet::FlushUnlocked() {
 }
 
 Status Tablet::ReplaceMemRowSetsUnlocked(RowSetsInCompaction* compaction,
-                                         vector<shared_ptr<MemRowSet>>* old_mrss) {
+                                         vector<shared_ptr<MemRowSet>>* old_mrss,
+                                         TxnId* txn_id_to_flush) {
   DCHECK(old_mrss->empty());
-  old_mrss->emplace_back(components_->memrowset);
+  vector<shared_ptr<MemRowSet>> committed_mrss;
+  size_t committed_size_bytes = components_->memrowset->memory_footprint();
+  committed_mrss.emplace_back(components_->memrowset);
   for (const auto& committed_mrs : components_->txn_memrowsets) {
-    old_mrss->emplace_back(committed_mrs);
+    committed_size_bytes += committed_mrs->memory_footprint();
+    committed_mrss.emplace_back(committed_mrs);
   }
+  size_t max_uncommitted_mrs_size_bytes = 0;
+  TxnId largest_uncommitted_mrs_txn_id;
+  scoped_refptr<TxnRowSets> most_memory_uncommitted_rowsets;
+  for (const auto& [txn_id, uncommitted_rowsets] : uncommitted_rowsets_by_txn_id_) {
+    const auto& txn_mrs_size = uncommitted_rowsets->memrowset->memory_footprint();
+    if (txn_mrs_size > max_uncommitted_mrs_size_bytes) {
+      most_memory_uncommitted_rowsets = uncommitted_rowsets;
+      largest_uncommitted_mrs_txn_id = txn_id;
+    }
+  }
+  // Determine whether there's an uncommitted transaction with a large MRS.
+  if (largest_uncommitted_mrs_txn_id.IsValid() &&
+      max_uncommitted_mrs_size_bytes > committed_size_bytes) {
+    const auto& old_mrs = most_memory_uncommitted_rowsets->memrowset;
+    std::unique_lock<std::mutex> ms_lock(*old_mrs->compact_flush_lock(), std::try_to_lock);
+    CHECK(ms_lock.owns_lock());
+    compaction->AddRowSet(old_mrs, std::move(ms_lock));
+    shared_ptr<MemRowSet> new_mrs;
+    RETURN_NOT_OK(MemRowSet::Create(most_memory_uncommitted_rowsets->next_mrs_id++, *schema(),
+                                    log_anchor_registry_.get(),
+                                    mem_trackers_.tablet_tracker,
+                                    &new_mrs));
+    auto new_rst(make_shared<RowSetTree>());
+    ModifyRowSetTree(*most_memory_uncommitted_rowsets->diskrowsets,
+                     RowSetVector(), // remove nothing
+                     { old_mrs }, // add the old MRS to the rowset tree
+                     new_rst.get());
+    CHECK(!EmplaceOrUpdate(&uncommitted_rowsets_by_txn_id_,
+                           largest_uncommitted_mrs_txn_id.value(),
+                           new TxnRowSets(new_mrs, new_rst)));
+    *old_mrss = { old_mrs };
+    *txn_id_to_flush = largest_uncommitted_mrs_txn_id;
+    return Status::OK();
+  }
+
+  // We're flushing the committed MRSs.
   // Mark the memrowsets as locked, so compactions won't consider it
   // for inclusion in any concurrent compactions.
-  for (auto& mrs : *old_mrss) {
+  for (auto& mrs : committed_mrss) {
     std::unique_lock<std::mutex> ms_lock(*mrs->compact_flush_lock(), std::try_to_lock);
     CHECK(ms_lock.owns_lock());
     compaction->AddRowSet(mrs, std::move(ms_lock));
@@ -1531,10 +1617,11 @@ Status Tablet::ReplaceMemRowSetsUnlocked(RowSetsInCompaction* compaction,
   auto new_rst(make_shared<RowSetTree>());
   ModifyRowSetTree(*components_->rowsets,
                    RowSetVector(), // remove nothing
-                   RowSetVector(old_mrss->begin(), old_mrss->end()), // add the old MRSs
+                   RowSetVector(committed_mrss.begin(), committed_mrss.end()), // add the old MRSs
                    new_rst.get());
   // Swap it in
   components_.reset(new TabletComponents(std::move(new_mrs), {}, std::move(new_rst)));
+  *old_mrss = std::move(committed_mrss);
   return Status::OK();
 }
 
@@ -1828,7 +1915,7 @@ void Tablet::CancelMaintenanceOps() {
 Status Tablet::FlushMetadata(const RowSetVector& to_remove,
                              const RowSetMetadataVector& to_add,
                              int64_t mrs_being_flushed,
-                             const vector<TxnInfoBeingFlushed>& txns_being_flushed) {
+                             const TxnsBeingFlushed& txns_being_flushed) {
   RowSetMetadataIds to_remove_meta;
   for (const shared_ptr<RowSet>& rowset : to_remove) {
     // Skip MemRowSet & DuplicatingRowSets which don't have metadata.
@@ -1844,7 +1931,7 @@ Status Tablet::FlushMetadata(const RowSetVector& to_remove,
 
 Status Tablet::DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
                                         int64_t mrs_being_flushed,
-                                        const vector<TxnInfoBeingFlushed>& txns_being_flushed) {
+                                        const TxnsBeingFlushed& txns_being_flushed) {
   const char *op_name =
         (mrs_being_flushed == TabletMetadata::kNoMrsFlushed) ? "Compaction" : "Flush";
   TRACE_EVENT2("tablet", "Tablet::DoMergeCompactionOrFlush",
@@ -2078,7 +2165,7 @@ Status Tablet::DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
 
 Status Tablet::HandleEmptyCompactionOrFlush(const RowSetVector& rowsets,
                                             int mrs_being_flushed,
-                                            const vector<TxnInfoBeingFlushed>& txns_being_flushed) {
+                                            const TxnsBeingFlushed& txns_being_flushed) {
   // Write out the new Tablet Metadata and remove old rowsets.
   RETURN_NOT_OK_PREPEND(FlushMetadata(rowsets,
                                       RowSetMetadataVector(),

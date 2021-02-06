@@ -35,6 +35,7 @@
 
 #include "kudu/common/iterator.h"
 #include "kudu/common/schema.h"
+#include "kudu/common/txn_id.h"
 #include "kudu/fs/io_context.h"
 #include "kudu/gutil/integral_types.h"
 #include "kudu/gutil/macros.h"
@@ -42,6 +43,7 @@
 #include "kudu/gutil/ref_counted.h"
 #include "kudu/gutil/threading/thread_collision_warner.h"
 #include "kudu/tablet/lock_manager.h"
+#include "kudu/tablet/memrowset.h"
 #include "kudu/tablet/mvcc.h"
 #include "kudu/tablet/rowset.h"
 #include "kudu/tablet/tablet_mem_trackers.h"
@@ -128,7 +130,8 @@ class Tablet {
   //
   // Upon completion, the tablet enters the kBootstrapping state.
   Status Open(const std::unordered_set<int64_t>& in_flight_txn_ids = std::unordered_set<int64_t>{},
-              const std::unordered_set<int64_t>& txn_ids_with_mrs = std::unordered_set<int64_t>{});
+              const std::unordered_set<int64_t>& txn_ids_with_mrs = std::unordered_set<int64_t>{},
+              const std::unordered_map<int64_t, int64_t>& last_durable_mrs_id_by_txn_id = {});
 
   // Mark that the tablet has finished bootstrapping.
   // This transitions from kBootstrapping to kOpen state.
@@ -660,14 +663,14 @@ class Tablet {
   // Performs a merge compaction or a flush.
   Status DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
                                   int64_t mrs_being_flushed,
-                                  const std::vector<TxnInfoBeingFlushed>& txns_being_flushed);
+                                  const TxnsBeingFlushed& txns_being_flushed);
 
   // Handle the case in which a compaction or flush yielded no output rows.
   // In this case, we just need to remove the rowsets in 'rowsets' from the
   // metadata and flush it.
   Status HandleEmptyCompactionOrFlush(const RowSetVector& rowsets,
                                       int mrs_being_flushed,
-                                      const std::vector<TxnInfoBeingFlushed>& txns_being_flushed);
+                                      const TxnsBeingFlushed& txns_being_flushed);
 
   // Updates the average rowset height metric. Acquires the tablet's
   // compact_select_lock_.
@@ -676,7 +679,7 @@ class Tablet {
   Status FlushMetadata(const RowSetVector& to_remove,
                        const RowSetMetadataVector& to_add,
                        int64_t mrs_being_flushed,
-                       const std::vector<TxnInfoBeingFlushed>& txns_being_flushed);
+                       const TxnsBeingFlushed& txns_being_flushed);
 
   static void ModifyRowSetTree(const RowSetTree& old_tree,
                                const RowSetVector& rowsets_to_remove,
@@ -686,12 +689,14 @@ class Tablet {
   // Swap out a set of rowsets, atomically replacing them with the new rowset
   // under the lock.
   void AtomicSwapRowSets(const RowSetVector &to_remove,
-                         const RowSetVector &to_add);
+                         const RowSetVector &to_add,
+                         const TxnId& uncommitted_txn_id = TxnId::kInvalidTxnId);
 
   // Same as the above, but without taking the lock. This should only be used
   // in cases where the lock is already held.
-  void AtomicSwapRowSetsUnlocked(const RowSetVector &to_remove,
-                                 const RowSetVector &to_add);
+  void AtomicSwapRowSetsUnlocked(const RowSetVector& to_remove,
+                                 const RowSetVector& to_add,
+                                 const TxnId& uncommitted_txn_id = TxnId::kInvalidTxnId);
 
   void GetComponents(scoped_refptr<TabletComponents>* comps) const {
     shared_lock<rw_spinlock> l(component_lock_);
@@ -709,7 +714,8 @@ class Tablet {
   // the 'compaction' input and the MemRowSets' compaction locks will be taken
   // to prevent the inclusion in any concurrent compactions.
   Status ReplaceMemRowSetsUnlocked(RowSetsInCompaction* compaction,
-                                   std::vector<std::shared_ptr<MemRowSet>>* old_mrss);
+                                   std::vector<std::shared_ptr<MemRowSet>>* old_mrss,
+                                   TxnId* txn_id_to_flush);
 
   // Convert the specified read client schema (without IDs) to a server schema (with IDs)
   // This method is used by NewRowIterator().
@@ -941,9 +947,14 @@ struct TabletComponents : public RefCountedThreadSafe<TabletComponents> {
 // TODO(awong): when we support flushing transactional MRSs before committing,
 // track uncommitted disk rowsets here.
 struct TxnRowSets : public RefCountedThreadSafe<TxnRowSets> {
-  explicit TxnRowSets(std::shared_ptr<MemRowSet> mrs)
-      : memrowset(std::move(mrs)) {}
+  explicit TxnRowSets(std::shared_ptr<MemRowSet> mrs,
+                      std::shared_ptr<RowSetTree> drss = std::make_shared<RowSetTree>())
+      : memrowset(std::move(mrs)),
+        diskrowsets(std::move(drss)),
+        next_mrs_id(memrowset->mrs_id() + 1) {}
   const std::shared_ptr<MemRowSet> memrowset;
+  const std::shared_ptr<RowSetTree> diskrowsets;
+  int next_mrs_id;
 };
 
 } // namespace tablet

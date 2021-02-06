@@ -467,6 +467,8 @@ class TabletBootstrap {
   // Transactions (committed or not) that have active MemRowSets.
   std::unordered_set<int64_t> mrs_txn_ids_;
 
+  std::unordered_map<int64_t, int64_t> last_flushed_mrs_id_by_txn_id_;
+
   DISALLOW_COPY_AND_ASSIGN(TabletBootstrap);
 };
 
@@ -615,7 +617,8 @@ Status TabletBootstrap::RunBootstrap(shared_ptr<Tablet>* rebuilt_tablet,
   }
 
   RETURN_NOT_OK(flushed_stores_.InitFrom(*tablet_meta_.get()));
-  tablet_meta_->GetTxnIds(&in_flight_txn_ids_, &terminal_txn_ids_, &mrs_txn_ids_);
+  tablet_meta_->GetTxnIds(&in_flight_txn_ids_, &terminal_txn_ids_, &mrs_txn_ids_,
+                          &last_flushed_mrs_id_by_txn_id_);
 
   bool has_blocks;
   RETURN_NOT_OK(OpenTablet(&has_blocks));
@@ -1737,7 +1740,13 @@ Status TabletBootstrap::FilterOperation(const OperationResultPB& op_result,
     if (mutated_store.has_rs_txn_id()) {
       // TODO(awong): once we begin flushing before commit, we'll need to have
       // this account for a last_flushed_mrs_id per transaction.
-      if (ContainsKey(mrs_txn_ids_, mutated_store.rs_txn_id())) {
+      const auto& txn_id = mutated_store.rs_txn_id();
+      auto* last_durable_mrs_id = FindOrNull(last_flushed_mrs_id_by_txn_id_, txn_id);
+      if (!last_durable_mrs_id ||
+          *last_durable_mrs_id < mutated_store.mrs_id()) {
+        num_active_stores++;
+      }
+      if (ContainsKey(mrs_txn_ids_, txn_id)) {
         num_active_stores++;
       }
       continue;

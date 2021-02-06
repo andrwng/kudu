@@ -529,7 +529,7 @@ Status TabletMetadata::LoadFromSuperBlock(const TabletSuperBlockPB& superblock) 
 Status TabletMetadata::UpdateAndFlush(const RowSetMetadataIds& to_remove,
                                       const RowSetMetadataVector& to_add,
                                       int64_t last_durable_mrs_id,
-                                      const vector<TxnInfoBeingFlushed>& txns_being_flushed) {
+                                      const TxnsBeingFlushed& txns_being_flushed) {
   {
     std::lock_guard<LockType> l(data_lock_);
     RETURN_NOT_OK(UpdateUnlocked(to_remove, to_add, last_durable_mrs_id, txns_being_flushed));
@@ -645,16 +645,20 @@ Status TabletMetadata::UpdateUnlocked(
     const RowSetMetadataIds& to_remove,
     const RowSetMetadataVector& to_add,
     int64_t last_durable_mrs_id,
-    const vector<TxnInfoBeingFlushed>& txns_being_flushed) {
+    const TxnsBeingFlushed& txns_being_flushed) {
   DCHECK(data_lock_.is_locked());
   CHECK_NE(state_, kNotLoadedYet);
   if (last_durable_mrs_id != kNoMrsFlushed) {
     DCHECK_GE(last_durable_mrs_id, last_durable_mrs_id_);
     last_durable_mrs_id_ = last_durable_mrs_id;
   }
-  for (const auto& txn_id : txns_being_flushed) {
+  for (const auto& txn_id : txns_being_flushed.committed_txns) {
     auto txn_meta = FindOrDie(txn_metadata_by_txn_id_, txn_id);
     txn_meta->set_flushed_committed_mrs_unlocked();
+  }
+  for (const auto& [txn_id, mrs_id] : txns_being_flushed.last_durable_mrs_id_by_txn_id) {
+    auto txn_meta = FindOrDie(txn_metadata_by_txn_id_, txn_id);
+    txn_meta->set_last_durable_mrs_id_unlocked(mrs_id);
   }
 
   RowSetMetadataVector new_rowsets = rowsets_;
@@ -761,6 +765,10 @@ Status TabletMetadata::ToSuperBlockUnlocked(TabletSuperBlockPB* super_block,
     }
     if (txn_meta->flushed_committed_mrs_unlocked()) {
       meta_pb.set_flushed_committed_mrs(true);
+    }
+    const auto& txn_last_durable_mrs_id = txn_meta->last_durable_mrs_id_unlocked();
+    if (txn_last_durable_mrs_id != -1) {
+      meta_pb.set_last_durable_mrs_id(txn_last_durable_mrs_id);
     }
     InsertOrDie(pb.mutable_txn_metadata(), txn_id_and_metadata.first, meta_pb);
   }
@@ -877,16 +885,18 @@ bool TabletMetadata::HasTxnMetadata(int64_t txn_id, TxnState* state, Timestamp* 
   return false;
 }
 
+// XXX(awong): should probably be updated to return the highest MRS ID flushed
+// per transaction.
 void TabletMetadata::GetTxnIds(unordered_set<int64_t>* in_flight_txn_ids,
                                unordered_set<int64_t>* terminal_txn_ids,
-                               unordered_set<int64_t>* txn_ids_with_mrs) {
+                               unordered_set<int64_t>* txn_ids_with_mrs,
+                               unordered_map<int64_t, int64_t>* last_flushed_mrs_id_by_txn_id) {
   std::unordered_set<int64_t> in_flights;
   std::unordered_set<int64_t> terminals;
   std::unordered_set<int64_t> needs_mrs;
+  std::unordered_map<int64_t, int64_t> last_flushed;
   std::lock_guard<LockType> l(data_lock_);
-  for (const auto& txn_id_and_metadata : txn_metadata_by_txn_id_) {
-    const auto& txn_id = txn_id_and_metadata.first;
-    const auto& txn_meta = txn_id_and_metadata.second;
+  for (const auto& [txn_id, txn_meta] : txn_metadata_by_txn_id_) {
     if (txn_meta->commit_timestamp() || txn_meta->aborted()) {
       if (terminal_txn_ids) {
         EmplaceOrDie(&terminals, txn_id);
@@ -901,6 +911,9 @@ void TabletMetadata::GetTxnIds(unordered_set<int64_t>* in_flight_txn_ids,
         !txn_meta->aborted()) {
       EmplaceOrDie(&needs_mrs, txn_id);
     }
+    if (txn_meta->last_durable_mrs_id_unlocked() != -1) {
+      EmplaceOrDie(&last_flushed, txn_id, txn_meta->last_durable_mrs_id_unlocked());
+    }
   }
   *in_flight_txn_ids = std::move(in_flights);
   if (terminal_txn_ids) {
@@ -908,6 +921,9 @@ void TabletMetadata::GetTxnIds(unordered_set<int64_t>* in_flight_txn_ids,
   }
   if (txn_ids_with_mrs) {
     *txn_ids_with_mrs = std::move(needs_mrs);
+  }
+  if (last_flushed_mrs_id_by_txn_id) {
+    *last_flushed_mrs_id_by_txn_id = std::move(last_flushed);
   }
 }
 
