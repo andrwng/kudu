@@ -154,6 +154,12 @@ Status DeltaMemStore::NewDeltaIterator(const RowIteratorOptions& opts,
   return Status::OK();
 }
 
+Status DeltaMemStore::NewDeltaStoreIterator(const RowIteratorOptions& /*opts*/,
+                                            unique_ptr<DeltaStoreIterator>* iterator) const {
+  iterator->reset(new DeltaMemStoreIterator(shared_from_this()));
+  return Status::OK();
+}
+
 Status DeltaMemStore::CheckRowDeleted(rowid_t row_idx,
                                       const IOContext* /*io_context*/,
                                       bool *deleted) const {

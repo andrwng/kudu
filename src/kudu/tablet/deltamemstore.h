@@ -119,11 +119,14 @@ class DeltaMemStore : public DeltaStore,
   // Returns Status::OK and sets 'iterator' to the new DeltaIterator, or
   // returns Status::NotFound if the mutations within this delta store
   // cannot include the snapshot.
-  virtual Status NewDeltaIterator(const RowIteratorOptions& opts,
-                                  std::unique_ptr<DeltaIterator>* iterator) const OVERRIDE;
+  Status NewDeltaIterator(const RowIteratorOptions& opts,
+                          std::unique_ptr<DeltaIterator>* iterator) const override;
 
-  virtual Status CheckRowDeleted(rowid_t row_idx, const fs::IOContext* io_context,
-                                 bool* deleted) const OVERRIDE;
+  Status NewDeltaStoreIterator(const RowIteratorOptions& opts,
+                               std::unique_ptr<DeltaStoreIterator>* iterator) const override;
+
+  Status CheckRowDeleted(rowid_t row_idx, const fs::IOContext* io_context,
+                         bool* deleted) const override;
 
   virtual uint64_t EstimateSize() const OVERRIDE {
     return arena_->memory_footprint();

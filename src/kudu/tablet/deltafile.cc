@@ -372,6 +372,41 @@ Status DeltaFileReader::NewDeltaIterator(const RowIteratorOptions& opts,
   return Status::NotFound("MvccSnapshot outside the range of this delta.");
 }
 
+Status DeltaFileReader::NewDeltaStoreIterator(const RowIteratorOptions& opts,
+                                              unique_ptr<DeltaStoreIterator>* iterator) const {
+  // XXX(awong): this should account for whether the commit timestamp.
+  if (IsRelevantForSnapshots(opts.snap_to_exclude, opts.snap_to_include)) {
+    if (VLOG_IS_ON(2)) {
+      if (!init_once_.init_succeeded()) {
+        TRACE_COUNTER_INCREMENT("delta_iterators_lazy_initted", 1);
+
+        VLOG(2) << (delta_type_ == REDO ? "REDO" : "UNDO") << " delta " << ToString()
+                << " has no delta stats"
+                << ": can't cull for " << opts.snap_to_include.ToString();
+      } else if (delta_type_ == REDO) {
+        VLOG(2) << "REDO delta " << ToString()
+                << " has min ts " << delta_stats_->min_timestamp().ToString()
+                << ": can't cull for " << opts.snap_to_include.ToString();
+      } else {
+        VLOG(2) << "UNDO delta " << ToString()
+                << " has max ts " << delta_stats_->max_timestamp().ToString()
+                << ": can't cull for " << opts.snap_to_include.ToString();
+      }
+    }
+
+    TRACE_COUNTER_INCREMENT("delta_iterators_relevant", 1);
+    // Ugly cast, but it lets the iterator fully initialize the reader
+    // during its first seek.
+    auto s_this = const_cast<DeltaFileReader*>(this)->shared_from_this();
+    iterator->reset(new DeltaFileStoreIterator(opts, std::move(s_this)));
+    return Status::OK();
+  }
+  VLOG(2) << "Culling "
+          << ((delta_type_ == REDO) ? "REDO":"UNDO")
+          << " delta " << ToString() << " for " << opts.snap_to_include.ToString();
+  return Status::NotFound("MvccSnapshot outside the range of this delta.");
+}
+
 Status DeltaFileReader::CheckRowDeleted(rowid_t row_idx, const IOContext* io_context,
                                         bool* deleted) const {
   RETURN_NOT_OK(const_cast<DeltaFileReader*>(this)->Init(io_context));

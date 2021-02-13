@@ -151,7 +151,6 @@ string DeltaIteratorMerger::ToString() const {
   return ret;
 }
 
-
 Status DeltaIteratorMerger::Create(
     const vector<shared_ptr<DeltaStore> > &stores,
     const RowIteratorOptions& opts,

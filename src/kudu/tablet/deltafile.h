@@ -163,6 +163,9 @@ class DeltaFileReader : public DeltaStore,
   Status NewDeltaIterator(const RowIteratorOptions& opts,
                           std::unique_ptr<DeltaIterator>* iterator) const override;
 
+  Status NewDeltaStoreIterator(const RowIteratorOptions& opts,
+                               std::unique_ptr<DeltaStoreIterator>* iterator) const override;
+
   // See DeltaStore::CheckRowDeleted
   Status CheckRowDeleted(rowid_t row_idx,
                          const fs::IOContext* io_context,

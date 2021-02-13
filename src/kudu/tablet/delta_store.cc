@@ -41,6 +41,7 @@
 #include "kudu/tablet/delta_stats.h"
 #include "kudu/tablet/deltamemstore.h"
 #include "kudu/tablet/deltafile.h"
+#include "kudu/tablet/delta_store_merger.h"
 #include "kudu/tablet/mutation.h"
 #include "kudu/tablet/mvcc.h"
 #include "kudu/util/debug-util.h"
@@ -572,6 +573,8 @@ void DeltaPreparer<Traits>::UpdateDeletionState(RowChangeList::ChangeType op) {
 template class DeltaPreparer<DMSPreparerTraits>;
 template class DeltaPreparer<DeltaFilePreparerTraits<REDO>>;
 template class DeltaPreparer<DeltaFilePreparerTraits<UNDO>>;
+template class DeltaPreparer<MergedDeltaPreparerTraits<REDO>>;
+template class DeltaPreparer<MergedDeltaPreparerTraits<UNDO>>;
 
 Status DebugDumpDeltaIterator(DeltaType type,
                               DeltaIterator* iter,
@@ -738,7 +741,12 @@ template
 class DeltaPreparingIterator<DeltaPreparer<DeltaFilePreparerTraits<UNDO>>, DeltaFileStoreIterator>;
 template
 class DeltaPreparingIterator<DeltaPreparer<DeltaFilePreparerTraits<REDO>>, DeltaFileStoreIterator>;
-
+template
+class DeltaPreparingIterator<DeltaPreparer<MergedDeltaPreparerTraits<UNDO>>,
+                                           DeltaStoreIteratorMerger<UNDO>>;
+template
+class DeltaPreparingIterator<DeltaPreparer<MergedDeltaPreparerTraits<REDO>>,
+                                           DeltaStoreIteratorMerger<REDO>>;
 
 } // namespace tablet
 } // namespace kudu

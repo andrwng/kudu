@@ -169,6 +169,8 @@ class SelectedDeltas {
   std::vector<boost::optional<DeltaPair>> rows_;
 };
 
+class DeltaStoreIterator;
+
 // Interface for the pieces of the system that track deltas/updates.
 // This is implemented by DeltaMemStore and by DeltaFileReader.
 class DeltaStore {
@@ -193,6 +195,9 @@ class DeltaStore {
   // cannot include the snapshot.
   virtual Status NewDeltaIterator(const RowIteratorOptions& opts,
                                   std::unique_ptr<DeltaIterator>* iterator) const = 0;
+
+  virtual Status NewDeltaStoreIterator(const RowIteratorOptions& opts,
+                                       std::unique_ptr<DeltaStoreIterator>* iterator) const = 0;
 
   // Set *deleted to true if the latest update for the given row is a deletion.
   virtual Status CheckRowDeleted(rowid_t row_idx, const fs::IOContext* io_context,
@@ -449,6 +454,14 @@ struct DeltaFilePreparerTraits {
   static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = true;
   // We'll be reading on-disk state, so it's worth doing some extra
   // verification.
+  static constexpr bool kInitializeDecodersWithSafetyChecks = true;
+};
+
+template <DeltaType Type>
+struct MergedDeltaPreparerTraits {
+  static constexpr DeltaType kType = Type;
+  static constexpr bool kAllowReinserts = true;
+  static constexpr bool kAllowFilterColumnIdsAndCollectDeltas = true;
   static constexpr bool kInitializeDecodersWithSafetyChecks = true;
 };
 
