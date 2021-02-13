@@ -366,6 +366,10 @@ class DeltaTracker {
   // The set of tracked UNDO delta stores, in decreasing timestamp order.
   SharedDeltaStoreVector undo_delta_stores_;
 
+  // The set of atomic UNDO delta stores.
+  // XXX(awong):
+  SharedDeltaStoreVector atomic_undo_delta_stores_;
+
   // The maintenance scheduler calls DeltaMemStoreEmpty() a lot.
   // We use an atomic variable to indicate whether DMS exists or not and
   // to avoid having to take component_lock_ in order to satisfy this call.
