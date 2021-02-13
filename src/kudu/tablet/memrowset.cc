@@ -698,6 +698,7 @@ Status MemRowSet::Iterator::ApplyMutationsToProjectedRow(
 }
 
 // Copy the current MRSRow to the 'dst_row' provided using the iterator projection schema.
+// XXX(awong): extend the signature to return a TxnMetaadata if not yet committed.
 Status MemRowSet::Iterator::GetCurrentRow(RowBlockRow* dst_row,
                                           Arena* row_arena,
                                           Mutation** redo_head,
@@ -705,17 +706,19 @@ Status MemRowSet::Iterator::GetCurrentRow(RowBlockRow* dst_row,
                                           Timestamp* insertion_timestamp) {
   DCHECK(boost::none == opts_.snap_to_exclude);
   DCHECK(redo_head != nullptr);
+  // XXX(awong): fix!
+  boost::optional<int64_t> iter_txn_id = boost::none;
 
   // Get the row from the MemRowSet. It may have a different schema from the iterator projection.
   MRSRow src_row = GetCurrentRow();
   const auto& mrs_txn_id = memrowset_->txn_id();
-  if (mrs_txn_id) {
-    // NOTE: we currently only support flushing committed MRSs.
+  if (mrs_txn_id && iter_txn_id != mrs_txn_id) {
     const auto& txn_meta = memrowset_->txn_metadata();
     CHECK(opts_.snap_to_include.IsCommitted(*txn_meta.get()));
     CHECK(boost::none != txn_meta->commit_timestamp());
     *insertion_timestamp = *txn_meta->commit_timestamp();
   } else {
+    // Either we're not part of a transaction or we haven't yet committed.
     *insertion_timestamp = src_row.insertion_timestamp();
   }
 

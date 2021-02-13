@@ -23,6 +23,7 @@
 #include "kudu/common/timestamp.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/strings/substitute.h"
+#include "kudu/tablet/txn_metadata.h"
 #include "kudu/util/slice.h"
 #include "kudu/util/status.h"
 
@@ -72,6 +73,9 @@ class DeltaKey {
 
   DeltaKey(rowid_t id, Timestamp timestamp)
       : row_idx_(id), timestamp_(timestamp) {}
+
+  DeltaKey(rowid_t id, Timestamp timestamp, TxnMetadata* txn_meta)
+      : row_idx_(id), timestamp_(timestamp), txn_metadata_(DCHECK_NOTNULL(txn_meta)) {}
 
   // Encode this key into the given buffer.
   //
@@ -131,6 +135,11 @@ class DeltaKey {
 
   // The timestamp of the op which applied the update.
   Timestamp timestamp_;
+
+  // The transaction that applied this delta.
+  // Callers should ensure that the underlying TxnMetadata outlives this
+  // reference.
+  TxnMetadata* txn_metadata_;
 };
 
 template<>

@@ -140,6 +140,9 @@ class MemRowSetCompactionInput : public CompactionInput {
       CompactionInputRow& input_row = block->at(next_row_index);
       input_row.row.Reset(row_block_.get(), next_row_index);
       Timestamp insertion_timestamp;
+      // XXX(awong): extend signature with TxnMetadata. Also we need to pass
+      // the TxnId as an input so we know that we should actually get the row
+      // back if not yet committed.
       RETURN_NOT_OK(iter_->GetCurrentRow(&input_row.row,
                                          static_cast<Arena*>(nullptr),
                                          &input_row.redo_head,

@@ -248,7 +248,9 @@ class TabletMetadata : public RefCountedThreadSafe<TabletMetadata> {
   // Create a new RowSetMetadata for this tablet.
   // Does not add the new rowset to the list of rowsets. Use one of the Update()
   // calls to do so.
-  Status CreateRowSet(std::shared_ptr<RowSetMetadata>* rowset);
+  Status CreateRowSet(std::shared_ptr<RowSetMetadata>* rowset,
+                      const TxnId& txn_id = TxnId::kInvalidTxnId,
+                      const TxnMetadata* txn_metadata = nullptr);
 
   // Records the fact that the given transaction ID has been started, adopting
   // the anchor until the metadata is flushed. The transaction must not already

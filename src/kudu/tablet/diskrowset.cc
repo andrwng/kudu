@@ -320,12 +320,16 @@ size_t DiskRowSetWriter::written_size() const {
 DiskRowSetWriter::~DiskRowSetWriter() {
 }
 
+// XXX(awong): pass the txn Id here for UNDOs?
 RollingDiskRowSetWriter::RollingDiskRowSetWriter(
     TabletMetadata* tablet_metadata, const Schema& schema,
-    BloomFilterSizing bloom_sizing, size_t target_rowset_size)
+    BloomFilterSizing bloom_sizing, size_t target_rowset_size,
+    const TxnId& txn_id, TxnMetadata* txn_metadata)
     : state_(kInitialized),
       tablet_metadata_(DCHECK_NOTNULL(tablet_metadata)),
       schema_(schema),
+      txn_id_(txn_id),
+      txn_metadata_(txn_metadata),
       bloom_sizing_(bloom_sizing),
       target_rowset_size_(target_rowset_size),
       row_idx_in_cur_drs_(0),
@@ -351,7 +355,7 @@ Status RollingDiskRowSetWriter::RollWriter() {
   // Close current writer if it is open
   RETURN_NOT_OK(FinishCurrentWriter());
 
-  RETURN_NOT_OK(tablet_metadata_->CreateRowSet(&cur_drs_metadata_));
+  RETURN_NOT_OK(tablet_metadata_->CreateRowSet(&cur_drs_metadata_, txn_id_, txn_metadata_));
 
   cur_writer_.reset(new DiskRowSetWriter(cur_drs_metadata_.get(), &schema_, bloom_sizing_));
   RETURN_NOT_OK(cur_writer_->Open());

@@ -421,7 +421,7 @@ Status MajorDeltaCompaction::UpdateDeltaTracker(DeltaTracker* tracker,
   }
   SharedDeltaStoreVector new_redo_stores;
   RETURN_NOT_OK(tracker->OpenDeltaReaders(std::move(new_redo_blocks), io_context,
-                                          &new_redo_stores, REDO));
+                                          /*txn_metadata*/nullptr, &new_redo_stores, REDO));
 
   // Create blocks for the new undo deltas.
   SharedDeltaStoreVector new_undo_stores;
@@ -430,7 +430,7 @@ Status MajorDeltaCompaction::UpdateDeltaTracker(DeltaTracker* tracker,
     new_undo_blocks.emplace_back(std::make_pair(new_undo_delta_block_,
         new_undo_delta_writer_->release_delta_stats()));
     RETURN_NOT_OK(tracker->OpenDeltaReaders(std::move(new_undo_blocks), io_context,
-                                            &new_undo_stores, UNDO));
+                                            /*txn_metadata*/nullptr, &new_undo_stores, UNDO));
   }
 
   // 2. Only now that we cannot fail do we update the in-memory state.

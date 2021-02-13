@@ -103,6 +103,7 @@ DeltaTracker::DeltaTracker(shared_ptr<RowSetMetadata> rowset_metadata,
 
 Status DeltaTracker::OpenDeltaReaders(vector<DeltaBlockIdAndStats> blocks,
                                       const IOContext* io_context,
+                                      TxnMetadata* txn_metadata,
                                       vector<shared_ptr<DeltaStore> >* stores,
                                       DeltaType type) {
   FsManager* fs = rowset_metadata_->fs_manager();
@@ -126,6 +127,7 @@ Status DeltaTracker::OpenDeltaReaders(vector<DeltaBlockIdAndStats> blocks,
                                     type,
                                     std::move(options),
                                     std::move(stats),
+                                    txn_metadata,
                                     &dfr);
     if (!s.ok()) {
       LOG_WITH_PREFIX(ERROR) << "Failed to open " << DeltaType_Name(type)
@@ -154,14 +156,18 @@ Status DeltaTracker::DoOpen(const IOContext* io_context) {
   }
   RETURN_NOT_OK(OpenDeltaReaders(std::move(redos),
                                  io_context,
+                                 nullptr,
                                  &redo_delta_stores_,
                                  REDO));
   vector<DeltaBlockIdAndStats> undos;
   for (auto block_id : rowset_metadata_->undo_delta_blocks()) {
     undos.emplace_back(std::make_pair(block_id, nullptr));
   }
+  // XXX(awong): make sure that if we have a non-null TxnMetadata, there's only
+  // one undo reader.
   RETURN_NOT_OK(OpenDeltaReaders(std::move(undos),
                                  io_context,
+                                 rowset_metadata_->txn_metadata(),
                                  &undo_delta_stores_,
                                  UNDO));
 
@@ -377,7 +383,7 @@ Status DeltaTracker::CommitDeltaStoreMetadataUpdate(const RowSetMetadataUpdate& 
 
   SharedDeltaStoreVector new_stores;
   RETURN_NOT_OK_PREPEND(OpenDeltaReaders(std::move(new_delta_blocks), io_context,
-                                         &new_stores, type),
+                                         /*txn_metadata*/nullptr, &new_stores, type),
                         "Unable to open delta blocks");
 
   BlockIdContainer removed_blocks;
@@ -779,6 +785,7 @@ Status DeltaTracker::FlushDMS(DeltaMemStore* dms,
                                             REDO,
                                             std::move(options),
                                             std::move(stats),
+                                            nullptr,
                                             dfr));
   VLOG_WITH_PREFIX(1) << "Opened new delta block " << block_id.ToString() << " for read";
 

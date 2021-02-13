@@ -77,7 +77,9 @@ class RowSetMetadata {
   // Create a new RowSetMetadata
   static Status CreateNew(TabletMetadata* tablet_metadata,
                           int64_t id,
-                          std::unique_ptr<RowSetMetadata>* metadata);
+                          std::unique_ptr<RowSetMetadata>* metadata,
+                          const TxnId& txn_id = TxnId::kInvalidTxnId,
+                          TxnMetadata* txn_metadata = nullptr);
 
   // Load metadata from a protobuf which was previously read from disk.
   static Status Load(TabletMetadata* tablet_metadata,
@@ -143,7 +145,6 @@ class RowSetMetadata {
     std::lock_guard<LockType> l(lock_);
     max_encoded_key_ = std::move(max_encoded_key);
   }
-
   std::string min_encoded_key() const {
     std::lock_guard<LockType> l(lock_);
     DCHECK(min_encoded_key_ != boost::none);
@@ -237,6 +238,14 @@ class RowSetMetadata {
   // Returns the number of live rows in this metadata.
   int64_t live_row_count() const;
 
+  boost::optional<int64_t> txn_id() const {
+    return txn_id_;
+  }
+
+  TxnMetadata* txn_metadata() const {
+    return txn_metadata_;
+  }
+
  private:
   friend class TabletMetadata;
 
@@ -250,10 +259,14 @@ class RowSetMetadata {
   }
 
   RowSetMetadata(TabletMetadata *tablet_metadata,
-                 int64_t id)
+                 int64_t id,
+                 const TxnId& txn_id,
+                 TxnMetadata* txn_metadata)
     : tablet_metadata_(DCHECK_NOTNULL(tablet_metadata)),
       initted_(true),
       id_(id),
+      txn_id_(txn_id.IsValid() ? boost::make_optional(txn_id.value()) : boost::none),
+      txn_metadata_(txn_metadata),
       last_durable_redo_dms_id_(kNoDurableMemStore),
       live_row_count_(0) {
   }
@@ -265,6 +278,15 @@ class RowSetMetadata {
   TabletMetadata* const tablet_metadata_;
   bool initted_;
   int64_t id_;
+
+  // XXX(awong): the transaction that wrote the base data of this rowset. All
+  // UNDOs for this rowset are relevant based on the commit status of this
+  // transaction.
+  //
+  // Q: Is it possible to have UNDOs for multiple transactions?
+  // A: Not in a single delta file.
+  boost::optional<int64_t> txn_id_;
+  TxnMetadata* txn_metadata_;
 
   // Protects the below mutable fields.
   mutable LockType lock_;

@@ -121,6 +121,13 @@ inline bool IsDeltaRelevantForSelect(const MvccSnapshot& snap_start,
       snap_end.IsApplied(delta_ts_start);
 }
 
+inline bool IsDeltaRelevantForSelect(const MvccSnapshot& snap_start,
+                                     const MvccSnapshot& snap_end,
+                                     const TxnMetadata& txn_metadata) {
+  return !snap_start.IsCommitted(txn_metadata) &&
+      snap_end.IsCommitted(txn_metadata);
+}
+
 // A variant of IsDeltaRelevantForSelect that operates on a single delta's
 // timestamp given by 'delta_ts', and if the delta is not relevant, further
 // checks whether any remaining deltas for this row can be skipped; this is an
@@ -175,6 +182,57 @@ inline bool IsDeltaRelevantForSelect<UNDO>(const MvccSnapshot& snap_start,
     return false;
   }
   return true;
+}
+
+/////////////////////////
+// Transaction variants
+/////////////////////////
+
+template<DeltaType Type>
+inline bool IsDeltaRelevantForApply(const MvccSnapshot& snap,
+                                    const TxnMetadata& txn_metadata);
+template<>
+inline bool IsDeltaRelevantForApply<REDO>(const MvccSnapshot& snap,
+                                          const TxnMetadata& txn_metadata) {
+  if (snap.IsCommitted(txn_metadata)) {
+    return true;
+  }
+  return false;
+}
+
+template<>
+inline bool IsDeltaRelevantForApply<UNDO>(const MvccSnapshot& snap,
+                                          const TxnMetadata& txn_metadata) {
+  if (!snap.IsCommitted(txn_metadata)) {
+    return true;
+  }
+  return false;
+}
+
+// TODO(awong): is there room for MayHaveNonAppliedOpsAtOrBefore() here?
+template<DeltaType Type>
+inline bool IsDeltaRelevantForSelect(const MvccSnapshot& snap_start,
+                                     const MvccSnapshot& snap_end,
+                                     const TxnMetadata& txn_meta);
+
+template<>
+inline bool IsDeltaRelevantForSelect<REDO>(const MvccSnapshot& snap_start,
+                                           const MvccSnapshot& snap_end,
+                                           const TxnMetadata& txn_meta) {
+  if (snap_start.IsCommitted(txn_meta)) {
+    return false;
+  }
+  return snap_end.IsCommitted(txn_meta);
+}
+
+template<>
+inline bool IsDeltaRelevantForSelect<UNDO>(const MvccSnapshot& snap_start,
+                                           const MvccSnapshot& snap_end,
+                                           const TxnMetadata& txn_meta) {
+  if (!snap_end.IsCommitted(txn_meta)) {
+    return false;
+  }
+  return !snap_start.IsCommitted(txn_meta);
 }
 
 } // namespace tablet

@@ -168,7 +168,9 @@ class RollingDiskRowSetWriter {
   // that this RollingDiskRowSetWriter creates.
   RollingDiskRowSetWriter(TabletMetadata* tablet_metadata, const Schema& schema,
                           BloomFilterSizing bloom_sizing,
-                          size_t target_rowset_size);
+                          size_t target_rowset_size,
+                          const TxnId& txn_id = TxnId::kInvalidTxnId,
+                          TxnMetadata* txn_metadata = nullptr);
   ~RollingDiskRowSetWriter();
 
   Status Open();
@@ -244,6 +246,9 @@ class RollingDiskRowSetWriter {
 
   TabletMetadata* tablet_metadata_;
   const Schema schema_;
+  const TxnId txn_id_;
+  TxnMetadata* txn_metadata_;
+
   std::shared_ptr<RowSetMetadata> cur_drs_metadata_;
   const BloomFilterSizing bloom_sizing_;
   const size_t target_rowset_size_;

@@ -224,6 +224,7 @@ Status DeltaFileReader::Open(unique_ptr<ReadableBlock> block,
                                             delta_type,
                                             std::move(options),
                                             /*delta_stats*/nullptr,
+                                            /*txn_metadata*/nullptr,
                                             &df_reader));
   RETURN_NOT_OK(df_reader->Init(io_context));
 
@@ -235,6 +236,7 @@ Status DeltaFileReader::OpenNoInit(unique_ptr<ReadableBlock> block,
                                    DeltaType delta_type,
                                    ReaderOptions options,
                                    unique_ptr<DeltaStats> delta_stats,
+                                   TxnMetadata* txn_metadata,
                                    shared_ptr<DeltaFileReader>* reader_out) {
   unique_ptr<CFileReader> cf_reader;
   const IOContext* io_context = options.io_context;
@@ -242,7 +244,7 @@ Status DeltaFileReader::OpenNoInit(unique_ptr<ReadableBlock> block,
                                         std::move(options),
                                         &cf_reader));
   unique_ptr<DeltaFileReader> df_reader(
-      new DeltaFileReader(std::move(cf_reader), std::move(delta_stats), delta_type));
+      new DeltaFileReader(std::move(cf_reader), std::move(delta_stats), delta_type, txn_metadata));
   if (!FLAGS_cfile_lazy_open) {
     RETURN_NOT_OK(df_reader->Init(io_context));
   }
@@ -254,8 +256,10 @@ Status DeltaFileReader::OpenNoInit(unique_ptr<ReadableBlock> block,
 
 DeltaFileReader::DeltaFileReader(unique_ptr<CFileReader> cf_reader,
                                  unique_ptr<DeltaStats> delta_stats,
-                                 DeltaType delta_type)
-    : reader_(cf_reader.release()),
+                                 DeltaType delta_type,
+                                 TxnMetadata* txn_metadata)
+    : txn_metadata_(txn_metadata),
+      reader_(cf_reader.release()),
       delta_stats_(std::move(delta_stats)),
       delta_type_(delta_type) {}
 
@@ -305,6 +309,20 @@ bool DeltaFileReader::IsRelevantForSnapshots(
     // assume that this file is relevant for every snapshot.
     return true;
   }
+  if (txn_metadata_) {
+    bool relevant = delta_type_ == REDO ?
+                    IsDeltaRelevantForApply<REDO>(snap_to_include,
+                                                  *txn_metadata_.get()) :
+                    IsDeltaRelevantForApply<UNDO>(snap_to_include,
+                                                  *txn_metadata_.get());
+    if (snap_to_exclude) {
+      relevant |= IsDeltaRelevantForSelect(*snap_to_exclude, snap_to_include,
+                                           *txn_metadata_.get());
+    }
+    return relevant;
+  }
+  // XXX(awong): if this is a transactional delta file reader, determine the
+  // delta relevancy based on the commit timestamp.
 
   // We don't know whether the caller's intent is to apply deltas, to select
   // them, or both. As such, we must be conservative and assume 'both', which
@@ -331,7 +349,7 @@ Status DeltaFileReader::CloneForDebugging(FsManager* fs_manager,
   ReaderOptions options;
   options.parent_mem_tracker = parent_mem_tracker;
   return DeltaFileReader::OpenNoInit(std::move(block), delta_type_, options,
-                                     /*delta_stats*/nullptr, out);
+                                     /*delta_stats*/nullptr, txn_metadata_.get(), out);
 }
 
 Status DeltaFileReader::NewDeltaIterator(const RowIteratorOptions& opts,
@@ -622,6 +640,13 @@ bool DeltaFileStoreIterator::HasPreparedNext() const {
 Status DeltaFileStoreIterator::GetNextDelta(DeltaKey* key, Slice* slice) {
   DCHECK_LT(cur_block_idx_, loaded_blocks_.size());
   DCHECK_NE(-1, idx_in_cur_block_);
+
+  // XXX(awong): set the delta key depending on whether the TxnMetadata in the
+  // DeltaFileReader has been committed or not. If not, use
+  // Timestamp::kMaxTimestamp. Is that right?
+  //
+  // Or, add a reference to the TxnMetadata to the DeltaKey.
+  // DeltaPreparer::AddDelta() should check the txn metadata.
 
   // Then materialize the delta.
   const auto& block_decoder = *loaded_blocks_[cur_block_idx_]->decoder_;

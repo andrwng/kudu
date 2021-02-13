@@ -51,8 +51,10 @@ Status RowSetMetadata::Load(TabletMetadata* tablet_metadata,
 
 Status RowSetMetadata::CreateNew(TabletMetadata* tablet_metadata,
                                  int64_t id,
-                                 unique_ptr<RowSetMetadata>* metadata) {
-  metadata->reset(new RowSetMetadata(tablet_metadata, id));
+                                 unique_ptr<RowSetMetadata>* metadata,
+                                 const TxnId& txn_id,
+                                 TxnMetadata* txn_metadata) {
+  metadata->reset(new RowSetMetadata(tablet_metadata, id, txn_id, txn_metadata));
   return Status::OK();
 }
 
@@ -116,6 +118,10 @@ void RowSetMetadata::LoadFromPB(const RowSetDataPB& pb) {
   // Load undo delta files.
   undo_delta_blocks_.clear();
   for (const DeltaDataPB& undo_delta_pb : pb.undo_deltas()) {
+    // XXX(awong): this should take txn id into account.
+    if (undo_delta_pb.has_txn_id()) {
+      txn_id_ = undo_delta_pb.txn_id();
+    }
     undo_delta_blocks_.push_back(BlockId::FromPB(undo_delta_pb.block()));
   }
 
@@ -127,6 +133,9 @@ void RowSetMetadata::LoadFromPB(const RowSetDataPB& pb) {
 
 void RowSetMetadata::ToProtobuf(RowSetDataPB *pb) {
   pb->set_id(id_);
+  if (txn_id_) {
+    pb->set_txn_id(*txn_id_);
+  }
 
   std::lock_guard<LockType> l(lock_);
 

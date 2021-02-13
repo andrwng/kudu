@@ -377,7 +377,8 @@ TEST_F(TestDeltaFile, TestLazyInit) {
   // Lazily opening the delta file should not trigger any reads.
   shared_ptr<DeltaFileReader> reader;
   ASSERT_OK(DeltaFileReader::OpenNoInit(
-      std::move(count_block), REDO, ReaderOptions(), /*delta_stats*/nullptr, &reader));
+      std::move(count_block), REDO, ReaderOptions(),
+      /*delta_stats*/nullptr, /*txn_metadata*/nullptr, &reader));
   ASSERT_EQ(0, bytes_read);
 
   // But initializing it should (only the first time).

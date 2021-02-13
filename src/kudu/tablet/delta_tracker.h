@@ -85,6 +85,7 @@ class DeltaTracker {
     NO_FLUSH_METADATA
   };
 
+  // XXX(awong): pass an unordered_map<int64_t, TxnMetadata>?
   static Status Open(const std::shared_ptr<RowSetMetadata>& rowset_metadata,
                      log::LogAnchorRegistry* log_anchor_registry,
                      const TabletMemTrackers& mem_trackers,
@@ -200,6 +201,7 @@ class DeltaTracker {
   // readers in 'stores'.
   Status OpenDeltaReaders(std::vector<DeltaBlockIdAndStats> blocks,
                           const fs::IOContext* io_context,
+                          TxnMetadata* txn_metadata,
                           std::vector<std::shared_ptr<DeltaStore>>* stores,
                           DeltaType type);
 

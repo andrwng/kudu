@@ -813,7 +813,8 @@ Status TabletMetadata::ToSuperBlockUnlocked(TabletSuperBlockPB* super_block,
   return Status::OK();
 }
 
-Status TabletMetadata::CreateRowSet(shared_ptr<RowSetMetadata>* rowset) {
+Status TabletMetadata::CreateRowSet(shared_ptr<RowSetMetadata>* rowset,
+                                    const TxnId& txn_id, const TxnMetadata* txn_metadata) {
   AtomicWord rowset_idx = Barrier_AtomicIncrement(&next_rowset_idx_, 1) - 1;
   unique_ptr<RowSetMetadata> scoped_rsm;
   RETURN_NOT_OK(RowSetMetadata::CreateNew(this, rowset_idx, &scoped_rsm));

@@ -39,6 +39,8 @@ class Schema;
 
 namespace tablet {
 
+class TxnMetadata;
+
 // A single mutation associated with a row.
 // This object also acts as a node in a linked list connected to other
 // mutations in the row.
@@ -59,6 +61,9 @@ class Mutation {
   }
 
   Timestamp timestamp() const { return timestamp_; }
+
+  // The transaction metadata that created this mutation.
+  const TxnMetadata* txn_metadata() const { return txn_metadata_; }
 
   Mutation *next() { return next_; }
   const Mutation *next() const { return next_; }
@@ -108,6 +113,8 @@ class Mutation {
   // Link to the next mutation on this row
   Mutation *next_;
 
+  const TxnMetadata* txn_metadata_;
+
   uint32_t changelist_size_;
 
   // The actual encoded RowChangeList
@@ -117,7 +124,7 @@ class Mutation {
 };
 
 template<class ArenaType>
-inline Mutation *Mutation::CreateInArena(
+inline Mutation* Mutation::CreateInArena(
   ArenaType *arena, Timestamp timestamp, const RowChangeList &rcl) {
   DCHECK(!rcl.is_null());
 

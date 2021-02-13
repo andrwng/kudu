@@ -663,7 +663,9 @@ class Tablet {
   // Performs a merge compaction or a flush.
   Status DoMergeCompactionOrFlush(const RowSetsInCompaction &input,
                                   int64_t mrs_being_flushed,
-                                  const TxnsBeingFlushed& txns_being_flushed);
+                                  const TxnsBeingFlushed& txns_being_flushed,
+                                  const TxnId& uncommitted_txn_id = TxnId::kInvalidTxnId,
+                                  const TxnMetadata* uncommitted_txn_metadata = nullptr);
 
   // Handle the case in which a compaction or flush yielded no output rows.
   // In this case, we just need to remove the rowsets in 'rowsets' from the

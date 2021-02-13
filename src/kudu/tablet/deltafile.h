@@ -151,6 +151,7 @@ class DeltaFileReader : public DeltaStore,
                            DeltaType delta_type,
                            cfile::ReaderOptions options,
                            std::unique_ptr<DeltaStats> delta_stats,
+                           TxnMetadata* txn_metadata,
                            std::shared_ptr<DeltaFileReader>* reader_out);
 
   Status Init(const fs::IOContext* io_context) override;
@@ -216,12 +217,15 @@ class DeltaFileReader : public DeltaStore,
 
   DeltaFileReader(std::unique_ptr<cfile::CFileReader> cf_reader,
                   std::unique_ptr<DeltaStats> delta_stats,
-                  DeltaType delta_type);
+                  DeltaType delta_type,
+                  TxnMetadata* txn_metadata);
 
   // Callback used in 'init_once_' to initialize this delta file.
   Status InitOnce(const fs::IOContext* io_context);
 
   Status ReadDeltaStats();
+
+  scoped_refptr<TxnMetadata> txn_metadata_;
 
   std::shared_ptr<cfile::CFileReader> reader_;
 
