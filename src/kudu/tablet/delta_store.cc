@@ -249,6 +249,7 @@ void DeltaPreparer<Traits>::Finish(size_t nrows) {
 template<class Traits>
 Status DeltaPreparer<Traits>::AddDelta(const DeltaKey& key, Slice val, bool* finished_row) {
   MaybeProcessPreviousRowChange(key.row_idx());
+  // XXX(awong): consider the key's timestamp here.
 
   VLOG(4) << "Considering delta " << key.ToString() << ": "
           << RowChangeList(val).ToString(*opts_.projection);
@@ -260,12 +261,18 @@ Status DeltaPreparer<Traits>::AddDelta(const DeltaKey& key, Slice val, bool* fin
 
   RowChangeListDecoder decoder((RowChangeList(val)));
 
+  const auto* txn_meta = key.txn_metadata();
   if (prepared_flags_ & DeltaIterator::PREPARE_FOR_SELECT) {
-    bool finished_row_for_select;
-    if (IsDeltaRelevantForSelect<Traits::kType>(*opts_.snap_to_exclude,
-                                                opts_.snap_to_include,
-                                                key.timestamp(),
-                                                &finished_row_for_select)) {
+    bool finished_row_for_select = false;
+    if ((txn_meta &&
+         IsDeltaRelevantForSelect<Traits::kType>(*opts_.snap_to_exclude,
+                                                 opts_.snap_to_include,
+                                                 *txn_meta)) ||
+        (!txn_meta &&
+         IsDeltaRelevantForSelect<Traits::kType>(*opts_.snap_to_exclude,
+                                                 opts_.snap_to_include,
+                                                 key.timestamp(),
+                                                 &finished_row_for_select))) {
       RETURN_NOT_OK(InitDecoderIfNecessary(&decoder));
 
       // The logical ordering of UNDOs is the opposite of their counting order.
@@ -297,8 +304,12 @@ Status DeltaPreparer<Traits>::AddDelta(const DeltaKey& key, Slice val, bool* fin
   bool finished_row_for_apply_or_collect = false;
   if (prepared_flags_ & (DeltaIterator::PREPARE_FOR_APPLY |
                          DeltaIterator::PREPARE_FOR_COLLECT)) {
-    relevant_for_apply_or_collect = IsDeltaRelevantForApply<Traits::kType>(
-        opts_.snap_to_include, key.timestamp(), &finished_row_for_apply_or_collect);
+    relevant_for_apply_or_collect =
+        (txn_meta &&
+         IsDeltaRelevantForApply<Traits::kType>(opts_.snap_to_include, *txn_meta)) ||
+        (!txn_meta &&
+         IsDeltaRelevantForApply<Traits::kType>(
+             opts_.snap_to_include, key.timestamp(), &finished_row_for_apply_or_collect));
   }
 
   if (prepared_flags_ & DeltaIterator::PREPARE_FOR_APPLY &&

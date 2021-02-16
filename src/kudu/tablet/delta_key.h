@@ -71,6 +71,11 @@ class DeltaKey {
     row_idx_(-1)
   {}
 
+  DeltaKey(TxnMetadata* txn_meta) :
+    row_idx_(-1),
+    txn_metadata_(DCHECK_NOTNULL(txn_meta))
+  {}
+
   DeltaKey(rowid_t id, Timestamp timestamp)
       : row_idx_(id), timestamp_(timestamp) {}
 
@@ -125,6 +130,8 @@ class DeltaKey {
   rowid_t row_idx() const { return row_idx_; }
 
   const Timestamp &timestamp() const { return timestamp_; }
+
+  const TxnMetadata* txn_metadata() const { return txn_metadata_; }
 
  private:
   // Out-of-line error construction used by DecodeFrom.

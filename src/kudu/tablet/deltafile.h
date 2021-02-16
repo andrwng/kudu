@@ -204,6 +204,10 @@ class DeltaFileReader : public DeltaStore,
                            const std::shared_ptr<MemTracker>& parent_mem_tracker,
                            std::shared_ptr<DeltaFileReader>* out) const;
 
+  TxnMetadata* txn_metadata() {
+    return txn_metadata_.get();
+  }
+
  private:
   template<DeltaType Type>
   friend class DeltaFileIterator;

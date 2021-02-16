@@ -321,9 +321,6 @@ bool DeltaFileReader::IsRelevantForSnapshots(
     }
     return relevant;
   }
-  // XXX(awong): if this is a transactional delta file reader, determine the
-  // delta relevancy based on the commit timestamp.
-
   // We don't know whether the caller's intent is to apply deltas, to select
   // them, or both. As such, we must be conservative and assume 'both', which
   // means the file is relevant if any relevancy criteria is true.
@@ -392,7 +389,6 @@ Status DeltaFileReader::NewDeltaIterator(const RowIteratorOptions& opts,
 
 Status DeltaFileReader::NewDeltaStoreIterator(const RowIteratorOptions& opts,
                                               unique_ptr<DeltaStoreIterator>* iterator) const {
-  // XXX(awong): this should account for whether the commit timestamp.
   if (IsRelevantForSnapshots(opts.snap_to_exclude, opts.snap_to_include)) {
     if (VLOG_IS_ON(2)) {
       if (!init_once_.init_succeeded()) {
@@ -651,7 +647,8 @@ Status DeltaFileStoreIterator::GetNextDelta(DeltaKey* key, Slice* slice) {
   // Then materialize the delta.
   const auto& block_decoder = *loaded_blocks_[cur_block_idx_]->decoder_;
   Slice delta_slice = block_decoder.string_at_index(idx_in_cur_block_);
-  DeltaKey delta_key;
+
+  DeltaKey delta_key(dfr_->txn_metadata());
   RETURN_NOT_OK(delta_key.DecodeFrom(&delta_slice));
   *key = delta_key;
   *slice = delta_slice;
