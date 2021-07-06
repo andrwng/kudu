@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// foo
+// bar
+
 #include "kudu/tablet/tablet.h"
 
 #include <algorithm>
